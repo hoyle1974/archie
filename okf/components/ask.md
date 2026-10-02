@@ -26,4 +26,4 @@ tags: [component]
     - Extracts action items (fast model, `notes_actions`) and keeps only those whose quotes verify against the note. The user's own items become `i_promised` loops and other people's become `waiting_on` loops, each citing the meeting file.
     - Writes the list into the meeting's Action items fence.
 
-Intents still to build: next, ledger, handover, notes, catchup, correct. Design: [DESIGN §8](../../docs/DESIGN.md#8-archie-ask). Principles: [one entry point](../principles/one-entry-point.md), [readable first](../principles/readable-first.md).
+Intents still to build: next, ledger, handover, catchup, correct. Design: [DESIGN §8](../../docs/DESIGN.md#8-archie-ask). Principles: [one entry point](../principles/one-entry-point.md), [readable first](../principles/readable-first.md).
