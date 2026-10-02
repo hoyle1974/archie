@@ -117,3 +117,28 @@ def test_linked_doc_is_in_the_packet(tmp_path):
     ctx.index.sync()
     build_briefing(ctx, m)
     assert "Attached Doc: Auth_Migration_Draft" in seen["user"] and "Move session tokens to Redis." in seen["user"]
+
+
+def test_standup_has_code_computed_yesterday_today_blockers(tmp_path):
+    from tests.unit.test_activity import seed as seed_activity
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(answer={"summary": [], "sections": []})),
+                   now=datetime(2026, 10, 1, 16, 45, tzinfo=timezone.utc))  # Thu 9:45 AM PDT
+    seed_activity(ctx)
+    from archie.store.files import write_raw as wr
+    wr(ctx.home / "sources/jira/ENG-500.json", {
+        "key": "ENG-500", "summary": "Rotate signing keys", "type": "Task", "status": "In Progress",
+        "status_category": "indeterminate", "assignee": {"id": "acc-test", "name": "Test", "email": ""},
+        "reporter": {"id": "p", "name": "P", "email": ""}, "assignee_me": True, "priority": "", "due": None,
+        "created": "2026-09-25T00:00:00+00:00", "updated": "2026-09-30T00:00:00+00:00", "description": "",
+        "comments": [], "transitions": [], "url": "u"})
+    ev = cal_event("su", "Daily Standup", "2026-10-01T17:00:00Z", "2026-10-01T17:15:00Z",
+                   attendees=[("test@acme.example", "Test"), ("alex@acme.example", "Alex")], recurring="su")
+    p = ctx.home / "sources/calendar/su.json"
+    write_raw(p, normalize_event(ev, TEST))
+    derive_meetings(ctx, [p])
+    ctx.index.sync()
+    from archie.ask.render import render as r
+    out = r(build_briefing(ctx, pick_meeting(ctx, None)).answer)
+    assert "Yesterday" in out and "Lower token TTL to 15m" in out and "Approved PR #412 Fix redis pool" in out
+    assert "Today" in out and "ENG-500 Rotate signing keys (In Progress)" in out

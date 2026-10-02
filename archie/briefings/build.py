@@ -163,6 +163,34 @@ def _open_items(ctx: Ctx, m: Meeting) -> list:
     return [_claim(ctx, r, _line(r)) for r in ranked[:6]]
 
 
+def _standup_sections(ctx: Ctx) -> list[Section]:
+    """Yesterday / Today / Blockers from structured data (no LLM)."""
+    from archie.activity import my_activity
+    from archie.ask.intents.ledger import _claim as item_claim
+    from archie.ask.intents.loops import _claim, _line
+    from archie.store.files import read_raw
+
+    local = ctx.now.astimezone()
+    back = 3 if local.weekday() == 0 else 1  # Monday looks back to Friday
+    start = datetime.combine(local.date() - timedelta(days=back), datetime.min.time(), local.tzinfo)
+    done = [i for i in my_activity(ctx, start, ctx.now) if i.kind not in ("email_sent", "meeting")]
+    sections = [Section("Yesterday", items=[item_claim(ctx, i) for i in done] or [],
+                        lines=[] if done else ["Nothing recorded in GitHub, Jira or Docs."])]
+    today = []
+    for p in sorted((ctx.home / "sources/jira").glob("*.json")):
+        d = read_raw(p)
+        if d.get("assignee_me") and d.get("status_category") == "indeterminate" and not d.get("deleted"):
+            today.append(f"{d['key']} {d['summary']} ({d['status']})")
+    ranked = [r for r in rank(load_loops(ctx.home), ctx.now, ctx.config) if not r.stale]
+    due = [r for r in ranked if r.loop.meta.get("due") and r.loop.meta["due"] <= (local.date() + timedelta(days=1)).isoformat()]
+    sections.append(Section("Today", lines=today, items=[_claim(ctx, r, _line(r)) for r in due[:5]]))
+    fresh = [r for r in ranked if r.loop.meta["kind"] == "asked_of_me"
+             and (ctx.now - datetime.fromisoformat(r.loop.meta["created_at"])) <= timedelta(hours=24)]
+    if fresh:
+        sections.append(Section("Blockers / new asks", items=[_claim(ctx, r, _line(r)) for r in fresh[:5]]))
+    return sections
+
+
 def _path(m: Meeting) -> str:
     s = _start(m).astimezone()
     return f"briefings/{s:%Y-%m-%d}/{s:%H%M}-{slug(m.meta.get('title') or 'meeting')[:40].replace('_', '-')}.md"
@@ -189,6 +217,8 @@ def build_briefing(ctx: Ctx, m: Meeting, force: bool = False) -> Briefing:
                         extra_context=f"Meeting: {header(m)}. Type: {kind.replace('_', ' ')}. "
                                       f"Attendees: {', '.join(m.meta.get('attendee_names') or [])}. {extra}")
     answer.title = header(m)
+    if kind == "standup":
+        answer.sections[0:0] = _standup_sections(ctx)
     answer.sections.insert(0, Section("People", lines=people))
     if open_items:
         answer.sections.insert(1, Section("Open with these people", items=open_items))

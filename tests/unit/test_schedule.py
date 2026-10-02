@@ -44,3 +44,15 @@ def test_feed_shows_next_briefing_and_top_loops(tmp_path):
 def test_feed_without_meetings(tmp_path):
     ctx = make_ctx(tmp_path, now=MORNING)
     assert "No more meetings today" in build_feed(ctx)
+
+
+def test_friday_afternoon_tick_writes_weekly_journal(tmp_path):
+    ctx = make_ctx(tmp_path, now=datetime(2026, 10, 2, 22, 30, tzinfo=timezone.utc))  # Fri 3:30 PM PDT
+    tick(ctx, notify=lambda t, m: None)
+    assert (ctx.home / "journal/weekly/2026-W40.md").exists()
+
+
+def test_thursday_tick_writes_no_journal(tmp_path):
+    ctx = make_ctx(tmp_path, now=datetime(2026, 10, 1, 22, 30, tzinfo=timezone.utc))
+    tick(ctx, notify=lambda t, m: None)
+    assert not (ctx.home / "journal/weekly").exists() or not list((ctx.home / "journal/weekly").iterdir())

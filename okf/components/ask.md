@@ -30,4 +30,10 @@ tags: [component]
 
   - `correct`: the fast model classifies the correction, and code applies it to files the user can see. A meeting type writes an override to `config/meeting_types.yaml` (by series id, or by exact title if there is no series) and re-types existing meeting notes. "X is Y" adds an alias to Y; if X is a separate dossier, it is merged into Y because the user said so, and marked `status: merged`. A role sets `role` on the dossier.
 
-Intents still to build: ledger, handover, catchup. Design: [DESIGN §8](../../docs/DESIGN.md#8-archie-ask). Principles: [one entry point](../principles/one-entry-point.md), [readable first](../principles/readable-first.md).
+  - `ledger`: the window comes from the router's since/until and defaults to this week (Monday until now).
+    - The summary line counts each kind of activity.
+    - Up to 31 days, items are listed by kind. Longer windows group them by project (repo, Jira project or docs).
+    - Every item cites its source chunk, and no LLM is involved.
+    - `write_week_journal` writes `journal/weekly/<YYYY>-W<ww>.md` with the ledger inside the fence. The tick runs it on Fridays from 3 PM.
+
+Intents still to build: handover, catchup. Design: [DESIGN §8](../../docs/DESIGN.md#8-archie-ask). Principles: [one entry point](../principles/one-entry-point.md), [readable first](../principles/readable-first.md).

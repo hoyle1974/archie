@@ -11,6 +11,7 @@ Data flows top to bottom:
 - [derivers](derivers.md): `sources/` to people, meetings, loops and projects
 - [index-search](index-search.md): chunking, embeddings, FTS5 and vectors, hybrid search
 - [llm](llm.md): one backend interface plus the citation verifier
+- [activity](activity.md): what the user did in a window, computed by code
 - [loops](loops.md): open-loop detection, closure and ranking
 - [briefings](briefings.md): meeting type, templates and timing
 - [ask](ask.md): router, intents and rendering, the one user entry point

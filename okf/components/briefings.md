@@ -11,11 +11,13 @@ Types: one_on_one, standup, all_hands, standard. Includes conflict callouts. Use
 
 Built so far: `classify.py`, which picks the meeting type in code. Checked in order:
 1. The user's overrides in `config/meeting_types.yaml`, by `series` id or exact `titles`.
-2. Two people plus a recurring series means `one_on_one`.
-3. At least `all_hands_min_attendees` (25) means `all_hands`.
-4. A title containing standup, daily or scrum means `standup`.
-5. A title containing all-hands, town hall or QBR means `all_hands`.
+2. A title containing standup, daily or scrum means `standup`.
+3. A title containing all-hands, town hall or QBR means `all_hands`.
+4. Two people plus a recurring series means `one_on_one`.
+5. At least `all_hands_min_attendees` (25) means `all_hands`.
 6. Otherwise `standard`.
+
+Keywords come before structure, so a 2-person "Daily Standup" is still a standup.
 
 - `build.py`:
   - `upcoming(ctx)` lists scheduled meetings that haven't ended, from now to 36 hours ahead.
@@ -30,3 +32,4 @@ Built so far: `classify.py`, which picks the meeting type in code. Checked in or
   - At T-`lead_minutes` (15) it rebuilds a briefing if its inputs changed and sends one macOS notification (`osascript`), recording `notified: true`.
 - The `brief` intent (`archie/ask/intents/brief.py`) answers "prep me for my 2pm".
 - The TUI Feed (`archie/tui/feed.py`) shows the next briefing, the meetings later today, and the top 3 open items.
+- Standup briefings get code-computed sections. Yesterday is `my_activity` since the last working day (Monday looks back to Friday). Today is the user's In Progress Jira issues plus loops due by tomorrow. "Blockers / new asks" is `asked_of_me` loops from the last 24 hours.

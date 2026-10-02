@@ -361,10 +361,11 @@ where it does.
 
 1. A user override in `config/meeting_types.yaml`, by `series_id` or exact title.
    Correcting one occurrence through `ask` writes an override for the whole series.
-2. Structure: 2 attendees (the user plus one) and recurring means `one_on_one`. 25 or
+2. Title keywords: standup, daily or scrum means `standup`. All-hands, town hall or QBR
+   means `all_hands`. Keywords come before structure, so a 2-person "Daily Standup" is
+   still a standup.
+3. Structure: 2 attendees (the user plus one) and recurring means `one_on_one`. 25 or
    more attendees means `all_hands`.
-3. Title keywords: standup, daily or scrum means `standup`. All-hands, town hall or QBR
-   means `all_hands`.
 4. Otherwise `standard`.
 
 ### 7.2 Templates
