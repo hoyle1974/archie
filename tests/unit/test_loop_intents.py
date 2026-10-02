@@ -40,7 +40,7 @@ def test_loops_listing_needs_no_synthesis_and_leads_with_most_urgent(tmp_path):
     assert first.startswith("You have 1 open item. Most urgent: Review the Redis fallback patch, for Sarah Jones")
     assert "Sarah Jones" in out and "due in 1 day" in out
     assert "[1]" in out
-    assert [c["schema"]["title"] for c in fb.calls] == ["route"]
+    assert fb.calls == []  # quick-routed, and listing needs no model
 
 
 def test_general_question_lists_everything(tmp_path):

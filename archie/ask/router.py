@@ -5,6 +5,8 @@ The router selects a plan; it states no facts, so its output needs no citations.
 
 from __future__ import annotations
 
+import re
+
 from archie.ask.context import Ctx
 from archie.llm.prompts import load_prompt
 
@@ -43,7 +45,24 @@ SCHEMA = {
 }
 
 
+QUICK = [
+    (r"^(help|what can you do\??|how do i use (you|archie)\??)$", "help"),
+    (r"^what (should|do) i (work on|do) (next|now)\??$|^what('s| is) next\??$", "next"),
+    (r"^what (do i owe( people| anyone)?|am i waiting on|('s| is) open|are my open items)\??$", "loops"),
+]
+
+
+def quick_route(question: str) -> str | None:
+    """Unambiguous questions with no parameters skip the model call (saves seconds)."""
+    q = re.sub(r"\s+", " ", question.strip().lower())
+    return next((intent for rx, intent in QUICK if re.match(rx, q)), None)
+
+
 def route(ctx: Ctx, question: str) -> tuple[str, dict]:
+    empty = {"people": [], "since": None, "until": None, "topic": None, "meeting": None, "text": None}
+    quick = quick_route(question)
+    if quick:
+        return quick, empty
     local = ctx.now.astimezone()
     system = load_prompt("route", me_name=ctx.me.name or "the user", now=local.isoformat(timespec="minutes"),
                          weekday=local.strftime("%A"),

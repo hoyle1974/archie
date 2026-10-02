@@ -33,7 +33,7 @@ def test_next_uses_free_time_and_ranked_loops_without_llm(tmp_path):
     assert out.index("Review Alex's") < out.index("Send Ken")
     assert "you're meeting them soon" in out
     assert "Nudge" in out and "SSO launch date" in out
-    assert len(fb.calls) == 1
+    assert fb.calls == []  # quick-routed, and ranking is code
 
 
 def test_clear_calendar_and_nothing_open(tmp_path):

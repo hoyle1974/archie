@@ -8,7 +8,7 @@ tags: [component]
 ---
 
 - `pipeline.py`: `ask(ctx, question) -> Answer` calls `route`, then the intent's handler. An unknown intent falls back to `search`.
-- `router.py`: classifies the question with the `fast` model into an intent with parameters (people, since/until, topic, meeting, text). It states no facts, so it needs no citations. The intent list lives in `INTENT_HELP`.
+- `router.py`: `quick_route` handles unambiguous, parameter-free questions in code ("what's next?", "what do I owe people?", "help") and skips the model call. Everything else is classified with the `fast` model into an intent with parameters (people, since/until, topic, meeting, text). It states no facts, so it needs no citations. The intent list lives in `INTENT_HELP`.
 - `synthesize.py`: sends the packet to the `strong` model, which returns `{summary, sections}` made of claims, and runs every claim through the [verifier](llm.md).
 - `answer.py`: `Answer` holds the summary claims, sections (cited items plus lines computed by code), the packet, the count of dropped claims, plain text, notes, and a `nothing_found` flag.
 - `render.py`: puts the summary first and numbers `[n]` markers in the order they appear. The source list is shown only with `--sources`. It says plainly when nothing was found or nothing could be verified.

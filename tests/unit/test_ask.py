@@ -58,7 +58,7 @@ def test_help_needs_no_llm(tmp_path):
     ctx = make_ctx(tmp_path, fb)
     out = render(ask(ctx, "what can you do?"))
     assert "archie ask" in out
-    assert len(fb.calls) == 1
+    assert len(fb.calls) == 0  # quick-routed
 
 
 def test_render_leads_with_summary_and_hides_sources_by_default(tmp_path):
@@ -73,3 +73,18 @@ def test_render_leads_with_summary_and_hides_sources_by_default(tmp_path):
     assert "people/priya_sharma.md" not in out
     assert "Details" in out
     assert "people/priya_sharma.md" in render(ans, sources=True)
+
+
+def test_obvious_questions_skip_the_routing_call(tmp_path):
+    from archie.ask.router import quick_route
+
+    assert quick_route("what should I work on next?") == "next"
+    assert quick_route("What do I owe people?") == "loops"
+    assert quick_route("what am I waiting on") == "loops"
+    assert quick_route("help") == "help"
+    assert quick_route("what do I owe Sarah?") is None  # names need the router's parameters
+    assert quick_route("who is Priya?") is None
+    fb = FakeBackend([])
+    ctx = make_ctx(tmp_path, fb)
+    assert "archie ask" in render(ask(ctx, "what can you do?"))
+    assert fb.calls == []
