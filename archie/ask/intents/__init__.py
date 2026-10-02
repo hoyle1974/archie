@@ -20,4 +20,4 @@ def intent(name: str):
 
 
 def load_all() -> None:
-    from archie.ask.intents import brief, help, loops, search, who  # noqa: F401  (registration side effects)
+    from archie.ask.intents import brief, help, loops, notes, search, who  # noqa: F401  (registration side effects)
