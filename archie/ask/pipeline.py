@@ -1,7 +1,8 @@
 """ask(): the single entry point behind `archie ask` and the TUI's Ask pane.
 
 Every question is appended to logs/usage.jsonl (local only, gitignored): what was asked,
-how it was routed, how long it took, and whether anything was found. It's the record the
+how it was routed, how long it took, whether anything was found, and the answer shown
+(with source paths), so answers can be triaged later. It's the record the
 next round of improvements should come from."""
 
 from __future__ import annotations
@@ -36,8 +37,11 @@ def ask(ctx: Ctx, question: str) -> Answer:
         entry["intent"] = intent if intent in HANDLERS else f"{intent}->search"
         handler = HANDLERS.get(intent) or HANDLERS["search"]
         answer = handler(ctx, question, params)
+        from archie.ask.render import render
+
         entry.update(nothing_found=answer.nothing_found, dropped=answer.dropped,
-                     claims=len(answer.summary) + sum(len(s.items) for s in answer.sections))
+                     claims=len(answer.summary) + sum(len(s.items) for s in answer.sections),
+                     answer=render(answer, sources=True, paths=True)[:6000])
         return answer
     except Exception as exc:
         entry["error"] = str(exc)[:200]

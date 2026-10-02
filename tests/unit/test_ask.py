@@ -103,3 +103,4 @@ def test_each_question_is_logged_locally(tmp_path):
     assert [x["intent"] for x in lines] == ["search", "help"]
     assert lines[0]["nothing_found"] is True and lines[1]["quick"] is True
     assert all("ms" in x and x["question"] for x in lines)
+    assert "couldn't find" in lines[0]["answer"] and "archie ask" in lines[1]["answer"]
