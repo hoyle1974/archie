@@ -13,7 +13,7 @@ tags: [component]
   3. `loop_stale`: "Do you still need to …?" for a loop more than a week past due. Yes keeps it and clears the due date; no closes it.
   4. `who_is`: "Who is x@y?" for someone you correspond with who is known only by an address. The user answers through `remember`, and the question resolves itself once a name, relationship or role exists.
 
-  Open questions answered some other way, such as a loop closed by hand, resolve themselves.
+  Questions answered some other way, such as a loop closed by hand, resolve themselves right away: `resolve_answered` runs after every answer and before Today is drawn, with no model call.
 - `find_duplicates` (`dedupe.py`) is called by the audit.
   - The same full name (two or more words) under different addresses is merged automatically, and a "notice" shows in Today for 24 hours.
   - Weaker evidence becomes a `same_person` question: names where one contains the other (same first and last name), a shared multi-word alias, or the same email username at different domains.

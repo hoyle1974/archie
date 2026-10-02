@@ -74,7 +74,11 @@ class ClaudeCodeBackend:
         except json.JSONDecodeError as exc:
             raise LLMError(f"`claude` returned non-JSON output: {out[:200]!r}") from exc
         if reply.get("is_error"):
-            raise LLMError(f"`claude` reported an error: {reply.get('result') or reply.get('subtype')}")
+            detail = str(reply.get("result") or reply.get("subtype"))
+            if "limit" in detail.lower():
+                raise LLMError(f"your Claude plan's usage limit is reached ({detail.split('·')[-1].strip()}). "
+                               "Archie can still list items and plans without it, but can't write answers until then")
+            raise LLMError(f"`claude` reported an error: {detail}")
         result = reply.get("structured_output")
         if not isinstance(result, dict):
             raise LLMError("`claude` returned no structured output")

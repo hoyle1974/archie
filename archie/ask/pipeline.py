@@ -54,6 +54,9 @@ def ask(ctx: Ctx, question: str) -> Answer:
             empty = {"people": [], "since": None, "until": None, "topic": None, "meeting": None, "text": None}
             more = [HANDLERS[i](ctx, text, dict(empty)) for i, text in extra if i in HANDLERS]
             answer = combine(answer, more)
+        from archie.derive.audit import resolve_answered
+
+        resolve_answered(ctx)  # e.g. closing an item clears "still needed?" about it
         from archie.ask.render import render
 
         entry.update(nothing_found=answer.nothing_found, dropped=answer.dropped,

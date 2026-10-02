@@ -69,3 +69,19 @@ def test_never_more_than_max_open(tmp_path):
         loop(ctx, f"s{i}", due="2026-09-10")
     audit(ctx)
     assert len(open_questions(ctx.home)) == MAX_OPEN
+
+
+def test_closing_an_item_clears_its_question_right_away(tmp_path):
+    from archie.derive.audit import resolve_answered
+    from archie.tui.feed import build_feed
+
+    ctx = make_ctx(tmp_path)
+    loop(ctx, "l2", due="2026-09-10")
+    audit(ctx)
+    assert "Do you still need to" in build_feed(ctx)
+    lp = load_loops(ctx.home)[0]
+    lp.meta["status"] = "done"
+    save_loop(ctx.home, lp)
+    assert "Do you still need to" not in build_feed(ctx)  # the feed re-checks before showing
+    resolve_answered(ctx)
+    assert open_questions(ctx.home) == []

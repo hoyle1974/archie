@@ -72,12 +72,23 @@ def _still_relevant(ctx: Ctx, q: dict) -> bool:
     return True
 
 
-def audit(ctx: Ctx) -> None:
-    find_duplicates(ctx)
+def resolve_answered(ctx: Ctx) -> list[dict]:
+    """Mark questions answered some other way (item closed by hand, person described) as
+    resolved. Cheap and model-free: runs after every answer and before Today is drawn."""
     qs = load_questions(ctx.home)
-    for q in qs:  # questions answered some other way clear themselves
+    changed = False
+    for q in qs:
         if q["status"] == "open" and q["kind"] in ("loop_done", "loop_stale", "who_is") and not _still_relevant(ctx, q):
             q["status"] = "resolved"
+            changed = True
+    if changed:
+        save_questions(ctx.home, qs)
+    return qs
+
+
+def audit(ctx: Ctx) -> None:
+    find_duplicates(ctx)
+    qs = resolve_answered(ctx)
     known = {q["id"] for q in qs}
     new = [c for c in _candidates(ctx) if c["id"] not in known]
     open_now = [q for q in qs if q["status"] == "open" and q["kind"] != "notice"]

@@ -44,3 +44,10 @@ def test_claude_code_error_is_raised():
 def test_make_backend_from_config():
     assert isinstance(make_backend({"llm": {"backend": "claude-code", "models": {"fast": "haiku", "strong": "sonnet"}}}),
                       ClaudeCodeBackend)
+
+
+def test_usage_limit_error_is_explained():
+    b = ClaudeCodeBackend({"fast": "haiku"}, runner=lambda *a: json.dumps(
+        {"is_error": True, "result": "You've hit your session limit · resets 10:30am (America/Los_Angeles)"}))
+    with pytest.raises(LLMError, match="usage limit is reached \\(resets 10:30am"):
+        b.complete("s", "u", SCHEMA)

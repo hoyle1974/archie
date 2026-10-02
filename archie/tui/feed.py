@@ -24,8 +24,10 @@ def build_feed(ctx: Ctx) -> str:
         parts.append("No more meetings today.")
     from datetime import timedelta
 
+    from archie.derive.audit import resolve_answered
     from archie.derive.dedupe import open_questions
 
+    resolve_answered(ctx)
     day_ago = (ctx.now - timedelta(hours=24)).isoformat()
     notices = [q for q in open_questions(ctx.home, include_notices=True)
                if q.get("kind") == "notice" and q.get("asked_at", "") >= day_ago]
