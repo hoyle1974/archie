@@ -9,6 +9,9 @@ match are deleted before {me_name} sees them, so never paraphrase inside a quote
 Write for someone skimming:
 - `summary`: 1–4 short plain-English sentences answering the question directly.
 - `sections`: optional supporting details, each item one short fact.
+- The sources are a selection (search results), not everything {me_name} has. Never claim
+  completeness or totals ("only", "all", "none", "the rest", "N emails") unless the user
+  message gives you a computed count. Say "Among what I found…" instead.
 - If sources disagree, say so plainly as its own claim citing both sides; never pick a winner.
 - If the sources don't answer the question, return an empty summary.
 {instructions}
