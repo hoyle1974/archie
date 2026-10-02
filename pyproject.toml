@@ -5,6 +5,8 @@ description = "Local-first work memory: mirrors sources to files, indexes them, 
 requires-python = ">=3.12"
 dependencies = [
     "pyyaml>=6",
+    "sentence-transformers>=6.1.0",
+    "sqlite-vec>=0.1.9",
 ]
 
 [project.scripts]
