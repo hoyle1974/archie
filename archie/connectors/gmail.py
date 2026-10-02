@@ -14,6 +14,7 @@ from email.utils import getaddresses, parsedate_to_datetime
 from html import unescape
 
 from archie.connectors.base import SyncCtx, SyncResult
+from archie.connectors.google_retry import execute
 from archie.index.chunk import Chunk, register_raw_chunker, short_date
 from archie.store.files import write_raw
 
@@ -95,7 +96,7 @@ class GmailConnector:
         q = f"after:{int(since.timestamp())} {exclude}".strip()
         req, ids = svc.users().messages().list(userId="me", q=q, maxResults=500), set()
         while req is not None:
-            resp = req.execute()
+            resp = execute(req)
             ids |= {m["threadId"] for m in resp.get("messages", [])}
             req = svc.users().messages().list_next(req, resp)
         return ids
@@ -104,7 +105,7 @@ class GmailConnector:
         req, ids = svc.users().history().list(userId="me", startHistoryId=history_id), set()
         try:
             while req is not None:
-                resp = req.execute()
+                resp = execute(req)
                 for h in resp.get("history", []):
                     for key in ("messages", "messagesAdded", "messagesDeleted", "labelsAdded", "labelsRemoved"):
                         for item in h.get(key, []):
@@ -121,7 +122,7 @@ class GmailConnector:
     def _sync(self, sctx: SyncCtx, cursor: dict) -> SyncResult:
         svc = self._service()
         exclude = sctx.config.get("exclude", DEFAULT_EXCLUDE)
-        start_history = svc.users().getProfile(userId="me").execute()["historyId"]
+        start_history = execute(svc.users().getProfile(userId="me"))["historyId"]
         if cursor.get("history_id"):
             threads = self._changed_since(svc, cursor["history_id"])
             if threads is None:
@@ -132,7 +133,7 @@ class GmailConnector:
         written = []
         for tid in sorted(threads):
             try:
-                raw = svc.users().threads().get(userId="me", id=tid, format="full").execute()
+                raw = execute(svc.users().threads().get(userId="me", id=tid, format="full"))
             except Exception as exc:
                 if getattr(getattr(exc, "resp", None), "status", None) == 404:
                     continue  # thread deleted; leave any existing mirror for now

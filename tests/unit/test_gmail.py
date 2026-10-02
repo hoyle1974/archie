@@ -89,3 +89,31 @@ def test_enabled_connectors_reads_config():
 
     assert enabled_connectors({"connectors": {}}) == []
     assert [c.name for c in enabled_connectors({"connectors": {"gmail": {"enabled": True}}})] == ["gmail"]
+
+
+def test_rate_limits_are_retried_with_backoff(tmp_path):
+    from archie.connectors import google_retry
+    from tests.support.fake_google import Flaky
+
+    sleeps = []
+    google_retry.SLEEP = sleeps.append
+    try:
+        assert google_retry.execute(Flaky(type("R", (), {"execute": lambda self: {"ok": 1}})(), fails=2)) == {"ok": 1}
+        assert google_retry.execute(Flaky(type("R", (), {"execute": lambda self: {"ok": 2}})(), 1, 429)) == {"ok": 2}
+    finally:
+        google_retry.SLEEP = __import__("time").sleep
+    assert sleeps == [2, 4, 2]
+
+
+def test_rate_limit_gives_up_eventually():
+    import pytest
+
+    from archie.connectors import google_retry
+    from tests.support.fake_google import Flaky, HttpErrorRate
+
+    google_retry.SLEEP = lambda s: None
+    try:
+        with pytest.raises(HttpErrorRate):
+            google_retry.execute(Flaky(None, fails=99))
+    finally:
+        google_retry.SLEEP = __import__("time").sleep

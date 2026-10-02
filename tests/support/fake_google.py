@@ -107,3 +107,27 @@ class _Users:
                 return None
 
         return H()
+
+
+class HttpErrorRate(Exception):
+    """Looks like googleapiclient's HttpError for a per-user rate limit."""
+
+    def __init__(self, status=403):
+        self.resp = type("R", (), {"status": status})()
+        self.error_details = [{"reason": "rateLimitExceeded"}]
+
+    def __str__(self):
+        return "Quota exceeded for quota metric 'Total Query Cost'"
+
+
+class Flaky:
+    """Wraps a request: raises a rate-limit error `fails` times, then succeeds."""
+
+    def __init__(self, req, fails, status=403):
+        self.req, self.fails, self.status = req, fails, status
+
+    def execute(self):
+        if self.fails > 0:
+            self.fails -= 1
+            raise HttpErrorRate(self.status)
+        return self.req.execute()

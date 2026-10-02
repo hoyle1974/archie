@@ -40,7 +40,7 @@ async def _one(conn: Connector, sctx: SyncCtx, cursor) -> tuple[ConnectorReport,
     try:
         result = await conn.sync(sctx, cursor)
     except Exception as exc:  # isolate every connector
-        return ConnectorReport(ok=False, error=str(exc) or type(exc).__name__), None
+        return ConnectorReport(ok=False, error=(str(exc) or type(exc).__name__)[:300]), None
     return ConnectorReport(ok=True, written=len(result.written), paths=result.written + result.deleted), result
 
 
