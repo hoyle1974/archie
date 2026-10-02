@@ -41,10 +41,30 @@ SCHEMA = {
             "required": ["people", "since", "until", "topic", "meeting", "text"],
             "additionalProperties": False,
         },
+        "also": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"intent": {"type": "string", "enum": list(INTENT_HELP)}, "text": {"type": "string"}},
+            "required": ["intent", "text"], "additionalProperties": False}},
     },
-    "required": ["intent", "params"],
+    "required": ["intent", "params", "also"],
     "additionalProperties": False,
 }
+
+ACTIONS = ("loop_update", "remember", "correct", "notes", "clarify")
+
+
+def split_parts(question: str, also: list[dict], main: str) -> list[tuple[str, str]]:
+    """Extra parts of a mixed message: (intent, its words). Only actions, each intent once;
+    if the model's words aren't really in the message, the part gets the whole message."""
+    out, seen = [], {main}
+    for part in also or []:
+        intent, text = part.get("intent"), (part.get("text") or "").strip()
+        if intent not in ACTIONS or intent in seen:
+            continue
+        seen.add(intent)
+        squash = lambda x: re.sub(r"\s+", " ", x).strip()  # noqa: E731  (models collapse double spaces)
+        out.append((intent, text if text and squash(text) in squash(question) else question))
+    return out
 
 
 QUICK = [
@@ -61,16 +81,22 @@ def quick_route(question: str) -> str | None:
 
 
 def route(ctx: Ctx, question: str) -> tuple[str, dict]:
+    intent, params, _ = route_all(ctx, question)
+    return intent, params
+
+
+def route_all(ctx: Ctx, question: str) -> tuple[str, dict, list[tuple[str, str]]]:
+    """The main intent and its parameters, plus any extra parts of a mixed message."""
     empty = {"people": [], "since": None, "until": None, "topic": None, "meeting": None, "text": None}
     quick = quick_route(question)
     if quick:
-        return quick, empty
+        return quick, empty, []
     from archie.ask.intents.clarify import looks_like_answer
     from archie.derive.dedupe import open_questions
 
     if any(q["kind"] in ("same_person", "loop_done", "loop_stale") for q in open_questions(ctx.home)) \
             and looks_like_answer(question):
-        return "clarify", empty
+        return "clarify", empty, []
     local = ctx.now.astimezone()
     system = load_prompt("route", me_name=ctx.me.name or "the user", now=local.isoformat(timespec="minutes"),
                          weekday=local.strftime("%A"),
@@ -78,4 +104,5 @@ def route(ctx: Ctx, question: str) -> tuple[str, dict]:
     out = ctx.backend.complete(system, question, SCHEMA, tier="fast")
     params = {"people": [], "since": None, "until": None, "topic": None, "meeting": None, "text": None}
     params.update(out.get("params") or {})
-    return out.get("intent", "search"), params
+    intent = out.get("intent", "search")
+    return intent, params, split_parts(question, out.get("also") or [], intent)

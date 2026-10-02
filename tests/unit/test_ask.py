@@ -104,3 +104,41 @@ def test_each_question_is_logged_locally(tmp_path):
     assert lines[0]["nothing_found"] is True and lines[1]["quick"] is True
     assert all("ms" in x and x["question"] for x in lines)
     assert "couldn't find" in lines[0]["answer"] and "archie ask" in lines[1]["answer"]
+
+
+def test_mixed_message_runs_every_part(tmp_path):
+    from archie.ask.answer import Answer
+    from archie.ask.intents import HANDLERS, load_all
+
+    load_all()
+    calls = []
+    monkey_loop = lambda ctx, q, p: (calls.append(("loop_update", q)), Answer(plain="Marked done: pizzas"))[1]  # noqa
+    monkey_rem = lambda ctx, q, p: (calls.append(("remember", q)), Answer(plain="Got it. I'll remember: X"))[1]  # noqa
+    saved = dict(HANDLERS)
+    HANDLERS.update(loop_update=monkey_loop, remember=monkey_rem)
+    try:
+        said = "I picked up the pizza. Sam is my neighbor."
+        r = route("remember")
+        r["also"] = [{"intent": "loop_update", "text": "I picked up the pizza."}]
+        ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=r)))
+        out = render(ask(ctx, said))
+    finally:
+        HANDLERS.clear()
+        HANDLERS.update(saved)
+    assert calls == [("remember", said), ("loop_update", "I picked up the pizza.")]
+    assert "Got it. I'll remember: X" in out and "Marked done: pizzas" in out
+
+
+def test_also_part_whose_words_are_not_in_the_message_gets_the_whole_message(tmp_path):
+    from archie.ask.router import split_parts
+
+    assert split_parts("A. B.", [{"intent": "loop_update", "text": "invented"}], "remember") == \
+        [("loop_update", "A. B.")]
+    assert split_parts("A. B.", [{"intent": "remember", "text": "B."}], "remember") == []  # same intent: no repeat
+
+
+def test_part_words_match_despite_collapsed_spaces():
+    from archie.ask.router import split_parts
+
+    assert split_parts("I left.  Sam is my neighbor.", [{"intent": "remember", "text": "Sam is my neighbor."}],
+                       "loop_update") == [("remember", "Sam is my neighbor.")]

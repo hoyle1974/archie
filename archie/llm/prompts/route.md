@@ -14,4 +14,14 @@ Extract parameters only from the question:
 - meeting: words identifying a meeting ("2pm", "design review"), else null
 - text: for `notes`, the pasted note text verbatim; else null
 
+A message can hold several separate things. Check it sentence by sentence:
+- sentences saying an open item is done, not needed, or should be snoozed → loop_update
+- sentences describing a person (who they are, relationship, role, pronouns) → remember
+- sentences correcting a meeting type or merging two names → correct
+If more than one of these appears, put the first kind in `intent`/`params` and each other
+kind in `also`, with `text` = the exact sentences of that part copied from the message.
+Example: "I don't need to call Ken. I picked up the pizza. Sam is my neighbor." →
+intent loop_update; also [{intent: remember, text: "Sam is my neighbor."}].
+Leave `also` empty for a single request.
+
 Never answer the question. Only route it.
