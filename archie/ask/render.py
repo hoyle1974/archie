@@ -32,9 +32,9 @@ def render(answer: Answer, sources: bool = False) -> str:
     if answer.nothing_found:
         return NOTHING
     if not answer.summary and not answer.sections:
-        return UNVERIFIED
+        return f"{answer.title}\n{UNVERIFIED}" if answer.title else UNVERIFIED
     num = _Numberer()
-    out = []
+    out = [answer.title] if answer.title else []
     if answer.summary:
         out.append(" ".join(f"{c.text} {num.mark(c)}".strip() for c in answer.summary))
     for sec in answer.sections:

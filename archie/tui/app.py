@@ -23,6 +23,12 @@ def default_feed(ctx: Ctx) -> str:
     return build_feed(ctx)
 
 
+def default_ticker(ctx: Ctx) -> list[str]:
+    from archie.briefings.schedule import tick
+
+    return tick(ctx)
+
+
 class ArchieApp(App):
     TITLE = "Archie"
     CSS = """
@@ -35,9 +41,11 @@ class ArchieApp(App):
     """
     BINDINGS = [("ctrl+r", "sync_now", "Sync now"), ("ctrl+q", "quit", "Quit")]
 
-    def __init__(self, ctx: Ctx, connectors: list, derivers: list, feed: Callable[[Ctx], str] = default_feed):
+    def __init__(self, ctx: Ctx, connectors: list, derivers: list, feed: Callable[[Ctx], str] = default_feed,
+                 ticker: Callable[[Ctx], list[str]] = default_ticker):
         super().__init__()
         self.ctx = ctx
+        self.ticker = ticker
         self.connectors = connectors
         self.derivers = derivers
         self.feed_builder = feed
@@ -64,6 +72,7 @@ class ArchieApp(App):
         self.run_worker(self.sync_cycle(), exclusive=False)
         minutes = self.ctx.config["sync"]["interval_minutes"]
         self.set_interval(minutes * 60, lambda: self.run_worker(self.sync_cycle()))
+        self.set_interval(60, lambda: self.run_worker(self.briefing_tick()))
 
     async def action_sync_now(self) -> None:
         self.run_worker(self.sync_cycle())
@@ -88,8 +97,19 @@ class ArchieApp(App):
                 activity.update("\n".join(lines))
             except Exception as exc:  # the loop must survive anything
                 activity.update(f"Sync failed: {exc}")
+            await self.briefing_tick(refresh=False)
             await self.refresh_feed()
             self.sync_done.set()
+
+    async def briefing_tick(self, refresh: bool = True) -> None:
+        self.ctx.now = datetime.now(timezone.utc)
+        try:
+            built = await asyncio.to_thread(self.ticker, self.ctx)
+        except Exception as exc:  # never let briefings kill the app
+            self.query_one("#activity", Static).update(f"Briefing failed: {exc}")
+            return
+        if built and refresh:
+            await self.refresh_feed()
 
     async def refresh_feed(self) -> None:
         try:

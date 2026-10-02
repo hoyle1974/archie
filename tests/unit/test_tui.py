@@ -27,7 +27,7 @@ def test_launch_runs_catch_up_sync_and_shows_status(tmp_path):
     conn = Counting()
 
     async def go():
-        app = ArchieApp(ctx, connectors=[conn], derivers=[])
+        app = ArchieApp(ctx, connectors=[conn], derivers=[], ticker=lambda c: [])
         async with app.run_test() as pilot:
             await app.sync_done.wait()
             await pilot.pause()
@@ -47,7 +47,7 @@ def test_question_in_ask_pane_shows_answer(tmp_path):
     ctx.index.sync()
 
     async def go():
-        app = ArchieApp(ctx, connectors=[], derivers=[])
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
         async with app.run_test() as pilot:
             await pilot.click("#question")
             await pilot.press(*"who is priya", "enter")
@@ -62,7 +62,7 @@ def test_feed_shows_builder_output(tmp_path):
     ctx = make_ctx(tmp_path)
 
     async def go():
-        app = ArchieApp(ctx, connectors=[], derivers=[], feed=lambda c: "Nothing scheduled today.")
+        app = ArchieApp(ctx, connectors=[], derivers=[], feed=lambda c: "Nothing scheduled today.", ticker=lambda c: [])
         async with app.run_test() as pilot:
             await app.sync_done.wait()
             await pilot.pause()
