@@ -160,7 +160,7 @@ class ArchieApp(App):
         except Exception as exc:  # never let briefings kill the app
             self.query_one("#activity", Static).update(f"Briefing failed: {exc}")
             return
-        if built and refresh:
+        if refresh:  # every minute: meetings that ended drop off, the next one moves up
             await self.refresh_feed()
 
     async def refresh_feed(self) -> None:

@@ -10,7 +10,7 @@ tags: [component]
 Design: [DESIGN §3.1, §10](../../docs/DESIGN.md#10-tui). Runs [connectors](connectors.md), [derivers](derivers.md), [briefings](briefings.md).
 
 - `app.py`: `ArchieApp(ctx, connectors, derivers, feed)`.
-  - On mount it runs a catch-up `run_cycle`, then repeats it every `sync.interval_minutes`. ctrl+r syncs immediately.
+  - On mount it runs a catch-up `run_cycle`, then repeats it every `sync.interval_minutes`. ctrl+r syncs immediately. Today is redrawn after every sync, after every answer, and every minute by the briefing tick, so finished meetings drop off right away.
   - Questions typed in the Ask input run `ask()` in a worker thread, and the answer is rendered with its sources. The Today pane refreshes after every answer, because answers can close loops, add notes or fix meetings.
   - `run_tui()` builds the real context.
 - `feed.py`: `build_feed(ctx)` fills the Today pane with today's agenda (meetings and personal events, with times), then the next meeting's briefing. For now it only shows a placeholder until briefings and loops exist.
