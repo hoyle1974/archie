@@ -62,7 +62,9 @@ def cmd_sync(home: Home) -> int:
     if not connectors:
         print("No sources are switched on. Add e.g. `connectors: {gmail: {enabled: true}}` to config.yaml.")
         return 0
-    report = asyncio.run(run_cycle(ctx, connectors, all_derivers()))
+    from archie.derive.registry import post_index_steps
+
+    report = asyncio.run(run_cycle(ctx, connectors, all_derivers(), post_index=post_index_steps()))
     for name, rep in report.items():
         print(f"{name}: ok, {rep.written} updated" if rep.ok else f"{name}: failed: {rep.error}")
     return 0 if all(r.ok for r in report.values()) else 1

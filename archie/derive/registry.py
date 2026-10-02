@@ -17,6 +17,13 @@ def all_derivers() -> list:
     return [derive_people, derive_meetings, derive_loops, derive_github_loops, close_across_channels]
 
 
+def post_index_steps() -> list:
+    """Run after indexing, because they read the index."""
+    from archie.derive.enrich import enrich_people
+
+    return [enrich_people]
+
+
 def all_raw_paths(ctx: Ctx) -> list[Path]:
     return sorted(p for p in (ctx.home / "sources").rglob("*.json") if not p.name.startswith("."))
 
@@ -26,4 +33,7 @@ def rederive(ctx: Ctx) -> int:
     paths = all_raw_paths(ctx)
     for derive in all_derivers():
         derive(ctx, paths)
+    ctx.index.sync()
+    for step in post_index_steps():
+        step(ctx)
     return len(paths)

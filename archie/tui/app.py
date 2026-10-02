@@ -42,9 +42,10 @@ class ArchieApp(App):
     BINDINGS = [("ctrl+r", "sync_now", "Sync now"), ("ctrl+q", "quit", "Quit")]
 
     def __init__(self, ctx: Ctx, connectors: list, derivers: list, feed: Callable[[Ctx], str] = default_feed,
-                 ticker: Callable[[Ctx], list[str]] = default_ticker):
+                 ticker: Callable[[Ctx], list[str]] = default_ticker, post_index: list | None = None):
         super().__init__()
         self.ctx = ctx
+        self.post_index = post_index or []
         self.ticker = ticker
         self.connectors = connectors
         self.derivers = derivers
@@ -87,7 +88,7 @@ class ArchieApp(App):
             activity.update("Syncing…")
             self.ctx.now = datetime.now(timezone.utc)
             try:
-                report = await run_cycle(self.ctx, self.connectors, self.derivers)
+                report = await run_cycle(self.ctx, self.connectors, self.derivers, post_index=self.post_index)
                 stamp = datetime.now().strftime("%-I:%M %p")
                 lines = [f"Last sync {stamp}"]
                 lines += [f"{n}: ok, {r.written} updated" if r.ok else f"{n}: failed: {r.error[:120]}"
@@ -148,5 +149,7 @@ def run_tui() -> int:
     from archie.store.home import Home
 
     ctx = build_ctx(Home.default())
-    ArchieApp(ctx, enabled_connectors(ctx.config), all_derivers()).run()
+    from archie.derive.registry import post_index_steps
+
+    ArchieApp(ctx, enabled_connectors(ctx.config), all_derivers(), post_index=post_index_steps()).run()
     return 0

@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from archie.ask.context import Ctx
-from archie.store.fence import set_fence
+from archie.store.fence import get_fence, set_fence
 from archie.store.files import Note, read_note, read_raw, write_note
 from archie.store.home import Home
 
@@ -140,11 +140,37 @@ def _correspondents(data: dict, me) -> dict[str, Seen]:
     return seen
 
 
-def _fence(meta: dict) -> str:
+_CITE = re.compile(r'^\[(\d+)\] (\S+)#(\S+) "(.*)"$')
+
+
+def parse_facts(fence: str | None) -> list[dict]:
+    """Facts back out of a rendered fence: [{text, file, chunk, quote}]."""
+    if not fence or "<!-- archie:citations" not in fence:
+        return []
+    cites = {}
+    for line in fence.split("<!-- archie:citations", 1)[1].splitlines():
+        m = _CITE.match(line.strip())
+        if m:
+            cites[m.group(1)] = (m.group(2), m.group(3), m.group(4))
+    out = []
+    for line in fence.splitlines():
+        m = re.match(r"^- (.*) \[(\d+)\]$", line)
+        if m and m.group(2) in cites:
+            f, c, q = cites[m.group(2)]
+            out.append({"text": m.group(1), "file": f, "chunk": c, "quote": q})
+    return out
+
+
+def render_facts(meta: dict, facts: list[dict]) -> str:
     first, last = (meta.get("first_seen") or "")[:10], (meta.get("last_interaction") or "")[:10]
-    if not last:
-        return f"## What Archie knows\n- First seen {first} on a calendar invite; no interactions yet.\n"
-    return f"## What Archie knows\n- First seen {first}; last interaction {last}.\n"
+    lines = ["## What Archie knows"]
+    lines += [f"- {f['text']} [{i}]" for i, f in enumerate(facts, 1)]
+    lines.append(f"- First seen {first}" + (f"; last interaction {last}." if last else "; no interactions yet."))
+    lines.append("<!-- archie:citations")
+    lines += [f'[{i}] {f["file"]}#{f["chunk"]} "{f["quote"]}"' for i, f in enumerate(facts, 1)]
+    lines.append("-->")
+    return "\n".join(lines) + "\n"
+
 
 
 def best_name(names: set[str]) -> str:
@@ -178,7 +204,7 @@ def upsert_person(home: Home, directory: PeopleDirectory, email: str, seen: Seen
     meta["last_interaction"] = max(filter(None, [meta.get("last_interaction"), seen.last]), default=None)
     if meta.get("status") == "stub" and via == "email":
         meta["status"] = "active"
-    note.body = set_fence(note.body, _fence(meta))
+    note.body = set_fence(note.body, render_facts(meta, parse_facts(get_fence(note.body))))
     write_note(path, note)
     directory.add(eid, meta)
     return eid

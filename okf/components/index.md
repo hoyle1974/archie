@@ -12,6 +12,7 @@ Data flows top to bottom:
 - [index-search](index-search.md): chunking, embeddings, FTS5 and vectors, hybrid search
 - [llm](llm.md): one backend interface plus the citation verifier
 - [activity](activity.md): what the user did in a window, computed by code
+- [enrich](enrich.md): cited facts about people, added after indexing
 - [loops](loops.md): open-loop detection, closure and ranking
 - [briefings](briefings.md): meeting type, templates and timing
 - [ask](ask.md): router, intents and rendering, the one user entry point

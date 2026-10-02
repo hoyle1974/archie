@@ -45,7 +45,7 @@ async def _one(conn: Connector, sctx: SyncCtx, cursor) -> tuple[ConnectorReport,
 
 
 async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Deriver] | None = None,
-                    index: bool = True) -> dict[str, ConnectorReport]:
+                    index: bool = True, post_index: list | None = None) -> dict[str, ConnectorReport]:
     cursors = _load_yaml(ctx.home.cursors_file)
     status_file = ctx.home / "state/sync_status.yaml"
     status = _load_yaml(status_file)
@@ -79,4 +79,8 @@ async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Derive
         derive(ctx, changed)
     if index:
         await asyncio.to_thread(ctx.index.sync)
+        for step in post_index or []:  # steps that read the index (e.g. people enrichment)
+            await asyncio.to_thread(step, ctx)
+        if post_index:
+            await asyncio.to_thread(ctx.index.sync)
     return report
