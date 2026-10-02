@@ -17,6 +17,7 @@ Idempotent. Write only inside fences ([fence rule](../principles/fence-rule.md))
   - `PeopleDirectory`: `by_email` is an exact match. `find(name)` tries a full name or alias, then a first name, and returns every match so the caller can ask which one was meant.
 - `meetings.py`: creates one note per calendar occurrence with at least one other non-resource attendee, at `meetings/<YYYY>/<YYYY-MM-DD>-<slug>.md`. All-day events and solo blocks are skipped.
   - The note is found again by `event_id`, so renaming an event keeps the same file. Archie owns the frontmatter (`event_id`, `series_id`, `title`, `start`, `end`, `type`, `attendees`, `attendee_names`, `linked_docs`, `status`, `link`) and the Decisions/Action items fence. `## My notes` belongs to the user.
+  - `type_auto` records the type Archie chose. If `type` differs from it, the user edited the file, and their value is kept on later updates.
   - Attendees become `stub` dossiers. A future meeting never pushes `last_interaction` past now.
   - Cancelled events set `status: cancelled`, and events the user declined set `status: declined`. Only `scheduled` meetings get briefings.
 - `github_loops.py`: builds loops from structured data, with no LLM. An open PR that requests the user's review becomes an `asked_of_me` loop ("Review PR #n: title") whose counterpart is the author, resolved through a `gh:` alias if one exists. It closes when the user submits a review (citing that review's chunk) or the PR is merged or closed.

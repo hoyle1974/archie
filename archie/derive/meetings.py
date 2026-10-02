@@ -81,6 +81,9 @@ def derive_meetings(ctx: Ctx, paths: list[Path]) -> None:
                 "link": data.get("link", "")}
         if existing:
             note = existing.note
+            meta["type_auto"] = meta["type"]  # what Archie would choose
+            if note.meta.get("type") != note.meta.get("type_auto", note.meta.get("type")):
+                meta["type"] = note.meta["type"]  # the user changed it in the file: their value wins
             note.meta.update(meta)
             rel_note = existing.rel_path
         else:
@@ -90,6 +93,7 @@ def derive_meetings(ctx: Ctx, paths: list[Path]) -> None:
             while (ctx.home / rel_note).exists():
                 rel_note = rel_note.replace(".md", f"-{n}.md") if n == 2 else rel_note.replace(f"-{n - 1}.md", f"-{n}.md")
                 n += 1
+            meta["type_auto"] = meta["type"]
             note = Note(meta=meta, body="## My notes\n\n")
             note.body = set_fence(note.body, "## Decisions\n\n## Action items\n")
         write_note(ctx.home / rel_note, note)

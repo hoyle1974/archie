@@ -110,3 +110,17 @@ def test_declined_meetings_get_no_briefing(tmp_path):
     assert m.meta["status"] == "declined"
     from archie.briefings.build import upcoming
     assert upcoming(ctx, hours=24 * 30) == []
+
+
+def test_user_edited_type_wins_over_reclassification(tmp_path):
+    ctx = make_ctx(tmp_path, now=NOW)
+    derive_meetings(ctx, [put(ctx, one_on_one())])
+    [m] = load_meetings(ctx.home)
+    note = read_note(ctx.home / m.rel_path)
+    note.meta["type"] = "standard"  # the user edits the file directly
+    write_note(ctx.home / m.rel_path, note)
+    ev = one_on_one()
+    ev["summary"] = "Alex / Test (renamed)"
+    derive_meetings(ctx, [put(ctx, ev)])
+    again = load_meetings(ctx.home)[0]
+    assert again.meta["type"] == "standard" and again.meta["title"] == "Alex / Test (renamed)"
