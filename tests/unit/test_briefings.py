@@ -98,3 +98,22 @@ def test_no_upcoming_meeting(tmp_path):
                                            "meeting": None, "text": None}}
     ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route)), now=NOW)
     assert "no upcoming meetings" in render(ask(ctx, "prep me")).lower()
+
+
+def test_linked_doc_is_in_the_packet(tmp_path):
+    seen = {}
+
+    def capture(system, user, schema, tier):
+        seen["user"] = user
+        return synth(system, user, schema, tier)
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(answer=capture)), now=NOW)
+    seed(ctx)
+    write_raw(ctx.home / "sources/drive/doc1.json", {"id": "doc1", "title": "Auth_Migration_Draft",
+                                                    "modified": "2026-10-01T20:15:00+00:00", "modified_by": "alex@acme.example",
+                                                    "owners": ["alex@acme.example"], "text": "Move session tokens to Redis."})
+    m = pick_meeting(ctx, None)
+    m.meta["linked_docs"] = ["doc1"]
+    ctx.index.sync()
+    build_briefing(ctx, m)
+    assert "Attached Doc: Auth_Migration_Draft" in seen["user"] and "Move session tokens to Redis." in seen["user"]

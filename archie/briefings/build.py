@@ -121,6 +121,9 @@ def gather(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> tuple[Packet, st
     for c in ctx.index.chunks_of(f"sources/calendar/{m.meta['event_id']}.json"):
         p.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
     extra = []
+    for fid in m.meta.get("linked_docs") or []:
+        for c in ctx.index.chunks_of(f"sources/drive/{fid}.json")[:4]:
+            p.add(c["path"], c["chunk_id"], c["text"], label=f"Attached {c['label']}", ts=c["ts"])
     since = (ctx.now - timedelta(days=30)).isoformat()
     if kind == "one_on_one":
         prev = _previous(ctx, m)
