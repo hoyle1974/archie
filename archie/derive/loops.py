@@ -94,8 +94,13 @@ def _seen_file(home: Home) -> Path:
     return home / "state/loops_seen.yaml"
 
 
-def _relevant(m: dict) -> bool:
-    if m.get("bulk"):
+def _muted(email: str, mute: list[str]) -> bool:
+    e = (email or "").lower()
+    return any(e == x.lower() or (x.startswith("@") and e.endswith(x.lower())) for x in mute or [])
+
+
+def _relevant(m: dict, mute: list[str] | None = None) -> bool:
+    if m.get("bulk") or (not m.get("from_me") and _muted(m.get("from_email", ""), mute or [])):
         return False
     return bool(m.get("from_me")) or ((m.get("to_me") or m.get("cc_me")) and looks_personal(m))
 
@@ -244,7 +249,7 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
         new = {i for i, m in enumerate(msgs) if m["date"] > seen.get(tid, "")}
         if not new:
             return None
-        relevant_new = {i + 1 for i in new if _relevant(msgs[i])}
+        relevant_new = {i + 1 for i in new if _relevant(msgs[i], ctx.config["loops"].get("mute"))}
         if relevant_new:
             packet = _packet(rel, data, new)
             open_here = [lp for lp in by_thread.get(tid, []) if lp.meta.get("status") in OPEN]

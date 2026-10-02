@@ -121,4 +121,38 @@ def loop_update_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     done = [_apply(ctx, lp, action, out.get("until"), out.get("reason")) for lp in picked]
     verb = {"done": "Marked done", "snooze": f"Snoozed until {out.get('until')}", "dismiss": "Dismissed",
             "reopen": "Reopened"}[action]
-    return Answer(plain=f"{verb}: " + "; ".join(done))
+    text = f"{verb}: " + "; ".join(done)
+    if action == "dismiss":
+        muted = _maybe_mute(ctx, picked)
+        if muted:
+            text += (f"\nYou've dismissed items from {', '.join(muted)} twice, so I won't track their mail anymore "
+                     f"(added to loops.mute in config.yaml; delete it there to undo).")
+    return Answer(plain=text)
+
+
+def _maybe_mute(ctx: Ctx, picked: list[Loop]) -> list[str]:
+    """A repeated dismissal becomes an explicit, visible rule (DESIGN §6.3), never hidden learning."""
+    import yaml
+
+    from archie.derive.people import EMAIL, PeopleDirectory
+
+    directory = PeopleDirectory.load(ctx.home)
+    dismissed = [lp for lp in load_loops(ctx.home) if lp.meta.get("status") == "dismissed"]
+    cfg_path = ctx.home.config_file
+    cfg = (yaml.safe_load(cfg_path.read_text()) or {}) if cfg_path.exists() else {}
+    mute = list((cfg.get("loops") or {}).get("mute") or [])
+    added = []
+    for lp in picked:
+        cp = lp.meta.get("counterpart")
+        if sum(1 for d in dismissed if d.meta.get("counterpart") == cp) < 2:
+            continue
+        emails = [cp] if EMAIL.match(str(cp)) else [a for a in directory.identifiers(cp) if EMAIL.match(a)]
+        for e in emails:
+            if e not in mute:
+                mute.append(e)
+                added.append(lp.meta.get("counterpart_name") or e)
+    if added:
+        cfg.setdefault("loops", {})["mute"] = mute
+        cfg_path.write_text(yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True))
+        ctx.config["loops"]["mute"] = mute
+    return sorted(set(added))

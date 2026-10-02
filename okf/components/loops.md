@@ -20,6 +20,7 @@ Implementation (`archie/derive/loops.py`):
 
 Intents (`archie/ask/intents/loops.py`):
 - `loops` lists open items ranked by code, with no LLM call. "waiting" narrows the list to `waiting_on`, and "owe" or "promised" removes `waiting_on`. Each line cites its source quote.
+- Noise rule: the second dismissal of items from the same counterpart adds their email to `loops.mute` in `config.yaml` and tells the user how to undo it. Mail from muted senders (an exact email or an `@domain`) never reaches extraction.
 - `loop_update` uses the fast model to match "done with Sarah's question", "snooze till Monday" or "that's not a loop" to the numbered items, then applies the change in code. A loop closed this way records `closed_by: {user: "said done <date>"}`.
 
 Cross-channel closure (`archie/derive/cross_close.py`) runs as the last deriver.
