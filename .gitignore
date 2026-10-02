@@ -1,0 +1,15 @@
+# graphify output: local LLM search aid, never committed
+graphify-out/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# never commit user data or secrets
+.archie/
+*.db
+*.db-*
+.env

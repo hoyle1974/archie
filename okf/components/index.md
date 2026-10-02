@@ -1,0 +1,18 @@
+---
+type: Index
+title: Components
+description: The parts of Archie and where their code lives. status planned means the code does not exist yet.
+---
+
+Data flows top to bottom:
+
+- [connectors](connectors.md): remote sources to `sources/`
+- [derivers](derivers.md): `sources/` to people, meetings, loops and projects
+- [index-search](index-search.md): chunking, embeddings, FTS5 and vectors, hybrid search
+- [llm](llm.md): one backend interface plus the citation verifier
+- [loops](loops.md): open-loop detection, closure and ranking
+- [briefings](briefings.md): meeting type, templates and timing
+- [ask](ask.md): router, intents and rendering, the one user entry point
+- [tui](tui.md): Textual app hosting the sync loop
+- [store](store.md): file I/O, frontmatter, fences, atomic writes
+- [config](config.md): config.yaml, me.yaml, cursors
