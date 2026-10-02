@@ -122,3 +122,14 @@ def test_muted_sender_mail_is_never_sent_to_llm(tmp_path):
                                           "2026-09-30T00:00:00+00:00", "can you call me?", to_me=True)])
     derive_loops(ctx, [p])
     assert load_loops(ctx.home) == []
+
+
+def test_maybe_done_items_say_why(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("loops"))), now=NOW)
+    seed(ctx)
+    lp = next(x for x in load_loops(ctx.home) if x.loop_id == "loop-1")
+    lp.meta["status"] = "maybe_done"
+    lp.meta["closed_by"] = {"file": "sources/gmail/t1.json", "chunk": "c0", "quote": "review the Redis fallback patch"}
+    save_loop(ctx.home, lp)
+    out = render(ask(ctx, "what's open?"))
+    assert "probably done? say \"done with …\"" in out

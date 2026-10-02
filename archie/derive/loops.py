@@ -340,6 +340,9 @@ def rank(loops: list[Loop], now: datetime, config: dict, upcoming_people: set[st
             why.append(f"{int(age)} days old")
         if m.get("addressed") == "to":
             score += w["to_not_cc"]
+        if m.get("status") == "maybe_done":
+            score -= 2.0
+            why.insert(0, 'probably done? say "done with …"')
         if upcoming_people and m.get("counterpart") in upcoming_people:
             score += w["in_upcoming_meeting"]
             why.append("you're meeting them soon")
