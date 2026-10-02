@@ -68,3 +68,16 @@ def test_sync_reports_each_connector(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "enabled_connectors", lambda cfg: [Ok()])
     code, out = run(capsys, "admin", "sync")
     assert code == 0 and "gmail: ok" in out
+
+
+def test_rederive_builds_people_from_existing_mail(tmp_path, monkeypatch, capsys):
+    from archie.store.home import Home
+    from tests.support.raw import addr, msg, write_thread
+
+    setup_home(tmp_path, monkeypatch)
+    (tmp_path / "h" / "me.yaml").write_text("name: Test\nemails: [test@acme.example]\n")
+    write_thread(Home.default(), "t1", [msg("m", "sam@x.example", "Sam Lee", [addr("test@acme.example")],
+                                            "2026-10-01T00:00:00+00:00", "hi", to_me=True)])
+    monkeypatch.setattr(cli, "make_backend", lambda cfg: FakeBackend([]))
+    code, out = run(capsys, "admin", "rederive")
+    assert code == 0 and (tmp_path / "h" / "people" / "sam_lee.md").exists()

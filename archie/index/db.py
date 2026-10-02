@@ -127,6 +127,21 @@ class Index:
         row = self.conn.execute("SELECT text FROM chunks WHERE path = ? AND chunk_id = ?", (path, chunk_id)).fetchone()
         return row[0] if row else None
 
+    def chunks_with_people(self, emails: list[str], limit: int = 200) -> list[dict]:
+        """Chunks whose people include any of these emails, newest first (code-computed history)."""
+        if not emails:
+            return []
+        where = " OR ".join("people LIKE ?" for _ in emails)
+        rows = self.conn.execute(
+            f"SELECT path, chunk_id, text, source, ts, label FROM chunks WHERE {where} ORDER BY ts DESC LIMIT ?",
+            [f'%"{e.lower()}"%' for e in emails] + [limit])
+        return [dict(zip(("path", "chunk_id", "text", "source", "ts", "label"), r)) for r in rows]
+
+    def chunks_of(self, path: str) -> list[dict]:
+        rows = self.conn.execute("SELECT path, chunk_id, text, source, ts, label FROM chunks WHERE path = ? ORDER BY id",
+                                 (path,))
+        return [dict(zip(("path", "chunk_id", "text", "source", "ts", "label"), r)) for r in rows]
+
     def counts(self) -> dict[str, int]:
         return {"files": self.conn.execute("SELECT count(*) FROM files").fetchone()[0],
                 "chunks": self.conn.execute("SELECT count(*) FROM chunks").fetchone()[0]}
