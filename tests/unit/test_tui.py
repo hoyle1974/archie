@@ -108,3 +108,25 @@ def test_second_window_does_not_sync(tmp_path):
 
     asyncio.run(go())
     held.release()
+
+
+def test_slow_answer_times_out_with_a_message(tmp_path, monkeypatch):
+    import time as _time
+
+    import archie.tui.app as tui
+
+    monkeypatch.setattr(tui, "ASK_TIMEOUT", 0.3)
+    monkeypatch.setattr("archie.ask.pipeline.ask", lambda ctx, q: _time.sleep(2))
+    ctx = make_ctx(tmp_path)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.click("#question")
+            await pilot.press(*"slow", "enter")
+            await app.ask_done.wait()
+            await pilot.pause()
+            assert "took too long" in text_of(app, "#answer")
+
+    asyncio.run(go())

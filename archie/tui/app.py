@@ -14,6 +14,7 @@ from textual.widgets import Footer, Input, Static
 from archie.ask.context import Ctx
 from archie.ask.render import render
 
+ASK_TIMEOUT = 180  # seconds before the Ask pane gives up and frees itself
 HINT = 'Ask anything, e.g. "prep me for my next meeting" or "what do I owe people?"'
 
 
@@ -184,11 +185,24 @@ class ArchieApp(App):
 
         out = self.query_one("#answer", Static)
         self.ctx.now = datetime.now(timezone.utc)
+        started = asyncio.get_running_loop().time()
+
+        def tick() -> None:
+            waited = int(asyncio.get_running_loop().time() - started)
+            if waited >= 20 and not self.ask_done.is_set():
+                out.update(f"> {question}\n\nStill working… ({waited}s)")
+
+        timer = self.set_interval(5, tick)
         try:
-            answer = await asyncio.to_thread(ask, self.ctx, question)
+            answer = await asyncio.wait_for(asyncio.to_thread(ask, self.ctx, question), ASK_TIMEOUT)
             out.update(f"> {question}\n\n{render(answer, sources=True)}")
+        except asyncio.TimeoutError:
+            out.update(f"> {question}\n\nThat took too long, so I stopped waiting. Try asking again.")
         except Exception as exc:
-            out.update(f"> {question}\n\nSomething went wrong: {exc}")
+            log_error(self.ctx, f"ask: {question}")
+            out.update(f"> {question}\n\nSomething went wrong: {exc} (details in logs/errors.log)")
+        finally:
+            timer.stop()
         self.ask_done.set()
 
 
