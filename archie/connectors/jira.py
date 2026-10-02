@@ -77,9 +77,9 @@ class JiraConnector:
     def _get(self, sctx: SyncCtx) -> Client:
         if self._client:
             return self._client
-        import keyring
+        from archie.secrets import get_secret
 
-        token = keyring.get_password("archie", "jira-token")
+        token = get_secret("jira-token")
         if not token or not sctx.config.get("site") or not sctx.config.get("email"):
             raise RuntimeError("Jira isn't connected: run `archie admin connect jira --site … --email …`")
         return http_client(sctx.config["site"], sctx.config["email"], token)

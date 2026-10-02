@@ -92,14 +92,15 @@ def cmd_connect(argv: list[str]) -> int:
 def connect_jira(site: str | None, email: str | None) -> int:
     import getpass
 
-    import keyring
     import yaml
+
+    from archie.secrets import set_secret
 
     if not site or not email:
         print("Usage: archie admin connect jira --site https://<you>.atlassian.net --email you@company.com")
         return 2
     token = getpass.getpass("Jira API token (id.atlassian.com → Security → API tokens): ")
-    keyring.set_password("archie", "jira-token", token.strip())
+    set_secret("jira-token", token.strip())
     home = Home.default()
     cfg = yaml.safe_load(home.config_file.read_text()) or {}
     cfg.setdefault("connectors", {})["jira"] = {"enabled": True, "site": site, "email": email}

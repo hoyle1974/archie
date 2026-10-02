@@ -6,9 +6,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import keyring
+from archie.secrets import get_secret, set_secret
 
-SERVICE = "archie"
 TOKEN_KEY = "google-token"
 CLIENT_KEY = "google-client"
 
@@ -24,11 +23,11 @@ class NeedsAuth(RuntimeError):
 
 
 def _save(creds) -> None:
-    keyring.set_password(SERVICE, TOKEN_KEY, creds.to_json())
+    set_secret(TOKEN_KEY, creds.to_json())
 
 
 def granted_scopes() -> set[str]:
-    raw = keyring.get_password(SERVICE, TOKEN_KEY)
+    raw = get_secret(TOKEN_KEY)
     return set(json.loads(raw).get("scopes") or []) if raw else set()
 
 
@@ -37,7 +36,7 @@ def credentials(source: str):
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
 
-    raw = keyring.get_password(SERVICE, TOKEN_KEY)
+    raw = get_secret(TOKEN_KEY)
     if not raw:
         raise NeedsAuth("Google isn't connected yet: run `archie admin connect google`")
     info = json.loads(raw)
@@ -61,8 +60,8 @@ def connect(client_file: Path | None = None, sources: tuple[str, ...] = ("gmail"
     from google_auth_oauthlib.flow import InstalledAppFlow
 
     if client_file:
-        keyring.set_password(SERVICE, CLIENT_KEY, Path(client_file).read_text())
-    client = keyring.get_password(SERVICE, CLIENT_KEY)
+        set_secret(CLIENT_KEY, Path(client_file).read_text())
+    client = get_secret(CLIENT_KEY)
     if not client:
         raise NeedsAuth("no Google OAuth client yet: pass --client <client.json> (a Desktop OAuth client)")
     flow = InstalledAppFlow.from_client_config(json.loads(client), [SCOPES[s] for s in sources])
@@ -74,5 +73,5 @@ def connect(client_file: Path | None = None, sources: tuple[str, ...] = ("gmail"
 def import_token(token_file: Path) -> set[str]:
     """Adopt an existing authorized-user token file (e.g. v0's read-only Gmail token)."""
     info = json.loads(Path(token_file).read_text())
-    keyring.set_password(SERVICE, TOKEN_KEY, json.dumps(info))
+    set_secret(TOKEN_KEY, json.dumps(info))
     return set(info.get("scopes") or [])
