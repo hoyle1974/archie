@@ -8,12 +8,13 @@ from archie.ask.context import Ctx
 
 
 def all_derivers() -> list:
+    from archie.derive.cross_close import close_across_channels
     from archie.derive.github_loops import derive_github_loops
     from archie.derive.loops import derive_loops
     from archie.derive.meetings import derive_meetings
     from archie.derive.people import derive_people
 
-    return [derive_people, derive_meetings, derive_loops, derive_github_loops]
+    return [derive_people, derive_meetings, derive_loops, derive_github_loops, close_across_channels]
 
 
 def all_raw_paths(ctx: Ctx) -> list[Path]:

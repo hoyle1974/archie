@@ -35,7 +35,8 @@ def _params(question: str) -> dict:
 def _items(user: str) -> list[tuple[int, str, str]]:
     """(ref, label, text) for each numbered packet item in the prompt."""
     out = []
-    for block in re.split(r"\n\n(?=\[\d+\] )", user.split("Sources:", 1)[-1].split("Thread:", 1)[-1].strip()):
+    body = user.split("Sources:", 1)[-1].split("Thread:", 1)[-1].split("Later activity:", 1)[-1]
+    for block in re.split(r"\n\n(?=\[\d+\] )", body.strip()):
         m = re.match(r"\[(\d+)\] (.*)\n([\s\S]*)", block.strip())
         if m:
             out.append((int(m.group(1)), m.group(2), m.group(3)))
@@ -108,6 +109,16 @@ class HeuristicLLM:
                         return {"updates": [{"loop": i, "resolved": True, "ref": ref, "quote": s}
                                             for i in range(1, n_open + 1)]}
         return {"updates": []}
+
+    def _loops_cross(self, system, user):
+        item = user.split("\n", 1)[0].lower()
+        want = set(re.findall(r"[a-z]{4,}", item))
+        for ref, label, text in _items(user.split("Later activity:", 1)[-1]):
+            if len(want & set(re.findall(r"[a-z]{4,}", text.lower()))) >= 2:
+                sents = _sentences(text)
+                if sents:
+                    return {"done": True, "strength": "strong", "ref": ref, "quote": sents[-1]}
+        return {"done": False, "strength": "weak", "ref": 0, "quote": ""}
 
     def _notes_actions(self, system, user):
         items = []
