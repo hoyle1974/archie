@@ -12,19 +12,19 @@ Status: ⬜ not started · 🟨 partial · ✅ test passing
 
 | # | Vignette                     | Needs (sources → capabilities)                                  | Milestone | Status |
 |---|------------------------------|-----------------------------------------------------------------|-----------|--------|
-| A | Pre-meeting briefing         | Calendar, Gmail, Drive → meetings, people, loops, brief         | M2 (standard, 1:1), M3 (standup), M4 (all-hands) | 🟨 standard + 1:1 pass |
+| A | Pre-meeting briefing         | Calendar, Gmail, Drive → meetings, people, loops, brief         | M2 (standard, 1:1), M3 (standup), M4 (all-hands) | 🟨 standard, 1:1, standup pass |
 | B | Who is this? (memory assist) | Calendar, Gmail → people, entity resolution                     | M2 | ✅ |
-| C | The open loop I forgot       | Gmail (+Jira, GitHub) → loops detect/close                      | M2 (email), M3 (Jira/GitHub) | 🟨 email passes |
-| D | What should I work on next?  | loops + calendar + Jira/GitHub → ranking                        | M3 | ⬜ |
-| E | Performance review ledger    | GitHub, Jira, Drive, meetings → ledger                          | M3 | ⬜ |
-| F | Incident: who touched it?    | GitHub, Jira → hybrid search                                    | M3 | ⬜ |
+| C | The open loop I forgot       | Gmail (+Jira, GitHub) → loops detect/close                      | M2 (email), M3 (Jira/GitHub) | ✅ |
+| D | What should I work on next?  | loops + calendar + Jira/GitHub → ranking                        | M3 | ✅ |
+| E | Performance review ledger    | GitHub, Jira, Drive, meetings → ledger                          | M3 | ✅ |
+| F | Incident: who touched it?    | GitHub, Jira → hybrid search                                    | M3 | ✅ |
 | G | Project handover             | all → projects, handover                                        | M4 | ⬜ |
 | H | After the meeting            | meetings → notes intake, action items → loops                   | M2 | ✅ |
 | I | Back from time off           | all → catch-up                                                  | M4 | ⬜ |
 | J | Before I reply               | Gmail → who/history                                             | M2 | ✅ |
 | K | Weekly brag doc              | ledger → journal                                                | M4 | ⬜ |
 | L | Someone new                  | Calendar, Gmail → stub dossiers, bootstrap                      | M2 | ✅ |
-| M | Conflicting sources          | all → conflict callout in briefings                             | M3 | ⬜ |
+| M | Conflicting sources          | all → conflict callout in briefings                             | M3 | ✅ (both sides reach the model) |
 
 ### Milestones
 
@@ -35,7 +35,7 @@ Status: ⬜ not started · 🟨 partial · ✅ test passing
 - ✅ **M2 Know my day** (done 2026-10-02; tests in `tests/vignettes/test_m2.py`. Calendar and Drive have only been tested against fakes so far and need `archie admin connect google` before a live run): Calendar, Gmail and Drive connectors. Meetings, people and email
   loops. Standard and 1:1 briefings with T-15 notify. Notes intake. *Exit:* A (standard,
   1:1), B, C (email), H, J and L pass.
-- **M3 Know my work:** GitHub and Jira connectors. Standup briefing, `next`, ledger,
+- ✅ **M3 Know my work** (done 2026-10-02; tests in `tests/vignettes/test_m3.py`. Live GitHub is verified; Jira has only been tested against fakes so far): GitHub and Jira connectors. Standup briefing, `next`, ledger,
   conflicts, closing loops across channels. *Exit:* A (standup), C, D, E, F and M pass.
 - **M4 Long arc:** projects, handover, catch-up, weekly journal, all-hands. *Exit:* all pass.
 - **Phase 2:** the Slack connector. Then re-run every vignette with Slack data in the fixtures.

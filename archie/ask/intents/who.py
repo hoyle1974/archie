@@ -12,7 +12,7 @@ from archie.ask.answer import Answer, Section
 from archie.ask.context import Ctx
 from archie.ask.intents import intent
 from archie.ask.synthesize import synthesize
-from archie.derive.people import EMAIL, PeopleDirectory
+from archie.derive.people import PeopleDirectory
 from archie.index.chunk import short_date
 from archie.llm.verify import Packet
 
@@ -55,8 +55,7 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         options = "\n".join(f"  • {directory.name(e)} ({directory.meta[e].get('org', '')})" for e in matches)
         return Answer(plain=f"Which {query.title()}?\n{options}\nAsk again with their full name.")
     eid = matches[0]
-    emails = [a for a in directory.meta[eid].get("aliases") or [] if EMAIL.match(str(a))]
-    history = ctx.index.chunks_with_people(emails, before=ctx.now.isoformat())
+    history = ctx.index.chunks_with_people(directory.identifiers(eid), before=ctx.now.isoformat())
     packet = Packet()
     for c in ctx.index.chunks_of(f"people/{eid}.md"):
         packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"])

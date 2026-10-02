@@ -21,7 +21,9 @@ def make_ctx(tmp_path, backend=None, now=NOW) -> Ctx:
     home = init_home(tmp_path / "home")
     cfg = load_config(home)
     cfg["index"]["embed_model"] = "hash"
-    return Ctx(home=home, config=cfg, me=TEST, index=Index(home, HashEmbedder()),
+    import copy
+
+    return Ctx(home=home, config=cfg, me=copy.deepcopy(TEST), index=Index(home, HashEmbedder()),
                backend=backend or FakeBackend([]), now=now)
 
 

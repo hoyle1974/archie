@@ -73,8 +73,50 @@ def drive():
                      {"d2": "Proposal: move session tokens to a Redis cluster. Fallback to Postgres on failure."})
 
 
+def github():
+    from tests.support.fake_gh import FakeGh, pr_item
+
+    alex_pr = pr_item(412, "Fix redis connection pool drop", "alexr", updated="2026-09-30T19:00:00Z",
+                      body="Pool was dropping under load; the auth-v2 migration needs this.")
+    sarah_pr = pr_item(418, "Redis fallback patch", "sarahj", updated="2026-09-30T22:00:00Z",
+                       body="Adds Postgres fallback when Redis is down.")
+    return FakeGh({
+        "search/issues?q=involves:ttesterson": {"items": [alex_pr, sarah_pr]},
+        "search/issues?q=is:pr+is:open+review-requested:ttesterson": {"items": []},
+        "search/commits?q=author:ttesterson": {"items": [{"sha": "9f3c1e2", "repository": {"full_name": "acme/auth"}}]},
+        "users/alexr": {"name": "Alex Rivera"}, "users/sarahj": {"name": "Sarah Jones"},
+        "repos/acme/auth/pulls/412/reviews": [],
+        "repos/acme/auth/pulls/418/reviews": [{"user": {"login": "ttesterson"}, "state": "APPROVED",
+                                              "body": "Reviewed the fallback, looks good, ship it.",
+                                              "submitted_at": "2026-09-30T22:00:00Z"}],
+        "repos/acme/auth/pulls/412": {"merged": True, "merged_at": "2026-09-30T19:00:00Z", "state": "closed"},
+        "repos/acme/auth/pulls/418": {"merged": False, "state": "open"},
+        "repos/acme/auth/issues/": [],
+        "repos/acme/auth/commits/9f3c1e2": {"sha": "9f3c1e2", "html_url": "u", "commit": {
+            "message": "Lower token TTL to 15m", "author": {"name": "Test", "date": "2026-09-30T20:00:00Z"}},
+            "author": {"login": "ttesterson"}, "files": [{"filename": "config/auth.yaml"}]},
+    })
+
+
+def jira():
+    def issue(key, summary, status, cat, transitions=()):
+        return {"key": key, "fields": {
+            "summary": summary, "status": {"name": status, "statusCategory": {"key": cat}},
+            "assignee": {"accountId": "acc-test", "displayName": "Test Testerson"}, "reporter": {"accountId": "p"},
+            "created": "2026-09-20T10:00:00.000+0000", "updated": "2026-09-30T21:00:00.000+0000",
+            "description": None, "comment": {"comments": []}},
+            "changelog": {"histories": [{"created": d, "author": {"accountId": "acc-test"},
+                                         "items": [{"field": "status", "fromString": f, "toString": t}]}
+                                        for d, f, t in transitions]}}
+
+    issues = [issue("ENG-402", "Token expiry fix", "In Progress", "indeterminate"),
+              issue("ENG-398", "Session cleanup job", "Done", "done",
+                    [("2026-09-30T21:00:00.000+0000", "In Progress", "Done")])]
+    return lambda path, params: {"issues": issues, "total": len(issues)}
+
+
 class Week:
-    def __init__(self, tmp_path, now=MORNING):
+    def __init__(self, tmp_path, now=MORNING, work=False):
         self.llm = HeuristicLLM()
         self.ctx = make_ctx(tmp_path, self.llm, now=now)
         self.gmail = FakeGmail(threads(), history_id="500")
@@ -82,6 +124,12 @@ class Week:
         self.drive = drive()
         self.connectors = [GmailConnector(lambda: self.gmail), CalendarConnector(lambda: self.calendar),
                            DriveConnector(lambda: self.drive)]
+        if work:  # GitHub and Jira too (M3)
+            from archie.connectors.github import GitHubConnector
+            from archie.connectors.jira import JiraConnector
+
+            self.ctx.me.github, self.ctx.me.jira_account_id = "ttesterson", "acc-test"
+            self.connectors += [GitHubConnector(runner=github()), JiraConnector(client=jira())]
         self.sync()
         self._write_past_notes()
 

@@ -37,9 +37,18 @@ def next_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     todo = [r for r in ranked if r.loop.meta["kind"] != "waiting_on"]
     nudges = [r for r in ranked if r.loop.meta["kind"] == "waiting_on"
               and (ctx.now - datetime.fromisoformat(r.loop.meta["created_at"])).days >= NUDGE_AFTER_DAYS]
-    if not todo and not nudges:
+    from archie.store.files import read_raw
+
+    in_progress = []
+    for p in sorted((ctx.home / "sources/jira").glob("*.json")):
+        d = read_raw(p)
+        if d.get("assignee_me") and d.get("status_category") == "indeterminate" and not d.get("deleted"):
+            in_progress.append(f"{d['key']} {d['summary']} ({d['status']})")
+    if not todo and not nudges and not in_progress:
         return Answer(plain=f"{free} You have nothing open. Good time for deep work.")
     summary = [Claim(free, [])]
+    if not todo and in_progress:
+        summary.append(Claim(f"Best use: keep going on {in_progress[0]}.", []))
     if todo:
         top = todo[0].loop.meta
         summary.append(_claim(ctx, todo[0], f"Best use: {top.get('summary')} ({top.get('counterpart_name')})."))
@@ -47,6 +56,8 @@ def next_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     if todo:
         answer.sections.append(Section("Do next", items=[_claim(ctx, r, f"{i}. {_line(r)}")
                                                          for i, r in enumerate(todo[:5], 1)]))
+    if in_progress:
+        answer.sections.append(Section("In progress", lines=in_progress))
     if nudges:
         answer.sections.append(Section("Nudge", items=[_claim(ctx, r, _line(r)) for r in nudges[:3]]))
     answer.notes.append("Order: due soonest and overdue first, then people you're meeting today, then oldest.")

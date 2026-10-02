@@ -5,6 +5,10 @@ description: Chronological history of design decisions and structural changes, n
 ---
 
 ## 2026-10-02
+- M3 is done. Vignettes C, D, E, F and M pass, and A passes for standard meetings, 1:1s and standups. Added GitHub (live through `gh`) and Jira (fakes only), GitHub review-request loops, cross-channel closure, the activity module, the ledger, the weekly journal and code-computed standup sections.
+- Classifier change: an explicit title keyword (standup, all-hands) now wins over structure, so a 2-person "Daily Standup" stays a standup.
+- A loop more than 7 days past due is marked "still needed?". The live archive showed a long-overdue item ranking as most urgent.
+- GitHub logins join a dossier automatically when the public profile name matches exactly one person.
 - M1 and M2 are done. Vignettes B, H, J and L pass. A passes for standard meetings and 1:1s, and C passes for email.
 - People: inbound mail counts toward a dossier only if Gmail filed it as Personal (or the account has no categories), and never from a role address. Real data had shown 48 "people", mostly businesses, which these rules cut to 16.
 - An invite to a future meeting introduces a person but is not an interaction. "Last talked" and history only count things that have already happened.

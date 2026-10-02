@@ -139,3 +139,15 @@ def test_github_login_resolves_through_alias(tmp_path):
     note.meta["aliases"].append("sjones")
     write_note(path, note)
     assert PeopleDirectory.load(ctx.home).find("gh:sjones") == ["sarah_jones"]
+
+
+def test_github_login_linked_by_exact_profile_name(tmp_path):
+    from archie.store.files import write_raw
+
+    ctx = make_ctx(tmp_path)
+    derive_people(ctx, [sarah_thread(ctx.home)])
+    p = ctx.home / "sources/github/acme__auth/pr-418.json"
+    write_raw(p, {"repo": "acme/auth", "number": 418, "kind": "pr", "title": "x", "author": "sjones",
+                  "author_name": "Sarah Jones", "me": "ttesterson"})
+    derive_people(ctx, [p])
+    assert PeopleDirectory.load(ctx.home).find("gh:sjones") == ["sarah_jones"]

@@ -66,6 +66,15 @@ class PeopleDirectory:
             if EMAIL.match(str(alias)):
                 self.emails[str(alias).lower()] = entity_id
 
+    def identifiers(self, entity_id: str) -> list[str]:
+        """What this person appears as in chunk `people`: emails and gh:<login> aliases."""
+        out = []
+        for a in (self.meta.get(entity_id) or {}).get("aliases") or []:
+            a = str(a).lower()
+            if EMAIL.match(a) or a.startswith("gh:"):
+                out.append(a)
+        return out
+
     def by_email(self, email: str) -> str | None:
         return self.emails.get(email.strip().lower())
 
@@ -175,6 +184,27 @@ def upsert_person(home: Home, directory: PeopleDirectory, email: str, seen: Seen
     return eid
 
 
+def link_github(ctx: Ctx, directory: PeopleDirectory, paths: list[Path]) -> None:
+    """A GitHub login joins a dossier when its public profile name matches exactly one
+    person's name. Never guesses on ambiguity; the user can link by hand ("alexr is Alex")."""
+    for path in paths:
+        rel = Path(path).relative_to(ctx.home.root).as_posix()
+        if not rel.startswith("sources/github/") or not Path(path).name.startswith(("pr-", "issue-")):
+            continue
+        data = read_raw(path)
+        login, name = data.get("author"), (data.get("author_name") or "").strip()
+        if not login or not name or login == data.get("me") or directory.find(f"gh:{login}"):
+            continue
+        hits = [e for e, m in directory.meta.items() if str(m.get("name", "")).lower() == name.lower()]
+        if len(hits) != 1:
+            continue
+        note_path = ctx.home / f"people/{hits[0]}.md"
+        note = read_note(note_path)
+        note.meta["aliases"] = list(note.meta.get("aliases") or []) + [f"gh:{login}"]
+        write_note(note_path, note)
+        directory.add(hits[0], note.meta)
+
+
 def derive_people(ctx: Ctx, paths: list[Path]) -> None:
     directory = PeopleDirectory.load(ctx.home)
     merged: dict[str, Seen] = {}
@@ -193,3 +223,4 @@ def derive_people(ctx: Ctx, paths: list[Path]) -> None:
             m.at(s.last)
     for email, s in sorted(merged.items()):
         upsert_person(ctx.home, directory, email, s)
+    link_github(ctx, directory, paths)  # after this cycle's dossiers exist

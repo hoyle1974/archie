@@ -15,7 +15,7 @@ from archie.ask.render import render
 from archie.ask.synthesize import synthesize
 from archie.derive.loops import load_loops, rank
 from archie.derive.meetings import Meeting, load_meetings
-from archie.derive.people import EMAIL, PeopleDirectory, slug
+from archie.derive.people import PeopleDirectory, slug
 from archie.index.chunk import short_date
 from archie.index.search import search
 from archie.llm.verify import Packet
@@ -97,8 +97,8 @@ def _people_lines(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> list[str]
         bits = [directory.name(eid)]
         if meta.get("role"):
             bits.append(meta["role"])
-        emails = [a for a in meta.get("aliases") or [] if EMAIL.match(str(a))]
-        talked = ctx.index.chunks_with_people(emails, limit=1, before=ctx.now.isoformat()) if emails else []
+        ids = directory.identifiers(eid)
+        talked = ctx.index.chunks_with_people(ids, limit=1, before=ctx.now.isoformat()) if ids else []
         if talked:
             bits.append(f"last talked {short_date(talked[0]['ts'])}")
         else:
@@ -136,8 +136,7 @@ def gather(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> tuple[Packet, st
         for eid in m.meta.get("attendees") or []:
             for c in ctx.index.chunks_of(f"people/{eid}.md")[:3]:
                 p.add(c["path"], c["chunk_id"], c["text"], label=c["label"])
-            emails = [a for a in directory.meta.get(eid, {}).get("aliases") or [] if EMAIL.match(str(a))]
-            for c in ctx.index.chunks_with_people(emails, limit=12, before=ctx.now.isoformat()):
+            for c in ctx.index.chunks_with_people(directory.identifiers(eid), limit=12, before=ctx.now.isoformat()):
                 if (c["ts"] or "") >= since and c["source"] not in ("briefings", "loops"):
                     p.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
                 if len(p.items) > 24:

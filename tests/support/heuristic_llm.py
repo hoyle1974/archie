@@ -17,7 +17,7 @@ import re
 ROUTES = [
     (r"\bnotes?\b.*:", "notes"), (r"\b(prep|brief)\b|next meeting|\bmy \d", "brief"),
     (r"\b(done with|snooze|not a loop|reopen)\b", "loop_update"), (r"\bwho is\b|history with", "who"),
-    (r"\bowe\b|waiting on|open items|\bloops?\b", "loops"), (r"work on next|what next|what should i do", "next"),
+    (r"get done|accomplish|did i (do|ship)", "ledger"), (r"\bowe\b|waiting on|open items|\bloops?\b", "loops"), (r"work on next|what next|what should i do", "next"),
     (r"\bis a (1:1|standup|all-hands)\b| is the ", "correct"), (r"what can you do|\bhelp\b", "help"),
 ]
 

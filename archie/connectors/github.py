@@ -44,6 +44,16 @@ class GitHubConnector:
 
     def __init__(self, runner: Runner = gh_api):
         self.gh = runner
+        self._names: dict[str, str] = {}
+
+    def _name(self, login: str) -> str:
+        """Public profile name for a login ("" if none), so people can be linked by name."""
+        if login not in self._names:
+            try:
+                self._names[login] = (self.gh(f"users/{login}") or {}).get("name") or ""
+            except Exception:
+                self._names[login] = ""
+        return self._names[login]
 
     async def sync(self, sctx: SyncCtx, cursor) -> SyncResult:
         return await asyncio.to_thread(self._sync, sctx, cursor or {})
@@ -84,7 +94,7 @@ class GitHubConnector:
         data = {"repo": repo, "number": n, "kind": "pr" if is_pr else "issue", "title": item["title"],
                 "author": item["user"]["login"], "state": item["state"], "body": item.get("body") or "",
                 "created": item["created_at"], "updated": item["updated_at"], "url": item["html_url"],
-                "review_requested_me": requested, "me": user,
+                "review_requested_me": requested, "me": user, "author_name": self._name(item["user"]["login"]),
                 "comments": [{"author": c["user"]["login"], "body": c.get("body") or "", "date": c["created_at"]}
                              for c in comments]}
         if is_pr:
@@ -114,7 +124,7 @@ def chunk_github(path: str, data: dict) -> list[Chunk]:
                  source=NAME, ts=data["created"], people=people, label=label)]
     for i, c in enumerate(data.get("reviews", []) + data.get("comments", []), 1):
         verb = f"review ({c['state'].lower()})" if "state" in c else "comment"
-        out.append(Chunk(f"c{i}", path, 0, 0, f"{c['author']} {verb} on {kind} #{data['number']}: {c['body']}",
+        out.append(Chunk(f"c{i}", path, 0, 0, f"{c['author']} {verb} on {kind} #{data['number']} ({data['title']}): {c['body']}",
                          source=NAME, ts=c.get("date"), people=people, label=label))
     return out
 
