@@ -153,3 +153,15 @@ def test_llm_failure_leaves_thread_for_retry(tmp_path):
         cand("asked_of_me", 1, "can you review the Redis fallback patch", "Review"))))
     derive_loops(ctx, [p])
     assert len(load_loops(ctx.home)) == 1
+
+
+def test_same_request_quoted_differently_is_not_duplicated(tmp_path):
+    first = cand("asked_of_me", 1, "can you review the Redis fallback patch before Friday", "Review the patch")
+    again = cand("asked_of_me", 1, "review the Redis fallback patch before Friday? Thanks", "Review Redis patch")
+    ctx = ctx_with(tmp_path, loops_extract=extraction(first))
+    p = write_thread(ctx.home, "t1", [ASK])
+    derive_loops(ctx, [p])
+    (ctx.home / "state/loops_seen.yaml").unlink()  # simulate a re-run over the same mail
+    ctx.backend = FakeBackend(by_schema(loops_extract=extraction(again), loops_close={"updates": []}))
+    derive_loops(ctx, [p])
+    assert len(load_loops(ctx.home)) == 1

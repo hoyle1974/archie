@@ -151,7 +151,7 @@ def _close(ctx: Ctx, packet: Packet, open_here: list[Loop], new_refs: set[int], 
 
 
 def _extract(ctx: Ctx, packet: Packet, data: dict, rel: str, tid: str, new_refs: set[int],
-             directory: PeopleDirectory, known: set[str]) -> None:
+             directory: PeopleDirectory, known: set[str], existing: list[Loop]) -> None:
     system = load_prompt("loops_extract", me_name=ctx.me.name or "the user",
                          today=ctx.now.astimezone().date().isoformat())
     out = ctx.backend.complete(system, f"Thread:\n\n{packet.render()}", EXTRACT_SCHEMA, tier="fast")
@@ -175,17 +175,39 @@ def _extract(ctx: Ctx, packet: Packet, data: dict, rel: str, tid: str, new_refs:
         h = hashlib.sha1(f"{tid}|{m['id']}|{kind}|{normalize(cite.quote)}".encode()).hexdigest()[:6]
         when = _local(m["date"])
         loop_id = f"loop-{when:%Y%m%d-%H%M}-{slug(cp_name)[:24]}-{h}"
-        if loop_id in known:
+        source = {"file": cite.path, "chunk": cite.chunk_id, "quote": cite.quote}
+        if loop_id in known or _duplicate(source, kind, existing):
             continue
         known.add(loop_id)
         meta = {"loop_id": loop_id, "kind": kind, "status": "open", "counterpart": cp_id,
                 "counterpart_name": cp_name, "summary": c.get("summary", "").strip(), "created_at": m["date"],
                 "due": _valid_due(c.get("due")), "snoozed_until": None, "thread": tid,
                 "addressed": "to" if m.get("to_me") or m.get("from_me") else "cc",
-                "sources": [{"file": cite.path, "chunk": cite.chunk_id, "quote": cite.quote}], "closed_by": None}
+                "sources": [source], "closed_by": None}
         loop = Loop(loop_id, f"loops/{when:%Y}/{loop_id}.md", Note(meta=meta, body=""))
+        existing.append(loop)
         _history(loop, f"{when:%Y-%m-%d %H:%M} opened from email")
         save_loop(ctx.home, loop)
+
+
+def _words(text: str) -> set[str]:
+    import re
+
+    return set(re.findall(r"\w+", normalize(text)))
+
+
+def _duplicate(source: dict, kind: str, existing: list[Loop]) -> bool:
+    """Same message, same kind, overlapping quote: the same loop, however it was worded."""
+    q = _words(source["quote"])
+    for lp in existing:
+        if lp.meta.get("kind") != kind:
+            continue
+        for s in lp.meta.get("sources") or []:
+            if s.get("file") == source["file"] and s.get("chunk") == source["chunk"]:
+                other = _words(s.get("quote", ""))
+                if q and other and len(q & other) / min(len(q), len(other)) >= 0.5:
+                    return True
+    return False
 
 
 def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
@@ -229,7 +251,7 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
             try:
                 if open_here:
                     _close(ctx, packet, open_here, relevant_new, tid)
-                _extract(ctx, packet, data, rel, tid, relevant_new, directory, _Known())
+                _extract(ctx, packet, data, rel, tid, relevant_new, directory, _Known(), by_thread.setdefault(tid, []))
             except LLMError:
                 return None  # leave the thread unseen; the next cycle retries it
         return tid, max(m["date"] for m in msgs)
