@@ -9,6 +9,7 @@ from archie.ask.intents import intent
 HELP = """\
 Just ask in plain English: archie ask "…" (or type in the Ask pane).
 
+  Calendar      "what do I have tomorrow?" · "what's my week look like?"
   Meetings      "prep me for my 2pm" · "what's my next meeting about?"
   People        "who is Priya?" · "what's my history with Alex?"
   Open items    "what do I owe people?" · "what am I waiting on?"

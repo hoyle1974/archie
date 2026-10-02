@@ -11,7 +11,8 @@ from archie.ask.context import Ctx
 from archie.llm.prompts import load_prompt
 
 INTENT_HELP = {
-    "brief": "prepare for a meeting (\"prep me for 2pm\", \"what's my next meeting about?\")",
+    "agenda": "what's on the calendar for a day or range (\"what do I have tomorrow?\", \"what's my week like?\")",
+    "brief": "prepare for one specific meeting (\"prep me for 2pm\", \"what's my next meeting about?\")",
     "who": "who someone is, history with them, or a group like \"my family\" (\"who is Priya?\")",
     "loops": "open items: owed, promised, waiting on (\"what do I owe people?\")",
     "loop_update": "mark an open item done/snoozed/not-a-loop (\"done with Sarah's question\")",
@@ -71,6 +72,9 @@ QUICK = [
     (r"^(help|what can you do\??|how do i use (you|archie)\??)$", "help"),
     (r"^what (should|do) i (work on|do) (next|now)\??$|^what('s| is) next\??$", "next"),
     (r"^what (do i owe( people| anyone)?|am i waiting on|('s| is) open|are my open items)\??$", "loops"),
+    (r"^what('s| is| do i have)( planned| going on| happening| on my calendar)?( for| on)? "
+     r"(today|tomorrow|tonight|this weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\??$", "agenda"),
+    (r"^what('s| is) (on )?my (calendar|schedule|agenda)( for)? ?(today|tomorrow)?\??$", "agenda"),
 ]
 
 

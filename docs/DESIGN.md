@@ -462,6 +462,7 @@ What changed
 
 | Intent        | Example questions                                         | Vignette |
 |---------------|-----------------------------------------------------------|----------|
+| `agenda`      | "what do I have tomorrow?", "what's my week look like?"   | A |
 | `brief`       | "prep me for 2pm", "what's my next meeting about?"        | A |
 | `who`         | "who is Priya?", "what's my history with Alex?"           | B, J |
 | `loops`       | "what do I owe people?", "what am I waiting on?"          | C |

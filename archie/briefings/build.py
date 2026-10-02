@@ -53,6 +53,7 @@ def _start(m: Meeting) -> datetime:
 def upcoming(ctx: Ctx, hours: int = 36) -> list[Meeting]:
     horizon = ctx.now + timedelta(hours=hours)
     out = [m for m in load_meetings(ctx.home) if m.meta.get("status") == "scheduled"
+           and m.meta.get("type") != "event"  # personal events get no prep
            and datetime.fromisoformat(m.meta["end"]) > ctx.now and _start(m) < horizon]
     return sorted(out, key=_start)
 
@@ -152,9 +153,10 @@ def gather(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> tuple[Packet, st
         for h in mine:
             p.add(h.path, h.chunk_id, h.text, label=h.label, ts=h.ts)
     query = " ".join(filter(None, [m.meta.get("title")]))
-    for h in search(ctx.index, query, k=6, since=(ctx.now - timedelta(days=60)).isoformat()):
-        if h.source not in ("briefings", "loops"):
-            p.add(h.path, h.chunk_id, h.text, label=h.label, ts=h.ts)
+    if len(re.findall(r"[A-Za-z]{3,}", query)) >= 2:  # a one-word title ("Test") matches noise
+        for h in search(ctx.index, query, k=6, since=(ctx.now - timedelta(days=60)).isoformat()):
+            if h.source not in ("briefings", "loops"):
+                p.add(h.path, h.chunk_id, h.text, label=h.label, ts=h.ts)
     return p, " ".join(extra)
 
 

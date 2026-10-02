@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 
 ROUTES = [
-    (r"\bnotes?\b.*:", "notes"), (r"\b(prep|brief)\b|next meeting|\bmy \d", "brief"),
+    (r"\bnotes?\b.*:", "notes"), (r"what do i have|on my calendar|my week", "agenda"), (r"\b(prep|brief)\b|next meeting|\bmy \d", "brief"),
     (r"\b(done with|snooze|not a loop|reopen)\b", "loop_update"), (r"\bwho is\b|history with", "who"),
     (r"while i was (out|away)|catch me up", "catchup"), (r"\bhandover\b", "handover"),
     (r"get done|accomplish|did i (do|ship)", "ledger"), (r"\bowe\b|waiting on|open items|\bloops?\b", "loops"), (r"work on next|what next|what should i do", "next"),

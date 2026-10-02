@@ -18,7 +18,8 @@ tags: [component]
   - `who`: resolves a person through `PeopleDirectory`, asks back if the name is ambiguous, and says so if the person is unknown. Code computes the "At a glance" facts (org, role, last talked, thread count) and the "Recent" list from `Index.chunks_with_people`. On top of that, the LLM writes a cited summary drawn from the dossier and recent mail.
 - `context.py`: `Ctx` bundles home, config, me, index, backend and now, so tests can swap any part.
 
-  - `brief`: see [briefings](briefings.md).
+  - `agenda`: lists what's on the calendar for a day or range, read from the calendar mirror with no model: all-day events first, then timed ones, with meetings showing who's in them. Declined and cancelled events are left out, and an event on two calendars is shown once. "today", "tomorrow", "this weekend" and weekday names are parsed by code and quick-routed; anything else uses the router's since/until.
+  - `brief`: see [briefings](briefings.md). Personal events (no attendees) are never briefed.
   - `loops` and `loop_update`: see [loops](loops.md).
   - `notes`:
     - Finds the matching meeting: a recent one (from 24 hours ago to 1 hour ahead) that matches by title words. With no meeting named, it takes the most recent one.
