@@ -23,9 +23,10 @@ SCHEMA = {
         "properties": {"name": {"type": "string"}, "relationship": {"type": ["string", "null"]},
                        "role": {"type": ["string", "null"]}, "pronouns": {"type": ["string", "null"]},
                        "identity": {"type": ["string", "null"]},
+                       "avoid": {"type": "array", "items": {"type": "string"}},
                        "other_names": {"type": "array", "items": {"type": "string"}},
                        "statement": {"type": "string"}},
-        "required": ["name", "relationship", "role", "pronouns", "identity", "other_names", "statement"],
+        "required": ["name", "relationship", "role", "pronouns", "identity", "avoid", "other_names", "statement"],
         "additionalProperties": False}}},
     "required": ["people"],
     "additionalProperties": False,
@@ -73,6 +74,8 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
         for key in ("relationship", "role", "pronouns", "identity"):
             if p.get(key):
                 note.meta[key] = p[key].strip()
+        if p.get("avoid"):
+            note.meta["avoid"] = sorted(set(note.meta.get("avoid") or []) | {w.strip().lower() for w in p["avoid"]})
         note.meta["facts_stale"] = True  # Archie's extracted facts get redone against what you said
         aliases = list(note.meta.get("aliases") or [])
         for a in [name, *(p.get("other_names") or [])]:

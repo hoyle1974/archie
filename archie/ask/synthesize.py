@@ -36,6 +36,8 @@ SCHEMA = {
 def describe(meta: dict, name: str) -> str | None:
     bits = [f"your {meta['relationship']}" if meta.get("relationship") else None, meta.get("identity"),
             f"pronouns {meta['pronouns']}" if meta.get("pronouns") else None, meta.get("role")]
+    if meta.get("avoid"):
+        bits.append("never call them: " + ", ".join(meta["avoid"]))
     bits = [b for b in bits if b]
     return f"{name}: {'; '.join(bits)}" if bits else None
 

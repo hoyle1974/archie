@@ -72,3 +72,27 @@ def test_remember_stores_identity_and_marks_facts_stale(tmp_path):
                              "identity": "non-binary", "other_names": [], "statement": said}])
     meta = read_note(ctx.home / "people/childone_testerson.md").meta
     assert meta["identity"] == "non-binary" and meta["facts_stale"] is True
+
+
+def test_words_to_avoid_reach_every_answer(tmp_path):
+    ctx = make_ctx(tmp_path)
+    p = seed(ctx)
+    note = read_note(p)
+    note.meta.update(pronouns="he/him", avoid=["boy", "son"])
+    write_note(p, note)
+    packet = Packet()
+    packet.add("x.md", "c0", "Childone had a great day.")
+    text = people_context(ctx, packet)
+    assert "pronouns he/him" in text and "never call them: boy, son" in text
+
+
+def test_remember_records_words_to_avoid(tmp_path):
+    from archie.ask.intents.remember import apply_facts
+
+    ctx = make_ctx(tmp_path)
+    seed(ctx)
+    said = "he/him are his pronouns, but he is non binary and doesn't like being called a boy"
+    apply_facts(ctx, said, [{"name": "Childone", "relationship": None, "role": None, "pronouns": "he/him",
+                             "identity": "non-binary", "avoid": ["boy", "son"], "other_names": [],
+                             "statement": said}])
+    assert read_note(ctx.home / "people/childone_testerson.md").meta["avoid"] == ["boy", "son"]

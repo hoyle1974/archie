@@ -96,6 +96,8 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         about += f" They are {meta['identity']}."
     if meta.get("pronouns"):
         about += f" Pronouns: {meta['pronouns']}; use them."
+    if meta.get("avoid"):
+        about += f" Never call them: {', '.join(meta['avoid'])}."
     answer = synthesize(ctx, question, packet, INSTRUCTIONS.replace("{me_name}", ctx.me.name or "the user"),
                         extra_context=about)
     recent, seen = [], set()
