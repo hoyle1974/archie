@@ -1,0 +1,25 @@
+"""What every intent returns: a cited summary first, then optional sections."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from archie.llm.verify import Claim, Packet
+
+
+@dataclass
+class Section:
+    heading: str
+    items: list[Claim] = field(default_factory=list)  # cited facts
+    lines: list[str] = field(default_factory=list)  # code-computed lines (no citation needed)
+
+
+@dataclass
+class Answer:
+    summary: list[Claim] = field(default_factory=list)
+    sections: list[Section] = field(default_factory=list)
+    packet: Packet = field(default_factory=Packet)
+    dropped: int = 0
+    plain: str | None = None  # fixed text that states no facts about sources (help, errors)
+    notes: list[str] = field(default_factory=list)  # e.g. "data as of 1:45 PM"
+    nothing_found: bool = False
