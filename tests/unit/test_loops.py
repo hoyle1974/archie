@@ -165,3 +165,19 @@ def test_same_request_quoted_differently_is_not_duplicated(tmp_path):
     ctx.backend = FakeBackend(by_schema(loops_extract=extraction(again), loops_close={"updates": []}))
     derive_loops(ctx, [p])
     assert len(load_loops(ctx.home)) == 1
+
+
+def test_long_overdue_items_are_flagged_stale_not_urgent(tmp_path):
+    ctx = ctx_with(tmp_path)
+    from archie.derive.loops import Loop
+    from archie.store.files import Note
+
+    def mk(i, due, created):
+        return Loop(f"l{i}", f"loops/2026/l{i}.md", Note(meta={"loop_id": f"l{i}", "kind": "asked_of_me",
+                                                               "status": "open", "created_at": created, "due": due,
+                                                               "summary": f"s{i}"}))
+
+    ranked = rank([mk(1, "2026-09-20", "2026-09-15T00:00:00+00:00"), mk(2, "2026-10-02", "2026-09-30T00:00:00+00:00")],
+                  ctx.now, ctx.config)
+    assert [r.loop.loop_id for r in ranked] == ["l2", "l1"]
+    assert ranked[1].stale and "still needed?" in ranked[1].why[0]

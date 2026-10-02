@@ -72,14 +72,37 @@ def cmd_connect(argv: list[str]) -> int:
     from archie.connectors import google_auth
 
     p = argparse.ArgumentParser(prog="archie admin connect")
-    p.add_argument("service", choices=["google"])
+    p.add_argument("service", choices=["google", "jira"])
+    p.add_argument("--site", help="Jira site, e.g. https://acme.atlassian.net")
+    p.add_argument("--email", help="Jira account email")
     p.add_argument("--client", help="Desktop OAuth client JSON from Google Cloud console")
     p.add_argument("--import-token", help="adopt an existing authorized-user token file")
     args = p.parse_args(argv)
+    if args.service == "jira":
+        return connect_jira(args.site, args.email)
     scopes = (google_auth.import_token(args.import_token) if args.import_token
               else google_auth.connect(args.client))
     names = sorted(n for n, s in google_auth.SCOPES.items() if s in scopes)
     print(f"Google connected (read-only): {', '.join(names) or 'no Archie scopes'}.")
+    return 0
+
+
+def connect_jira(site: str | None, email: str | None) -> int:
+    import getpass
+
+    import keyring
+    import yaml
+
+    if not site or not email:
+        print("Usage: archie admin connect jira --site https://<you>.atlassian.net --email you@company.com")
+        return 2
+    token = getpass.getpass("Jira API token (id.atlassian.com → Security → API tokens): ")
+    keyring.set_password("archie", "jira-token", token.strip())
+    home = Home.default()
+    cfg = yaml.safe_load(home.config_file.read_text()) or {}
+    cfg.setdefault("connectors", {})["jira"] = {"enabled": True, "site": site, "email": email}
+    home.config_file.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    print("Jira connected (read-only). Add your jira_account_id to me.yaml so Archie can tell what's yours.")
     return 0
 
 

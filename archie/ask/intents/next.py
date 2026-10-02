@@ -33,7 +33,7 @@ def _free_time(ctx: Ctx) -> tuple[str, set[str]]:
 @intent("next")
 def next_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     free, people = _free_time(ctx)
-    ranked = rank(load_loops(ctx.home), ctx.now, ctx.config, upcoming_people=people)
+    ranked = [r for r in rank(load_loops(ctx.home), ctx.now, ctx.config, upcoming_people=people) if not r.stale]
     todo = [r for r in ranked if r.loop.meta["kind"] != "waiting_on"]
     nudges = [r for r in ranked if r.loop.meta["kind"] == "waiting_on"
               and (ctx.now - datetime.fromisoformat(r.loop.meta["created_at"])).days >= NUDGE_AFTER_DAYS]

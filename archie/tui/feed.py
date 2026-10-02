@@ -22,7 +22,7 @@ def build_feed(ctx: Ctx) -> str:
             parts.append(f"Later today: {later}")
     else:
         parts.append("No more meetings today.")
-    ranked = rank(load_loops(ctx.home), ctx.now, ctx.config)
+    ranked = [r for r in rank(load_loops(ctx.home), ctx.now, ctx.config) if not r.stale]
     if ranked:
         lines = [f"  • {r.loop.meta.get('counterpart_name')}: {r.loop.meta.get('summary')}"
                  + (f" ({', '.join(r.why)})" if r.why else "") for r in ranked[:3]]

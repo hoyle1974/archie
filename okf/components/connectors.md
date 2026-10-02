@@ -33,4 +33,11 @@ tags: [component]
   - The chunker makes one chunk per PR/issue body and per review or comment, plus one per commit. People appear as `gh:<login>`.
   - The live run found 102 items for `ttesterson1974`. Commit search returns at most 100 results per run.
 
-Phase 1 still to build: Jira. Phase 2: Slack. Design: [DESIGN §5.1](../../docs/DESIGN.md#51-connectors). Principles: [read-only](../principles/read-only.md), [keep everything](../principles/keep-everything.md). Each cycle is run by [sync](sync.md).
+- `jira.py`: Jira Cloud REST v3 search (GET only).
+  - Which issues: updated since the cursor and assigned to, reported by, watched by, or commented on by the user.
+  - Atlassian's document format is flattened to text with `@mentions` kept. Status transitions come from the changelog (`by_me`), and comments carry `mentions_me` and `from_me`.
+  - Output: one file per issue at `sources/jira/<KEY>.json`. The chunker makes one chunk for the description and one per comment.
+  - Auth: `archie admin connect jira --site … --email …` stores the API token in the Keychain. `me.yaml` needs `jira_account_id`.
+  - Not yet tested against a live Jira site.
+
+All phase-1 connectors are built. Phase 2: Slack. Phase 2: Slack. Design: [DESIGN §5.1](../../docs/DESIGN.md#51-connectors). Principles: [read-only](../principles/read-only.md), [keep everything](../principles/keep-everything.md). Each cycle is run by [sync](sync.md).

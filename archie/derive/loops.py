@@ -270,11 +270,15 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
         atomic_write(_seen_file(ctx.home), yaml.safe_dump(seen, sort_keys=True))
 
 
+STALE_AFTER_DAYS = 7  # this far past due, it's more likely done than urgent
+
+
 @dataclass
 class Ranked:
     loop: Loop
     score: float
     why: list[str] = field(default_factory=list)
+    stale: bool = False
 
 
 def _days(a: datetime, b: datetime) -> float:
@@ -299,6 +303,9 @@ def rank(loops: list[Loop], now: datetime, config: dict, upcoming_people: set[st
             continue
         m, score, why = lp.meta, 0.0, []
         score += w.get(m.get("kind"), 0.0)
+        if m.get("due") and (today - date.fromisoformat(m["due"])).days > STALE_AFTER_DAYS:
+            out.append(Ranked(lp, -1.0, [f"was due {m['due']}: still needed?"], stale=True))
+            continue
         if m.get("due"):
             days_left = (date.fromisoformat(m["due"]) - today).days
             if days_left < 0:

@@ -7,9 +7,10 @@ from archie.connectors.calendar import CalendarConnector
 from archie.connectors.drive import DriveConnector
 from archie.connectors.github import GitHubConnector
 from archie.connectors.gmail import GmailConnector
+from archie.connectors.jira import JiraConnector
 
 ALL = {"gmail": GmailConnector, "calendar": CalendarConnector, "drive": DriveConnector,
-       "github": GitHubConnector}
+       "github": GitHubConnector, "jira": JiraConnector}
 
 
 def enabled_connectors(config: dict) -> list[Connector]:

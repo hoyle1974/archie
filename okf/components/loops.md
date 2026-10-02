@@ -16,7 +16,7 @@ Implementation (`archie/derive/loops.py`):
   3. `loops_extract` (fast model) proposes candidates. Code then enforces that the cited message is new, that the quote is verbatim, and that the kind matches the direction (`asked_of_me` must cite someone else's message; `i_promised` and `waiting_on` must cite the user's own). The counterpart is taken from the headers and resolved to a dossier, and the id is deterministic from thread, message, kind and quote.
   4. An LLM error leaves the thread unseen so the next cycle retries it.
 - Each loop is a file at `loops/<YYYY>/<loop_id>.md` with the frontmatter from DESIGN §6.4, plus `counterpart_name`, `thread` and `addressed`. The fenced section holds its history.
-- `rank(loops, now, config)` computes a score and the reasons behind it. Overdue or due within 2 days, the kind, age (0.25 per day, capped at 10 days) and To-versus-Cc all count. The weights live in `config.loops.weights`. Snoozed loops come back on their date.
+- `rank(loops, now, config)` computes a score and the reasons behind it. Overdue or due within 2 days, the kind, age (0.25 per day, capped at 10 days) and To-versus-Cc all count. The weights live in `config.loops.weights`. Snoozed loops come back on their date. A loop more than 7 days past due is marked `stale` ("was due …: still needed?"). It is left out of next, the Feed and briefings, and `loops` lists it under "Maybe already done?".
 
 Intents (`archie/ask/intents/loops.py`):
 - `loops` lists open items ranked by code, with no LLM call. "waiting" narrows the list to `waiting_on`, and "owe" or "promised" removes `waiting_on`. Each line cites its source quote.

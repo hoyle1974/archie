@@ -42,9 +42,16 @@ def _filter(question: str, params: dict, ranked: list[Ranked]) -> list[Ranked]:
 
 @intent("loops")
 def loops_intent(ctx: Ctx, question: str, params: dict) -> Answer:
-    ranked = _filter(question, params, rank(load_loops(ctx.home), ctx.now, ctx.config))
-    if not ranked:
+    everything = _filter(question, params, rank(load_loops(ctx.home), ctx.now, ctx.config))
+    ranked = [r for r in everything if not r.stale]
+    stale = [r for r in everything if r.stale]
+    if not everything:
         return Answer(plain="You have nothing open that matches. Nice.")
+    if not ranked:
+        answer = Answer(summary=[Claim("Nothing current is open.", [])])
+        answer.sections.append(Section("Maybe already done? (say \"done with …\")",
+                                       items=[_claim(ctx, r, _line(r)) for r in stale[:10]]))
+        return answer
     top = ranked[0]
     count = f"You have {len(ranked)} open item{'s' if len(ranked) != 1 else ''}."
     m = top.loop.meta
@@ -56,6 +63,9 @@ def loops_intent(ctx: Ctx, question: str, params: dict) -> Answer:
                                                         for i, r in enumerate(ranked[:15], 1)]))
     if len(ranked) > 15:
         answer.notes.append(f"…and {len(ranked) - 15} more.")
+    if stale:
+        answer.sections.append(Section("Maybe already done? (say \"done with …\")",
+                                       items=[_claim(ctx, r, _line(r)) for r in stale[:10]]))
     return answer
 
 

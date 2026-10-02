@@ -159,7 +159,7 @@ def _open_items(ctx: Ctx, m: Meeting) -> list:
 
     ids = set(m.meta.get("attendees") or [])
     ranked = [r for r in rank(load_loops(ctx.home), ctx.now, ctx.config, upcoming_people=ids)
-              if r.loop.meta.get("counterpart") in ids]
+              if r.loop.meta.get("counterpart") in ids and not r.stale]
     return [_claim(ctx, r, _line(r)) for r in ranked[:6]]
 
 
