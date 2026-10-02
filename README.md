@@ -31,7 +31,7 @@ Things to ask (there's nothing else to memorize):
 | Handover | "write a handover for the redis migration" |
 | Fix Archie | "the Friday sync is a standup" · "Al R. is Alex Rivera" · "Priya is the PM for auth" |
 
-Add `--sources` to see where each `[n]` came from. In the app, sources are always shown.
+Add `--sources` to see where each `[n]` came from (`--paths` also shows the file). In the app, sources are always shown.
 
 ## Setup
 

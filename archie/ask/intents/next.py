@@ -54,8 +54,7 @@ def next_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         summary.append(_claim(ctx, todo[0], f"Best use: {top.get('summary')} ({top.get('counterpart_name')})."))
     answer = Answer(summary=summary)
     if todo:
-        answer.sections.append(Section("Do next", items=[_claim(ctx, r, f"{i}. {_line(r)}")
-                                                         for i, r in enumerate(todo[:5], 1)]))
+        answer.sections.append(Section("Do next", items=[_claim(ctx, r, _line(r)) for r in todo[:5]]))
     if in_progress:
         answer.sections.append(Section("In progress", lines=in_progress))
     if nudges:

@@ -26,7 +26,7 @@ class _Numberer:
         return "".join(f"[{n}]" for n in nums)
 
 
-def render(answer: Answer, sources: bool = False) -> str:
+def render(answer: Answer, sources: bool = False, paths: bool = False) -> str:
     if answer.plain is not None:
         return answer.plain
     if answer.nothing_found:
@@ -46,5 +46,6 @@ def render(answer: Answer, sources: bool = False) -> str:
         out += ["", note]
     if sources and num.order:
         out += ["", "Sources"]
-        out += [f"  [{i}] {label}  · {path}" for i, (path, chunk, label) in enumerate(num.order, 1)]
+        out += [f"  [{i}] {label}" + (f"  · {path}" if paths else "") for i, (path, chunk, label) in
+                enumerate(num.order, 1)]
     return "\n".join(out)

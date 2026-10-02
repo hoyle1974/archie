@@ -61,8 +61,7 @@ def loops_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     tail = "" if who and who.lower() in str(m.get("summary", "")).lower() else f", {link} {who}"
     urgent = f"Most urgent: {m.get('summary')}{tail}{reason}."
     answer = Answer(summary=[Claim(count, []), _claim(ctx, top, urgent)])
-    answer.sections.append(Section("Open items", items=[_claim(ctx, r, f"{i}. {_line(r)}")
-                                                        for i, r in enumerate(ranked[:15], 1)]))
+    answer.sections.append(Section("Open items", items=[_claim(ctx, r, _line(r)) for r in ranked[:15]]))
     if len(ranked) > 15:
         answer.notes.append(f"…and {len(ranked) - 15} more.")
     if stale:

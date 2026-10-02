@@ -57,11 +57,11 @@ class ArchieApp(App):
     def compose(self) -> ComposeResult:
         with Horizontal():
             with Vertical(id="left"):
-                yield Static("Loading…", id="feed")
-                yield Static("Starting up…", id="activity")
+                yield Static("Loading…", id="feed", markup=False)
+                yield Static("Starting up…", id="activity", markup=False)
             with Vertical(id="right"):
                 with VerticalScroll(id="answer-scroll"):
-                    yield Static(HINT, id="answer")
+                    yield Static(HINT, id="answer", markup=False)
                 yield Input(placeholder="Ask Archie…", id="question")
         yield Footer()
 

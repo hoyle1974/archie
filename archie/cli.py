@@ -36,15 +36,16 @@ def cmd_ask(argv: list[str]) -> int:
     from archie.ask.pipeline import ask
     from archie.ask.render import render
 
-    sources = "--sources" in argv
-    question = " ".join(a for a in argv if a != "--sources").strip()
+    sources = "--sources" in argv or "--paths" in argv
+    paths = "--paths" in argv
+    question = " ".join(a for a in argv if a not in ("--sources", "--paths")).strip()
     if not question:
         print(USAGE)
         return 2
     home = Home.default()
     ctx = build_ctx(home)
     try:
-        print(render(ask(ctx, question), sources=sources))
+        print(render(ask(ctx, question), sources=sources, paths=paths))
     except LLMError as exc:
         print(f"Archie couldn't reach its language model: {exc}")
         return 1

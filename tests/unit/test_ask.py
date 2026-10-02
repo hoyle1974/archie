@@ -72,7 +72,9 @@ def test_render_leads_with_summary_and_hides_sources_by_default(tmp_path):
     assert out.splitlines()[0].startswith("Priya is the PM for auth. [1]")
     assert "people/priya_sharma.md" not in out
     assert "Details" in out
-    assert "people/priya_sharma.md" in render(ans, sources=True)
+    with_sources = render(ans, sources=True)
+    assert "Sources" in with_sources and "people/priya_sharma.md" not in with_sources  # labels, not paths
+    assert "people/priya_sharma.md" in render(ans, sources=True, paths=True)
 
 
 def test_obvious_questions_skip_the_routing_call(tmp_path):
