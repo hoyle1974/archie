@@ -16,3 +16,4 @@ Data flows top to bottom:
 - [tui](tui.md): Textual app hosting the sync loop
 - [store](store.md): file I/O, frontmatter, fences, atomic writes
 - [config](config.md): config.yaml, me.yaml, cursors
+- [cli](cli.md): the `archie` command

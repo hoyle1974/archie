@@ -1,0 +1,21 @@
+[project]
+name = "archie"
+version = "0.1.0"
+description = "Local-first work memory: mirrors sources to files, indexes them, answers through `archie ask`."
+requires-python = ">=3.12"
+dependencies = [
+    "pyyaml>=6",
+]
+
+[project.scripts]
+archie = "archie.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
