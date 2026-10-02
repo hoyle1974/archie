@@ -32,7 +32,7 @@ def build_feed(ctx: Ctx) -> str:
     questions = open_questions(ctx.home)
     if questions:
         lines = [f"  • {q['text']}" for q in questions[:3]]
-        parts.append("Archie has a question (answer yes or no)\n" + "\n".join(lines))
+        parts.append("Archie has a question (just answer in the Ask box)\n" + "\n".join(lines))
     if notices:
         parts.append("Recently\n" + "\n".join(f"  • {q['text']}" for q in notices[:3]))
     ranked = [r for r in rank(load_loops(ctx.home), ctx.now, ctx.config) if not r.stale]

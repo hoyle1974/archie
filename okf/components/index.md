@@ -13,7 +13,7 @@ Data flows top to bottom:
 - [llm](llm.md): one backend interface plus the citation verifier
 - [activity](activity.md): what the user did in a window, computed by code
 - [enrich](enrich.md): cited facts about people, added after indexing
-- [questions](questions.md): duplicate people, automatic merges and clarifying questions
+- [questions](questions.md): the audit's clarifying questions (duplicates, probably done, stale, unknown people)
 - [loops](loops.md): open-loop detection, closure and ranking
 - [briefings](briefings.md): meeting type, templates and timing
 - [ask](ask.md): router, intents and rendering, the one user entry point

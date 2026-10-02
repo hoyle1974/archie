@@ -177,6 +177,18 @@ Prefers code snippets over high-level summaries. Ask about their kid's soccer.
 fuzzy name match ("Alex", "the backend lead") produces a *suggested* alias that the user
 confirms through `ask`. Archie never silently merges two people.
 
+**Clarifying questions:** after each sync an audit looks for confusion and asks at most
+5 questions at a time in the Today pane, answered in plain English:
+- probable duplicate people (an identical full name is merged automatically and Archie
+  says so)
+- "did you finish …?" when the evidence that an item is done is weak
+- "still needed?" for an item more than a week past due
+- "who is x@y?" for a correspondent known only by an address
+
+A "no" is remembered. The user can also tell Archie about people directly ("Goodspouse is my
+wife", "Acorn is my youngest"). That sets relationship, role, pronouns and aliases, and
+creates dossiers for people who never email.
+
 **Unknown people:** a new email address in a meeting or thread creates a `status: stub`
 dossier with `org` inferred from the email domain. A background job searches the index
 for mentions and fills in the fenced section.

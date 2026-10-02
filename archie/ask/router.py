@@ -68,7 +68,8 @@ def route(ctx: Ctx, question: str) -> tuple[str, dict]:
     from archie.ask.intents.clarify import looks_like_answer
     from archie.derive.dedupe import open_questions
 
-    if open_questions(ctx.home) and looks_like_answer(question):
+    if any(q["kind"] in ("same_person", "loop_done", "loop_stale") for q in open_questions(ctx.home)) \
+            and looks_like_answer(question):
         return "clarify", empty
     local = ctx.now.astimezone()
     system = load_prompt("route", me_name=ctx.me.name or "the user", now=local.isoformat(timespec="minutes"),
