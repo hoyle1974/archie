@@ -40,7 +40,7 @@ def person_lines(directory: PeopleDirectory, eid: str, history: list[dict]) -> l
     if meta.get("last_interaction"):
         lines.append(f"Last talked: {short_date(meta['last_interaction'])}"
                      f" · first seen {short_date(meta.get('first_seen'))}")
-    threads = {h["path"] for h in history}
+    threads = {h["path"] for h in history if h["source"] == "gmail"}
     if threads:
         lines.append(f"{len(threads)} email thread{'s' if len(threads) != 1 else ''} together")
     return lines
@@ -56,7 +56,7 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         return Answer(plain=f"Which {query.title()}?\n{options}\nAsk again with their full name.")
     eid = matches[0]
     emails = [a for a in directory.meta[eid].get("aliases") or [] if EMAIL.match(str(a))]
-    history = ctx.index.chunks_with_people(emails)
+    history = ctx.index.chunks_with_people(emails, before=ctx.now.isoformat())
     packet = Packet()
     for c in ctx.index.chunks_of(f"people/{eid}.md"):
         packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"])

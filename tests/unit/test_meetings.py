@@ -36,7 +36,8 @@ def test_future_meeting_does_not_move_last_interaction_forward(tmp_path):
     ctx = make_ctx(tmp_path, now=NOW)
     derive_meetings(ctx, [put(ctx, one_on_one())])
     meta = read_note(ctx.home / "people/alex_rivera.md").meta
-    assert meta["last_interaction"] <= NOW.isoformat()
+    assert meta["last_interaction"] is None  # an invite isn't an interaction
+    assert meta["first_seen"] == NOW.isoformat()
     assert meta["status"] == "stub"
 
 

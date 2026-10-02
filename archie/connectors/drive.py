@@ -30,6 +30,7 @@ def _attached(sctx: SyncCtx) -> set[str]:
 
 class DriveConnector:
     name = NAME
+    after = ("calendar",)  # reads calendar attachments from the local mirror
 
     def __init__(self, service_factory=None):
         self._factory = service_factory

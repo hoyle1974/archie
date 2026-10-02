@@ -127,14 +127,19 @@ class Index:
         row = self.conn.execute("SELECT text FROM chunks WHERE path = ? AND chunk_id = ?", (path, chunk_id)).fetchone()
         return row[0] if row else None
 
-    def chunks_with_people(self, emails: list[str], limit: int = 200) -> list[dict]:
-        """Chunks whose people include any of these emails, newest first (code-computed history)."""
+    def chunks_with_people(self, emails: list[str], limit: int = 200, before: str | None = None) -> list[dict]:
+        """Chunks whose people include any of these emails, newest first (code-computed history).
+        `before` (ISO time) drops anything later, e.g. meetings that haven't happened yet."""
         if not emails:
             return []
         where = " OR ".join("people LIKE ?" for _ in emails)
+        args = [f'%"{e.lower()}"%' for e in emails]
+        if before:
+            where = f"({where}) AND (ts IS NULL OR ts <= ?)"
+            args.append(before)
         rows = self.conn.execute(
             f"SELECT path, chunk_id, text, source, ts, label FROM chunks WHERE {where} ORDER BY ts DESC LIMIT ?",
-            [f'%"{e.lower()}"%' for e in emails] + [limit])
+            args + [limit])
         return [dict(zip(("path", "chunk_id", "text", "source", "ts", "label"), r)) for r in rows]
 
     def chunks_of(self, path: str) -> list[dict]:

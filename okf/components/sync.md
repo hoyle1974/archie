@@ -9,6 +9,7 @@ tags: [component]
 
 `run_cycle(ctx, connectors, derivers)`:
 - Each connector gets its saved cursor from `state/cursors.yaml`.
+- Connectors run in parallel, except that one declaring `after = ("calendar",)` waits for a second wave because it reads that connector's mirror.
 - Connector failures are isolated. A failed connector keeps its old cursor and its error is recorded in `state/sync_status.yaml`, while the others carry on.
 - Derivers then receive every changed path.
 - Finally `Index.sync()` runs in a worker thread.

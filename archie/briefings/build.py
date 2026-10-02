@@ -98,7 +98,7 @@ def _people_lines(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> list[str]
         if meta.get("role"):
             bits.append(meta["role"])
         emails = [a for a in meta.get("aliases") or [] if EMAIL.match(str(a))]
-        talked = ctx.index.chunks_with_people(emails, limit=1) if emails else []
+        talked = ctx.index.chunks_with_people(emails, limit=1, before=ctx.now.isoformat()) if emails else []
         if talked:
             bits.append(f"last talked {short_date(talked[0]['ts'])}")
         else:
@@ -137,8 +137,8 @@ def gather(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> tuple[Packet, st
             for c in ctx.index.chunks_of(f"people/{eid}.md")[:3]:
                 p.add(c["path"], c["chunk_id"], c["text"], label=c["label"])
             emails = [a for a in directory.meta.get(eid, {}).get("aliases") or [] if EMAIL.match(str(a))]
-            for c in ctx.index.chunks_with_people(emails, limit=12):
-                if (c["ts"] or "") >= since and c["source"] != "briefings":
+            for c in ctx.index.chunks_with_people(emails, limit=12, before=ctx.now.isoformat()):
+                if (c["ts"] or "") >= since and c["source"] not in ("briefings", "loops"):
                     p.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
                 if len(p.items) > 24:
                     break
@@ -149,7 +149,7 @@ def gather(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> tuple[Packet, st
             p.add(h.path, h.chunk_id, h.text, label=h.label, ts=h.ts)
     query = " ".join(filter(None, [m.meta.get("title")]))
     for h in search(ctx.index, query, k=6, since=(ctx.now - timedelta(days=60)).isoformat()):
-        if h.source not in ("briefings",):
+        if h.source not in ("briefings", "loops"):
             p.add(h.path, h.chunk_id, h.text, label=h.label, ts=h.ts)
     return p, " ".join(extra)
 

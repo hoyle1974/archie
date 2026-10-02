@@ -129,8 +129,10 @@ def _correspondents(data: dict, me) -> dict[str, Seen]:
 
 
 def _fence(meta: dict) -> str:
-    return (f"## What Archie knows\n- First seen {meta['first_seen'][:10]}; "
-            f"last interaction {meta['last_interaction'][:10]}.\n")
+    first, last = (meta.get("first_seen") or "")[:10], (meta.get("last_interaction") or "")[:10]
+    if not last:
+        return f"## What Archie knows\n- First seen {first} on a calendar invite; no interactions yet.\n"
+    return f"## What Archie knows\n- First seen {first}; last interaction {last}.\n"
 
 
 def best_name(names: set[str]) -> str:
@@ -160,8 +162,8 @@ def upsert_person(home: Home, directory: PeopleDirectory, email: str, seen: Seen
         if a and a not in aliases and (a == email or a != meta.get("name")):
             aliases.append(a)
     meta["aliases"] = aliases
-    meta["first_seen"] = min(filter(None, [meta.get("first_seen"), seen.first]))
-    meta["last_interaction"] = max(filter(None, [meta.get("last_interaction"), seen.last]))
+    meta["first_seen"] = min(filter(None, [meta.get("first_seen"), seen.first]), default=None)
+    meta["last_interaction"] = max(filter(None, [meta.get("last_interaction"), seen.last]), default=None)
     if meta.get("status") == "stub" and via == "email":
         meta["status"] = "active"
     note.body = set_fence(note.body, _fence(meta))

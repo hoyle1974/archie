@@ -50,11 +50,18 @@ async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Derive
     status_file = ctx.home / "state/sync_status.yaml"
     status = _load_yaml(status_file)
     backfill = ctx.config["sync"]["backfill_days"]
-    jobs = []
-    for c in connectors:
+    def job(c):
         sctx = SyncCtx(ctx.home, ctx.config["connectors"].get(c.name, {}), ctx.me, ctx.now, backfill)
-        jobs.append(_one(c, sctx, cursors.get(c.name)))
-    results = await asyncio.gather(*jobs)
+        return _one(c, sctx, cursors.get(c.name))
+
+    # Connectors that read another connector's mirror (e.g. drive reads calendar attachments)
+    # declare `after = ("calendar",)` and run in a second wave.
+    names = {c.name for c in connectors}
+    first = [c for c in connectors if not set(getattr(c, "after", ())) & names]
+    second = [c for c in connectors if c not in first]
+    by_name = dict(zip([c.name for c in first], await asyncio.gather(*(job(c) for c in first))))
+    by_name.update(zip([c.name for c in second], await asyncio.gather(*(job(c) for c in second))))
+    results = [by_name[c.name] for c in connectors]
     stamp = ctx.now.isoformat(timespec="seconds")
     report, changed = {}, []
     for c, (rep, res) in zip(connectors, results):

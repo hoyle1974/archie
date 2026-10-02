@@ -66,8 +66,11 @@ def derive_meetings(ctx: Ctx, paths: list[Path]) -> None:
             continue
         ids = []
         for a in people:
-            seen = Seen()
-            seen.at(min(data["start"], now), a.get("name", ""))
+            if data["start"] <= now:  # a meeting that happened counts as an interaction
+                seen = Seen()
+                seen.at(data["start"], a.get("name", ""))
+            else:  # an invite to a future meeting only introduces the person
+                seen = Seen(names={a.get("name", "")} - {""}, first=now, last="")
             ids.append(upsert_person(ctx.home, directory, a["email"], seen, via="calendar"))
         meta = {"event_id": data["id"], "series_id": data.get("series_id"), "title": data.get("title"),
                 "start": data["start"], "end": data["end"], "type": classify(data, ctx.config, overrides),
