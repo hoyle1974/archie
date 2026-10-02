@@ -76,7 +76,9 @@ def derive_meetings(ctx: Ctx, paths: list[Path]) -> None:
                 "start": data["start"], "end": data["end"], "type": classify(data, ctx.config, overrides),
                 "attendees": ids, "attendee_names": [directory.name(i) for i in ids],
                 "linked_docs": [a["file_id"] for a in data.get("attachments", []) if a.get("file_id")],
-                "status": "scheduled", "link": data.get("link", "")}
+                "status": "declined" if any(a.get("self") and a.get("response") == "declined"
+                                            for a in data.get("attendees", [])) else "scheduled",
+                "link": data.get("link", "")}
         if existing:
             note = existing.note
             note.meta.update(meta)

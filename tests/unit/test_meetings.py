@@ -99,3 +99,14 @@ def test_classify_rules_in_order(tmp_path):
     assert classify(ev("Design Review", 3), cfg, {}) == "standard"
     assert classify(ev("Alex / Test", 1, "s1"), cfg, {"series": {"s1": "standard"}}) == "standard"
     assert classify(ev("Weekly thing", 5), cfg, {"titles": {"Weekly thing": "standup"}}) == "standup"
+
+
+def test_declined_meetings_get_no_briefing(tmp_path):
+    ctx = make_ctx(tmp_path, now=NOW)
+    ev = one_on_one()
+    ev["attendees"][0]["responseStatus"] = "declined"
+    derive_meetings(ctx, [put(ctx, ev)])
+    [m] = load_meetings(ctx.home)
+    assert m.meta["status"] == "declined"
+    from archie.briefings.build import upcoming
+    assert upcoming(ctx, hours=24 * 30) == []
