@@ -177,3 +177,56 @@ class FakeCalendar:
                 return None
 
         return E()
+
+
+DOC = "application/vnd.google-apps.document"
+
+
+def drive_file(fid, name, modified, owner="test@acme.example", modifier="test@acme.example", mime=DOC, trashed=False):
+    return {"id": fid, "name": name, "mimeType": mime, "modifiedTime": modified, "trashed": trashed,
+            "webViewLink": f"https://docs.example/{fid}",
+            "owners": [{"emailAddress": owner, "displayName": owner.split("@")[0]}],
+            "lastModifyingUser": {"emailAddress": modifier, "displayName": modifier.split("@")[0]}}
+
+
+class FakeDrive:
+    def __init__(self, files, texts, start_token="100"):
+        self.files_by_id = {f["id"]: f for f in files}
+        self.texts = texts
+        self.start_token = start_token
+        self.changes_list: list[dict] = []
+        self.listed: list[dict] = []
+
+    def files(self):
+        outer = self
+
+        class F:
+            def list(self, **kw):
+                outer.listed.append(kw)
+                return Req(lambda: {"files": [f for f in outer.files_by_id.values() if not f["trashed"]]})
+
+            def list_next(self, *a):
+                return None
+
+            def get(self, fileId, fields=None, supportsAllDrives=None):
+                return Req(lambda: outer.files_by_id[fileId])
+
+            def export(self, fileId, mimeType):
+                return Req(lambda: outer.texts[fileId].encode())
+
+        return F()
+
+    def changes(self):
+        outer = self
+
+        class C:
+            def getStartPageToken(self, **kw):
+                return Req(lambda: {"startPageToken": outer.start_token})
+
+            def list(self, pageToken, **kw):
+                return Req(lambda: {"changes": outer.changes_list, "newStartPageToken": str(int(pageToken) + 1)})
+
+            def list_next(self, *a):
+                return None
+
+        return C()

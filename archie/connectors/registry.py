@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from archie.connectors.base import Connector
 from archie.connectors.calendar import CalendarConnector
+from archie.connectors.drive import DriveConnector
 from archie.connectors.gmail import GmailConnector
 
-ALL = {"gmail": GmailConnector, "calendar": CalendarConnector}
+ALL = {"gmail": GmailConnector, "calendar": CalendarConnector, "drive": DriveConnector}
 
 
 def enabled_connectors(config: dict) -> list[Connector]:
