@@ -16,4 +16,10 @@ tags: [component]
   - By default it excludes Promotions, Social and chats.
   - The chunker makes one chunk per message, dropping quoted replies and signatures, and attaches the people (emails) and a label such as "Email from Sarah Jones: Subject (Oct 1)".
 
-Phase 1 still to build: Calendar, Drive, GitHub, Jira. Phase 2: Slack. Design: [DESIGN §5.1](../../docs/DESIGN.md#51-connectors). Principles: [read-only](../principles/read-only.md), [keep everything](../principles/keep-everything.md). Each cycle is run by [sync](sync.md).
+- `calendar.py`: writes one file per event instance to `sources/calendar/<id>.json`, with recurring events expanded via `singleEvents`.
+  - The first sync covers the 14-day backfill plus `lookahead_days` (60) ahead. After that, `syncToken` returns only changes, and a 410 (expired token) triggers a full resync.
+  - Cancelled events become tombstones.
+  - Normalized fields: title, plain-text description, start/end, all_day, attendees (email, name, response, self, organizer; resources dropped), attachments (`file_id`, title, url, mime), conference link, link and `series_id`.
+  - The chunker makes one chunk per event, labeled "Event: Title (Oct 14)".
+
+Phase 1 still to build: Drive, GitHub, Jira. Phase 2: Slack. Design: [DESIGN §5.1](../../docs/DESIGN.md#51-connectors). Principles: [read-only](../principles/read-only.md), [keep everything](../principles/keep-everything.md). Each cycle is run by [sync](sync.md).

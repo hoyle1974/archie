@@ -131,3 +131,49 @@ class Flaky:
             self.fails -= 1
             raise HttpErrorRate(self.status)
         return self.req.execute()
+
+
+class HttpError410(Exception):
+    def __init__(self):
+        self.resp = type("R", (), {"status": 410})()
+
+
+def cal_event(eid, summary, start, end, attendees=(), recurring=None, description="", status="confirmed",
+              attachments=(), organizer="test@acme.example"):
+    ev = {"id": eid, "status": status, "summary": summary, "description": description,
+          "start": {"dateTime": start}, "end": {"dateTime": end}, "organizer": {"email": organizer},
+          "attendees": [{"email": e, "displayName": n, "responseStatus": "accepted",
+                         **({"self": True} if e == "test@acme.example" else {})} for e, n in attendees],
+          "htmlLink": f"https://calendar.example/{eid}", "updated": "2026-10-01T00:00:00Z"}
+    if recurring:
+        ev["recurringEventId"] = recurring
+    if attachments:
+        ev["attachments"] = list(attachments)
+    return ev
+
+
+class FakeCalendar:
+    def __init__(self, events, sync_token="tok1"):
+        self.events_data = list(events)
+        self.sync_token = sync_token
+        self.requests: list[dict] = []
+        self.token_expired = False
+
+    def events(self):
+        outer = self
+
+        class E:
+            def list(self, **kw):
+                outer.requests.append(kw)
+
+                def run():
+                    if kw.get("syncToken") and outer.token_expired:
+                        raise HttpError410()
+                    return {"items": outer.events_data, "nextSyncToken": outer.sync_token}
+
+                return Req(run)
+
+            def list_next(self, *a):
+                return None
+
+        return E()

@@ -15,3 +15,7 @@ Idempotent. Write only inside fences ([fence rule](../principles/fence-rule.md))
   - Who doesn't: transactional "Updates" mail, newsletters, and people cc'd on inbound mail. These rules took the real archive from 48 dossiers (mostly businesses) down to 16 people.
   - What Archie owns: creating the file, appending `aliases` (the email address is always one), keeping `first_seen`/`last_interaction`/`status` current, the fence, and upgrading a `name` that was only an email placeholder. Everything else belongs to the user.
   - `PeopleDirectory`: `by_email` is an exact match. `find(name)` tries a full name or alias, then a first name, and returns every match so the caller can ask which one was meant.
+- `meetings.py`: creates one note per calendar occurrence with at least one other non-resource attendee, at `meetings/<YYYY>/<YYYY-MM-DD>-<slug>.md`. All-day events and solo blocks are skipped.
+  - The note is found again by `event_id`, so renaming an event keeps the same file. Archie owns the frontmatter (`event_id`, `series_id`, `title`, `start`, `end`, `type`, `attendees`, `attendee_names`, `linked_docs`, `status`, `link`) and the Decisions/Action items fence. `## My notes` belongs to the user.
+  - Attendees become `stub` dossiers. A future meeting never pushes `last_interaction` past now.
+  - Cancelled events set `status: cancelled`.
