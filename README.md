@@ -54,6 +54,10 @@ connectors:
   jira: {enabled: true, site: https://you.atlassian.net, email: you@work.com}
 ```
 
+**First launch:** macOS may ask whether `archie` can use a Keychain item ("archie",
+"google-token"). Choose **Always Allow**. Until you answer, syncing waits silently,
+because only the program that saved the token is trusted automatically.
+
 Maintenance (rarely needed): `archie admin sync | rederive | reindex | status`.
 
 ## Where things live
