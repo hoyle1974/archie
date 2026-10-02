@@ -18,6 +18,7 @@ from archie.store.fence import set_fence
 from archie.store.files import Note, read_note, write_note
 
 LISTED = ("pr_merged", "pr_opened", "commit", "review_given", "issue_done", "transition", "doc_edited")
+SHOW = 8  # items per section before "…and N more": readable beats complete
 NOUNS = {"commit": ("commit", "commits"), "pr_merged": ("PR merged", "PRs merged"),
          "pr_opened": ("PR opened", "PRs opened"), "review_given": ("review", "reviews"),
          "issue_done": ("issue closed", "issues closed"), "transition": ("issue moved", "issues moved"),
@@ -59,12 +60,24 @@ def ledger_answer(ctx: Ctx, start: datetime, end: datetime) -> Answer:
     if (end - start).days > 31:
         for project in sorted({i.project for i in listed}):
             mine = [i for i in listed if i.project == project]
-            answer.sections.append(Section(f"{project} ({_counts(mine)})", items=[_claim(ctx, i) for i in mine[-15:]]))
+            sec = Section(f"{project} ({_counts(mine)})", items=[_claim(ctx, i) for i in mine[-SHOW:][::-1]])
+            if len(mine) > SHOW:
+                sec.items.append(Claim(f"…and {len(mine) - SHOW} more", []))
+            answer.sections.append(sec)
     else:
         for kind in LISTED:
             mine = [i for i in listed if i.kind == kind]
-            if mine:
-                answer.sections.append(Section(KIND_WORDS[kind], items=[_claim(ctx, i) for i in mine]))
+            if not mine:
+                continue
+            sec = Section(KIND_WORDS[kind])
+            if kind == "commit":
+                per_repo = Counter(i.project for i in mine)
+                if len(per_repo) > 1 or len(mine) > SHOW:
+                    sec.lines = [f"{repo}: {n} commit{'s' if n != 1 else ''}" for repo, n in per_repo.most_common()]
+            sec.items = [_claim(ctx, i) for i in mine[-SHOW:][::-1]]
+            if len(mine) > SHOW:
+                sec.items.append(Claim(f"…and {len(mine) - SHOW} more", []))
+            answer.sections.append(sec)
     if not items:
         answer.notes.append("Nothing in your archive for that window. Sources only go back to when each was connected.")
     return answer

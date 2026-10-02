@@ -56,3 +56,17 @@ def test_weekly_journal_written_and_user_text_kept(tmp_path):
     write_week_journal(ctx)
     again = read_note(path)
     assert "Proud of the TTL fix." in again.body and "Lower token TTL to 15m" in get_fence(again.body)
+
+
+def test_long_lists_are_capped_and_commits_counted_per_repo(tmp_path):
+    from archie.store.files import write_raw as wr
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("2026-09-28", None))), now=NOW)
+    for i in range(20):
+        wr(ctx.home / f"sources/github/me__app/commit-{i:07d}.json", {
+            "sha": f"{i:07d}", "repo": "me/app", "message": f"Change {i}", "date": f"2026-09-30T{i:02d}:00:00Z",
+            "author": "ttesterson", "url": "u", "files": []})
+    ctx.index.sync()
+    out = render(ask(ctx, "what did I do?"))
+    assert "me/app: 20 commits" in out and "…and 12 more" in out
+    assert "Change 19" in out and "Change 0 " not in out
