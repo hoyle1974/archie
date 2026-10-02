@@ -127,3 +127,25 @@ def test_tqdm_gets_a_thread_lock_not_a_multiprocessing_one():
 
     _thread_lock_for_tqdm()
     assert isinstance(tqdm.get_lock(), type(threading.RLock()))
+
+
+def test_questions_are_not_blocked_while_a_sync_is_embedding(tmp_path):
+    import threading
+    import time
+
+    home = make_home(tmp_path)
+
+    class Slow(HashEmbedder):
+        def embed(self, texts, query=False):
+            if not query:
+                time.sleep(0.5)
+            return super().embed(texts, query)
+
+    idx = Index(home, Slow(name="hash-test"))
+    t = threading.Thread(target=idx.sync)
+    t.start()
+    time.sleep(0.1)  # sync is now embedding the first file
+    started = time.monotonic()
+    search(idx, "anything")
+    assert time.monotonic() - started < 0.4
+    t.join()

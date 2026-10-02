@@ -37,6 +37,7 @@ class Index:
         self.embedder = embedder
         self.conn = sqlite3.connect(path or home.db, check_same_thread=False)  # used from worker threads
         self.lock = threading.RLock()  # one connection, many threads: serialize every use
+        self._sync_guard = threading.Lock()  # one index sync at a time
         self.conn.enable_load_extension(True)
         sqlite_vec.load(self.conn)
         self.conn.enable_load_extension(False)
@@ -92,10 +93,7 @@ class Index:
             self.conn.execute("DELETE FROM chunks_vec WHERE rowid = ?", (i,))
         self.conn.execute("DELETE FROM chunks WHERE path = ?", (path,))
 
-    def _insert(self, chunks: list[Chunk]) -> None:
-        if not chunks:
-            return
-        vecs = self.embedder.embed([c.text for c in chunks])
+    def _insert(self, chunks: list[Chunk], vecs: list[list[float]]) -> None:
         for c, v in zip(chunks, vecs):
             cur = self.conn.execute(
                 "INSERT INTO chunks(chunk_id, path, char_start, char_end, source, ts, people, label, text)"
@@ -107,31 +105,35 @@ class Index:
                               (cur.lastrowid, sqlite_vec.serialize_float32(v)))
 
     def sync(self) -> SyncStats:
-        with self.lock:
-            return self._sync()
-
-    def _sync(self) -> SyncStats:
+        """Bring the index up to date. Embedding happens outside the lock and each file's rows
+        are written in one short locked transaction, so questions never wait behind a long
+        sync, only behind one file's write."""
         stats = SyncStats()
-        known = dict(self.conn.execute("SELECT path, sha256 FROM files"))
-        disk = self._files_on_disk()
-        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        for rel in sorted(set(known) - set(disk)):
-            self._drop(rel)
-            self.conn.execute("DELETE FROM files WHERE path = ?", (rel,))
-            stats.removed += 1
-        for rel, p in sorted(disk.items()):
-            text = p.read_text(encoding="utf-8")
-            digest = hashlib.sha256(text.encode()).hexdigest()
-            if known.get(rel) == digest:
-                continue
-            self._drop(rel)
-            chunks = chunk_file(rel, text)
-            self._insert(chunks)
-            self.conn.execute("INSERT OR REPLACE INTO files VALUES (?, ?, ?)", (rel, digest, now))
-            stats.indexed += 1
-            stats.chunks += len(chunks)
-            self.conn.commit()
-        self.conn.commit()
+        sync_guard = self._sync_guard  # one sync at a time; readers are not blocked by it
+        with sync_guard:
+            known = dict(self.query("SELECT path, sha256 FROM files"))
+            disk = self._files_on_disk()
+            now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            for rel in sorted(set(known) - set(disk)):
+                with self.lock:
+                    self._drop(rel)
+                    self.conn.execute("DELETE FROM files WHERE path = ?", (rel,))
+                    self.conn.commit()
+                stats.removed += 1
+            for rel, p in sorted(disk.items()):
+                text = p.read_text(encoding="utf-8")
+                digest = hashlib.sha256(text.encode()).hexdigest()
+                if known.get(rel) == digest:
+                    continue
+                chunks = chunk_file(rel, text)
+                vecs = self.embedder.embed([c.text for c in chunks]) if chunks else []
+                with self.lock:
+                    self._drop(rel)
+                    self._insert(chunks, vecs)
+                    self.conn.execute("INSERT OR REPLACE INTO files VALUES (?, ?, ?)", (rel, digest, now))
+                    self.conn.commit()
+                stats.indexed += 1
+                stats.chunks += len(chunks)
         return stats
 
     def chunk_text(self, path: str, chunk_id: str) -> str | None:
