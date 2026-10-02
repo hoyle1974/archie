@@ -3,6 +3,6 @@ From the numbered sources, extract up to 6 lasting facts about {person}: their r
 company or team, how they relate to {me_name}, what they work on, and preferences worth
 remembering. Skip one-off events and logistics ("sent the invoice", "is traveling").
 
-Each fact: a short phrase (`text`), the source number (`ref`), and a `quote` copied EXACTLY
+Refer to {me_name} as "you" ("your son", "your manager"). Each fact: a short phrase (`text`), the source number (`ref`), and a `quote` copied EXACTLY
 from that source (8+ characters) that supports it. Only state what the sources show.
 Return an empty list if they show nothing lasting.
