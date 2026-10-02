@@ -240,7 +240,7 @@ feed the handover vignette and narrow down searches.
 
 | Source   | Phase | Incremental mechanism                 | Raw unit             |
 |----------|-------|---------------------------------------|----------------------|
-| Calendar | 1     | `syncToken`                           | event (instance)     |
+| Calendar | 1     | `syncToken` per calendar (all calendars the user owns or edits) | event (instance) |
 | Gmail    | 1     | `historyId` (falls back to a date query if expired, about 1 week) | thread |
 | Drive    | 1     | `changes` page token                  | file (text export)   |
 | GitHub   | 1     | `since` / `updated` sort              | PR, commit, review   |

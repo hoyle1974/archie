@@ -13,7 +13,7 @@ Design: [DESIGN §3.1, §10](../../docs/DESIGN.md#10-tui). Runs [connectors](con
   - On mount it runs a catch-up `run_cycle`, then repeats it every `sync.interval_minutes`. ctrl+r syncs immediately.
   - Questions typed in the Ask input run `ask()` in a worker thread, and the answer is rendered with its sources. The Today pane refreshes after every answer, because answers can close loops, add notes or fix meetings.
   - `run_tui()` builds the real context.
-- `feed.py`: `build_feed(ctx)` fills the Today pane. For now it only shows a placeholder until briefings and loops exist.
+- `feed.py`: `build_feed(ctx)` fills the Today pane with today's agenda (meetings and personal events, with times), then the next meeting's briefing. For now it only shows a placeholder until briefings and loops exist.
 - Copying: drag to select and press Cmd+C or Ctrl+C, or press Ctrl+Y to copy the whole answer. `copy_to_clipboard` also calls `pbcopy`, because macOS Terminal ignores the OSC 52 escape that Textual uses.
 - Single writer: the window that holds the [store](store.md) lock (`store/lock.py`) syncs and writes briefings. Any other window only answers questions.
 - Sync and ask failures write full tracebacks to `logs/errors.log`. While an answer is pending, the Ask pane shows "Still working… (Ns)" after 20 seconds and gives up after `ASK_TIMEOUT` (180s) with a message, so it can never stay stuck.

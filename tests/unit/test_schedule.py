@@ -37,13 +37,14 @@ def test_feed_shows_next_briefing_and_top_loops(tmp_path):
     seed(ctx)
     tick(ctx, notify=lambda t, m: None)
     feed = build_feed(ctx)
-    assert feed.startswith("Next: 2:00 PM · Design Review: Auth Redesign")
+    assert feed.startswith("Today\n  2:00 PM  Design Review: Auth Redesign")
+    assert "Next meeting: 2:00 PM · Design Review: Auth Redesign" in feed
     assert "Review Alex's Redis fallback logic" in feed
 
 
 def test_feed_without_meetings(tmp_path):
     ctx = make_ctx(tmp_path, now=MORNING)
-    assert "No more meetings today" in build_feed(ctx)
+    assert "Nothing else on your calendar today." in build_feed(ctx)
 
 
 def test_friday_afternoon_tick_writes_weekly_journal(tmp_path):

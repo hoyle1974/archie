@@ -50,6 +50,8 @@ def tick(ctx: Ctx, notify: Notify = mac_notify) -> list[str]:
     built = []
     lead = timedelta(minutes=ctx.config["briefings"]["lead_minutes"])
     for m in todays(ctx):
+        if m.meta.get("type") == "event":
+            continue  # personal events get no briefing or notification
         path = ctx.home / _path(m)
         start = datetime.fromisoformat(m.meta["start"])
         due = start - lead <= ctx.now

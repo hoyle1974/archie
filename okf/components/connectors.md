@@ -16,7 +16,7 @@ tags: [component]
   - By default it excludes Promotions, Social and chats.
   - The chunker makes one chunk per message, dropping quoted replies and signatures, and attaches the people (emails) and a label such as "Email from Sarah Jones: Subject (Oct 1)".
 
-- `calendar.py`: writes one file per event instance to `sources/calendar/<id>.json`, with recurring events expanded via `singleEvents`.
+- `calendar.py`: syncs the primary calendar plus every calendar the user owns or can edit, such as a shared family calendar; read-only subscriptions like holidays are skipped. Writes one file per event instance to `sources/calendar/<id>.json`, prefixed with a short calendar hash for non-primary calendars, with recurring events expanded via `singleEvents`. The cursor is `{calendars: {id: syncToken}}`, and the older single-token cursor still works.
   - The first sync covers the 14-day backfill plus `lookahead_days` (60) ahead. After that, `syncToken` returns only changes, and a 410 (expired token) triggers a full resync.
   - Cancelled events become tombstones.
   - Normalized fields: title, plain-text description, start/end, all_day, attendees (email, name, response, self, organizer; resources dropped), attachments (`file_id`, title, url, mime), conference link, link and `series_id`.

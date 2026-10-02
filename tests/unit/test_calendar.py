@@ -29,7 +29,7 @@ def test_first_sync_uses_backfill_window_and_saves_token(tmp_path):
     home, res = sync(fake, tmp_path=tmp_path)
     assert fake.requests[0]["timeMin"].startswith("2026-09-17")
     assert fake.requests[0]["singleEvents"] is True
-    assert res.cursor == {"sync_token": "tok1"}
+    assert res.cursor == {"calendars": {"primary": "tok1"}}
     data = read_raw(home / "sources/calendar/ev1.json")
     assert data["title"] == "Design Review: Auth Redesign"
     assert data["start"] == "2026-10-01T21:00:00+00:00"
@@ -42,7 +42,7 @@ def test_incremental_uses_sync_token(tmp_path):
     fake = FakeCalendar([REVIEW], sync_token="tok2")
     home, res = sync(fake, cursor={"sync_token": "tok1"}, tmp_path=tmp_path)
     assert fake.requests[0]["syncToken"] == "tok1" and "timeMin" not in fake.requests[0]
-    assert res.cursor == {"sync_token": "tok2"}
+    assert res.cursor == {"calendars": {"primary": "tok2"}}
 
 
 def test_expired_token_does_full_resync(tmp_path):
@@ -68,3 +68,23 @@ def test_event_chunk_is_readable_with_people(tmp_path):
     assert "Alex Rivera" in c.text and "Agenda: Redis cluster" in c.text and "<p>" not in c.text
     assert c.label.startswith("Event: Design Review: Auth Redesign (")
     assert "alex@acme.example" in c.people and c.ts == "2026-10-01T21:00:00+00:00"
+
+
+def test_all_calendars_i_own_or_edit_are_synced_but_not_subscriptions(tmp_path):
+    family = cal_event("fam1", "Test - this is to test my system", "2026-10-02T18:30:00Z", "2026-10-02T19:00:00Z")
+    hol = cal_event("hol1", "Columbus Day", "2026-10-12T00:00:00Z", "2026-10-12T01:00:00Z")
+    fake = FakeCalendar([REVIEW], others={"fam@group.example": ("Strohm's Calendar", "owner", [family]),
+                                           "holidays@group.example": ("Holidays", "reader", [hol])})
+    home, res = sync(fake, tmp_path=tmp_path)
+    names = sorted(p.name for p in res.written)
+    assert "ev1.json" in names and any(n.endswith("_fam1.json") for n in names)
+    assert not any("hol1" in n for n in names)
+    fam = read_raw(next(p for p in res.written if p.name.endswith("_fam1.json")))
+    assert fam["calendar"] == "Strohm's Calendar" and fam["title"].startswith("Test")
+    assert res.cursor["calendars"]["fam@group.example"] == "fam@group.example-tok"
+
+
+def test_old_single_token_cursor_still_works(tmp_path):
+    fake = FakeCalendar([REVIEW], sync_token="tok2")
+    home, res = sync(fake, cursor={"sync_token": "tok1"}, tmp_path=tmp_path)
+    assert fake.requests[0]["syncToken"] == "tok1"

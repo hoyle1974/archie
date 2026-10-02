@@ -41,11 +41,22 @@ def test_future_meeting_does_not_move_last_interaction_forward(tmp_path):
     assert meta["status"] == "stub"
 
 
-def test_solo_blocks_and_all_day_events_are_not_meetings(tmp_path):
+def test_solo_events_are_personal_events_without_briefings(tmp_path):
     ctx = make_ctx(tmp_path, now=NOW)
     focus = cal_event("f1", "Focus time", "2026-10-02T16:00:00Z", "2026-10-02T18:00:00Z",
                       attendees=[("test@acme.example", "Test")])
-    derive_meetings(ctx, [put(ctx, focus)])
+    test = cal_event("t1", "Test", "2026-10-02T18:30:00Z", "2026-10-02T19:00:00Z")
+    derive_meetings(ctx, [put(ctx, focus), put(ctx, test)])
+    ms = load_meetings(ctx.home)
+    assert sorted(m.meta["title"] for m in ms) == ["Focus time", "Test"]
+    assert all(m.meta["type"] == "event" and m.meta["attendees"] == [] for m in ms)
+
+
+def test_all_day_events_are_skipped(tmp_path):
+    ctx = make_ctx(tmp_path, now=NOW)
+    ev = cal_event("ad", "Pizza Day", "2026-10-21T00:00:00Z", "2026-10-22T00:00:00Z")
+    ev["start"], ev["end"] = {"date": "2026-10-21"}, {"date": "2026-10-22"}
+    derive_meetings(ctx, [put(ctx, ev)])
     assert load_meetings(ctx.home) == []
 
 

@@ -153,11 +153,24 @@ def cal_event(eid, summary, start, end, attendees=(), recurring=None, descriptio
 
 
 class FakeCalendar:
-    def __init__(self, events, sync_token="tok1"):
+    def __init__(self, events, sync_token="tok1", others=None):
         self.events_data = list(events)
         self.sync_token = sync_token
         self.requests: list[dict] = []
         self.token_expired = False
+        self.others = others or {}  # calendar id -> (summary, accessRole, [events])
+
+    def calendarList(self):
+        outer = self
+
+        class L:
+            def list(self, **kw):
+                items = [{"id": "test@acme.example", "summary": "test@acme.example", "primary": True,
+                          "accessRole": "owner"}]
+                items += [{"id": cid, "summary": s, "accessRole": role} for cid, (s, role, _) in outer.others.items()]
+                return Req(lambda: {"items": items})
+
+        return L()
 
     def events(self):
         outer = self
@@ -169,6 +182,9 @@ class FakeCalendar:
                 def run():
                     if kw.get("syncToken") and outer.token_expired:
                         raise HttpError410()
+                    cal = kw.get("calendarId")
+                    if cal in outer.others:
+                        return {"items": outer.others[cal][2], "nextSyncToken": f"{cal}-tok"}
                     return {"items": outer.events_data, "nextSyncToken": outer.sync_token}
 
                 return Req(run)

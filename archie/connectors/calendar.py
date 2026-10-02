@@ -1,4 +1,7 @@
-"""Google Calendar, read-only. One raw file per event instance: sources/calendar/<id>.json.
+"""Google Calendar, read-only. One raw file per event instance: sources/calendar/<id>.json
+(events from calendars other than primary are prefixed with a short calendar hash).
+Syncs the primary calendar and every calendar the user owns or can edit (e.g. a shared
+family calendar); read-only subscriptions like holidays are skipped.
 
 Recurring events are expanded (singleEvents) so each occurrence is its own file. First sync
 covers the backfill window plus `lookahead_days` ahead; after that, `syncToken` returns only
@@ -8,6 +11,7 @@ changes. A 410 means the token expired: do a full resync.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 from datetime import datetime, timedelta
 from html import unescape
@@ -66,8 +70,21 @@ class CalendarConnector:
     async def sync(self, sctx: SyncCtx, cursor) -> SyncResult:
         return await asyncio.to_thread(self._sync, sctx, cursor or {})
 
-    def _list(self, svc, sctx: SyncCtx, token: str | None):
-        cal = sctx.config.get("calendar_id", "primary")
+    def _calendars(self, svc, sctx: SyncCtx) -> list[tuple[str, str]]:
+        """(id, name) of calendars to sync: "primary" plus any calendar the user owns or can
+        edit (shared family calendars). Read-only subscriptions (holidays) are skipped."""
+        if sctx.config.get("calendar_id"):
+            return [(sctx.config["calendar_id"], sctx.config["calendar_id"])]
+        cals = [("primary", "primary")]
+        try:
+            items = execute(svc.calendarList().list(minAccessRole="writer")).get("items", [])
+        except Exception:
+            return cals
+        cals += [(c["id"], c.get("summary", c["id"])) for c in items
+                 if not c.get("primary") and c.get("accessRole") in ("owner", "writer")]
+        return cals
+
+    def _list(self, svc, sctx: SyncCtx, cal: str, token: str | None):
         if token:
             kw = {"calendarId": cal, "syncToken": token, "singleEvents": True, "showDeleted": True}
         else:
@@ -83,23 +100,32 @@ class CalendarConnector:
 
     def _sync(self, sctx: SyncCtx, cursor: dict) -> SyncResult:
         svc = self._service()
-        try:
-            items, token = self._list(svc, sctx, cursor.get("sync_token"))
-        except Exception as exc:
-            if getattr(getattr(exc, "resp", None), "status", None) != 410:
-                raise
-            items, token = self._list(svc, sctx, None)
-        written, deleted = [], []
-        for ev in items:
-            path = sctx.source_dir(NAME) / f"{ev['id']}.json"
-            if ev.get("status") == "cancelled":
-                if path.exists() and not read_raw(path).get("deleted"):
-                    tombstone(path, sctx.now.isoformat())
-                    deleted.append(path)
-                continue
-            write_raw(path, normalize_event(ev, sctx.me))
-            written.append(path)
-        return SyncResult(cursor={"sync_token": token}, written=written, deleted=deleted)
+        tokens = dict(cursor.get("calendars") or {})
+        if cursor.get("sync_token") and "primary" not in tokens:  # cursor from before multi-calendar
+            tokens["primary"] = cursor["sync_token"]
+        written, deleted, new_tokens = [], [], {}
+        for cal, cal_name in self._calendars(svc, sctx):
+            try:
+                items, token = self._list(svc, sctx, cal, tokens.get(cal))
+            except Exception as exc:
+                if getattr(getattr(exc, "resp", None), "status", None) != 410:
+                    raise
+                items, token = self._list(svc, sctx, cal, None)
+            new_tokens[cal] = token
+            prefix = "" if cal == "primary" else hashlib.sha1(cal.encode()).hexdigest()[:6] + "_"
+            for ev in items:
+                path = sctx.source_dir(NAME) / f"{prefix}{ev['id']}.json"
+                if ev.get("status") == "cancelled":
+                    if path.exists() and not read_raw(path).get("deleted"):
+                        tombstone(path, sctx.now.isoformat())
+                        deleted.append(path)
+                    continue
+                data = normalize_event(ev, sctx.me)
+                data["id"] = f"{prefix}{ev['id']}"  # unique across calendars
+                data["calendar"] = "primary" if cal == "primary" else cal_name
+                write_raw(path, data)
+                written.append(path)
+        return SyncResult(cursor={"calendars": new_tokens}, written=written, deleted=deleted)
 
 
 def chunk_event(path: str, data: dict) -> list[Chunk]:

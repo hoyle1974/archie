@@ -11,17 +11,21 @@ from archie.store.files import read_note
 
 def build_feed(ctx: Ctx) -> str:
     parts = []
-    meetings = todays(ctx)
+    from datetime import datetime
+
+    agenda = todays(ctx)
+    meetings = [m for m in agenda if m.meta.get("type") != "event"]
+    if agenda:
+        lines = [f"  {datetime.fromisoformat(m.meta['start']).astimezone():%-I:%M %p}  {m.meta.get('title')}"
+                 for m in agenda[:6]]
+        parts.append("Today\n" + "\n".join(lines))
+    else:
+        parts.append("Nothing else on your calendar today.")
     if meetings:
         m = meetings[0]
         path = ctx.home / _path(m)
         body = read_note(path).body.strip() if path.exists() else "(briefing not built yet)"
-        parts.append(f"Next: {body}")
-        if len(meetings) > 1:
-            later = ", ".join(x.meta.get("title") for x in meetings[1:4])
-            parts.append(f"Later today: {later}")
-    else:
-        parts.append("No more meetings today.")
+        parts.append(f"Next meeting: {body}")
     from datetime import timedelta
 
     from archie.derive.audit import resolve_answered

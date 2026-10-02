@@ -1,4 +1,6 @@
-"""Meetings: one note per calendar occurrence with other people (DESIGN §4.3).
+"""Meetings: one note per timed calendar occurrence (DESIGN §4.3). Occurrences with other
+people are meetings (typed, briefed); ones without are personal events (type "event"):
+they appear in Today's agenda and count as busy time, but get no briefing.
 
 meetings/<YYYY>/<YYYY-MM-DD>-<slug>.md, found again by `event_id` so a renamed event
 keeps its file. Archie owns the frontmatter keys below and the fence; `## My notes` and
@@ -62,7 +64,7 @@ def derive_meetings(ctx: Ctx, paths: list[Path]) -> None:
                 write_note(ctx.home / existing.rel_path, existing.note)
             continue
         people = others(data, ctx.me)
-        if not people or data.get("all_day"):
+        if data.get("all_day"):
             continue
         ids = []
         for a in people:
@@ -73,7 +75,8 @@ def derive_meetings(ctx: Ctx, paths: list[Path]) -> None:
                 seen = Seen(names={a.get("name", "")} - {""}, first=now, last="")
             ids.append(upsert_person(ctx.home, directory, a["email"], seen, via="calendar"))
         meta = {"event_id": data["id"], "series_id": data.get("series_id"), "title": data.get("title"),
-                "start": data["start"], "end": data["end"], "type": classify(data, ctx.config, overrides),
+                "start": data["start"], "end": data["end"],
+                "type": classify(data, ctx.config, overrides) if people else "event",
                 "attendees": ids, "attendee_names": [directory.name(i) for i in ids],
                 "linked_docs": [a["file_id"] for a in data.get("attachments", []) if a.get("file_id")],
                 "status": "declined" if any(a.get("self") and a.get("response") == "declined"
