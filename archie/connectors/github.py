@@ -59,7 +59,15 @@ class GitHubConnector:
         return await asyncio.to_thread(self._sync, sctx, cursor or {})
 
     def _search(self, q: str, kind: str = "issues") -> list[dict]:
-        return (self.gh(f"search/{kind}?q={q}&sort=updated&order=desc&per_page=100") or {}).get("items", [])
+        """All pages (GitHub search stops at 1,000 results)."""
+        sort = "author-date" if kind == "commits" else "updated"
+        items: list[dict] = []
+        for page in range(1, 11):
+            batch = (self.gh(f"search/{kind}?q={q}&sort={sort}&order=desc&per_page=100&page={page}") or {}).get("items", [])
+            items += batch
+            if len(batch) < 100:
+                break
+        return items
 
     def _sync(self, sctx: SyncCtx, cursor: dict) -> SyncResult:
         user = sctx.config.get("user") or sctx.me.github

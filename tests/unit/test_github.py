@@ -76,3 +76,16 @@ def test_chunks_cover_pr_comments_and_commit_files(tmp_path):
     [c] = chunk_file("sources/github/acme__auth/commit-9f3c1e2.json",
                      (home / "sources/github/acme__auth/commit-9f3c1e2.json").read_text())
     assert "config/auth.yaml" in c.text and c.label.startswith("Commit 9f3c1e2: Lower token TTL")
+
+
+def test_search_pages_until_short_page(tmp_path):
+    many = [pr_item(i, f"PR {i}", "ttesterson") for i in range(100)]
+    pages = {1: many, 2: [pr_item(100, "last", "ttesterson")]}
+    r = routes()
+    r["search/issues?q=involves:ttesterson"] = lambda path: {"items": pages.get(int(path.rsplit("page=", 1)[1]), [])}
+    r["repos/acme/auth/pulls/"] = lambda path: [] if path.endswith("/reviews") else {"merged": False, "state": "open"}
+    r["repos/acme/auth/issues/"] = []
+    gh = FakeGh(r)
+    home, res = run(gh, tmp_path=tmp_path)
+    assert sum(1 for c in gh.calls if c.startswith("search/issues?q=involves")) == 2
+    assert (home / "sources/github/acme__auth/pr-100.json").exists()
