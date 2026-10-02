@@ -22,7 +22,7 @@ from archie.store.home import Home, init_home  # noqa: E402
 USAGE = """\
 usage: archie                 open Archie (the TUI)
        archie ask "question"  ask anything, e.g. archie ask "what should I work on next?"
-       archie admin init|sync|rederive|reindex|status
+       archie admin init|sync|rederive|reindex|status|doctor
        archie admin connect google [--client client.json] [--import-token token.json]"""
 
 
@@ -114,10 +114,17 @@ def cmd_admin(argv: list[str]) -> int:
     if argv[:1] == ["connect"]:
         return cmd_connect(argv[1:])
     p = argparse.ArgumentParser(prog="archie admin")
-    p.add_argument("action", choices=["init", "sync", "rederive", "reindex", "status"])
+    p.add_argument("action", choices=["init", "sync", "rederive", "reindex", "status", "doctor"])
     args = p.parse_args(argv)
     if args.action == "sync":
         return cmd_sync(Home.default())
+    if args.action == "doctor":
+        from archie.doctor import run_checks
+
+        results = run_checks(Home.default())
+        for ok, msg in results:
+            print(f"{'✓' if ok else '✗'} {msg}")
+        return 0 if all(ok for ok, _ in results) else 1
     if args.action == "rederive":
         from archie.derive.registry import rederive
 

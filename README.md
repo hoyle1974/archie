@@ -58,6 +58,8 @@ connectors:
 "google-token"). Choose **Always Allow**. Until you answer, syncing waits silently,
 because only the program that saved the token is trusted automatically.
 
+Check your setup any time with `archie admin doctor`.
+
 Maintenance (rarely needed): `archie admin sync | rederive | reindex | status`.
 
 ## Where things live
