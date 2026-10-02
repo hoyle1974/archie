@@ -203,6 +203,7 @@ class ArchieApp(App):
             out.update(f"> {question}\n\nSomething went wrong: {exc} (details in logs/errors.log)")
         finally:
             timer.stop()
+        await self.refresh_feed()  # answers can close loops, add notes or fix meetings
         self.ask_done.set()
 
 

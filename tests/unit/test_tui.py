@@ -130,3 +130,25 @@ def test_slow_answer_times_out_with_a_message(tmp_path, monkeypatch):
             assert "took too long" in text_of(app, "#answer")
 
     asyncio.run(go())
+
+
+def test_today_pane_refreshes_after_an_answer(tmp_path, monkeypatch):
+    from archie.ask.answer import Answer
+
+    state = {"feed": "before"}
+    monkeypatch.setattr("archie.ask.pipeline.ask", lambda ctx, q: (state.update(feed="after"), Answer(plain="Done."))[1])
+    ctx = make_ctx(tmp_path)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], feed=lambda c: state["feed"], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.pause()
+            assert "before" in text_of(app, "#feed")
+            await pilot.click("#question")
+            await pilot.press(*"done with it", "enter")
+            await app.ask_done.wait()
+            await pilot.pause()
+            assert "after" in text_of(app, "#feed")
+
+    asyncio.run(go())
