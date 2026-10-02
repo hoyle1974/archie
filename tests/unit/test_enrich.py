@@ -74,3 +74,16 @@ def test_people_deriver_keeps_facts(tmp_path):
     derive_people(ctx, [p])
     fence = get_fence(read_note(ctx.home / "people/workperson_acorn.md").body)
     assert "Runs people ops at Overwatch [1]" in fence and "last interaction 2026-10-02" in fence
+
+
+def test_facts_show_in_who_at_a_glance(tmp_path):
+    from archie.ask.intents.who import person_lines
+    from archie.derive.people import PeopleDirectory
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(people_facts=facts(("Runs people ops at Overwatch",
+                                                                         "I run people ops at Overwatch")))))
+    seed(ctx)
+    enrich_people(ctx)
+    d = PeopleDirectory.load(ctx.home)
+    lines = person_lines(d, "workperson_acorn", [], d.facts(ctx.home, "workperson_acorn"))
+    assert "Known for: Runs people ops at Overwatch" in lines

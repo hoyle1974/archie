@@ -75,6 +75,10 @@ class PeopleDirectory:
                 out.append(a)
         return out
 
+    def facts(self, home: Home, entity_id: str) -> list[dict]:
+        path = home / f"people/{entity_id}.md"
+        return parse_facts(get_fence(read_note(path).body)) if path.exists() else []
+
     def by_email(self, email: str) -> str | None:
         return self.emails.get(email.strip().lower())
 

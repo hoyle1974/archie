@@ -31,9 +31,11 @@ def resolve(ctx: Ctx, params: dict, question: str) -> tuple[PeopleDirectory, lis
     return directory, directory.find(query) if query else [], query
 
 
-def person_lines(directory: PeopleDirectory, eid: str, history: list[dict]) -> list[str]:
+def person_lines(directory: PeopleDirectory, eid: str, history: list[dict], facts: list[dict] | None = None) -> list[str]:
     meta = directory.meta[eid]
     lines = [directory.name(eid)]
+    if facts and not meta.get("role"):
+        lines.append("Known for: " + "; ".join(f["text"] for f in facts[:3]))
     for key, label in (("role", "Role"), ("org", "Org")):
         if meta.get(key):
             lines.append(f"{label}: {meta[key]}")
@@ -70,7 +72,8 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
             recent.append(h["label"])
         if len(recent) == 5:
             break
-    answer.sections.insert(0, Section("At a glance", lines=person_lines(directory, eid, history)))
+    answer.sections.insert(0, Section("At a glance", lines=person_lines(directory, eid, history,
+                                                                       directory.facts(ctx.home, eid))))
     if recent:
         answer.sections.insert(1, Section("Recent", lines=recent))
     return answer

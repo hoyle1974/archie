@@ -95,8 +95,11 @@ def _people_lines(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> list[str]
     for eid in ids:
         meta = directory.meta.get(eid, {})
         bits = [directory.name(eid)]
+        facts = directory.facts(ctx.home, eid)
         if meta.get("role"):
             bits.append(meta["role"])
+        elif facts:
+            bits.append(facts[0]["text"])
         ids = directory.identifiers(eid)
         talked = ctx.index.chunks_with_people(ids, limit=1, before=ctx.now.isoformat()) if ids else []
         if talked:
