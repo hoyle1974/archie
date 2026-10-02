@@ -10,6 +10,7 @@ dependencies = [
     "pyyaml>=6",
     "sentence-transformers>=6.1.0",
     "sqlite-vec>=0.1.9",
+    "textual>=8.2.8",
 ]
 
 [project.scripts]

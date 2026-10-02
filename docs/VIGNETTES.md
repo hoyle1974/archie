@@ -28,7 +28,7 @@ Status: ⬜ not started · 🟨 partial · ✅ test passing
 
 ### Milestones
 
-- **M1 Foundation:** `~/.archie` layout, `me.yaml`, store with fences, chunker, index
+- ✅ **M1 Foundation** (done 2026-10-02): `~/.archie` layout, `me.yaml`, store with fences, chunker, index
   (FTS5 + vec), hybrid search, LLM interface and verifier, `ask` router skeleton plus
   `search` and `help`, TUI shell with catch-up sync. *Exit:* the rebuild, fence and
   verifier tests pass.
