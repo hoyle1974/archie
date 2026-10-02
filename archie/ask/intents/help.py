@@ -16,6 +16,9 @@ Just ask in plain English: archie ask "…" (or type in the Ask pane).
   Focus         "what should I work on next?"
   Your record   "what did I get done this week?" · "what did I ship this quarter?"
   Notes         "notes from the design review: …"
+  Time away     "catch me up since Monday"
+  Handover      "write a handover for the redis migration"
+  Fix Archie    "the Friday sync is a standup" · "Al R. is Alex Rivera"
   Anything else "who changed the auth config last week?"
 
 Add --sources to see where each [n] came from."""
