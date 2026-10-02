@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timezone
 
 from archie.connectors.base import SyncCtx
-from archie.connectors.gmail import GmailConnector, chunk_thread
+from archie.connectors.gmail import GmailConnector
 from archie.index.chunk import chunk_file
 from archie.store.files import read_raw
 from archie.store.home import init_home
@@ -73,7 +73,6 @@ def test_bulk_mail_is_flagged(tmp_path):
 
 
 def test_gmail_chunker_is_registered_without_explicit_import():
-    import json
     import subprocess
     import sys
 

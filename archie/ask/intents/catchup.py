@@ -6,7 +6,6 @@ projects (no newsletters or automated mail)."""
 
 from __future__ import annotations
 
-import json
 from datetime import date, datetime, time, timedelta
 
 from archie.ask.answer import Answer, Section

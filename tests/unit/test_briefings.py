@@ -5,7 +5,7 @@ from archie.ask.render import render
 from archie.briefings.build import build_briefing, pick_meeting
 from archie.connectors.calendar import normalize_event
 from archie.derive.loops import Loop, save_loop
-from archie.derive.meetings import derive_meetings, load_meetings
+from archie.derive.meetings import derive_meetings
 from archie.derive.people import derive_people
 from archie.llm.backend import FakeBackend
 from archie.store.files import Note, write_raw

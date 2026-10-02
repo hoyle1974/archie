@@ -1,4 +1,3 @@
-import shutil
 
 from archie.index.chunk import Chunk, register_raw_chunker
 from archie.index.db import Index

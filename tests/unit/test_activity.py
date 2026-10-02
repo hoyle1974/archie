@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from archie.activity import my_activity
-from archie.store.files import atomic_write, write_raw
+from archie.store.files import write_raw
 from tests.support.fixtures import make_ctx
 from tests.support.raw import addr, msg, write_thread
 
