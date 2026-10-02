@@ -11,7 +11,7 @@ from archie.ask.intents import intent
 from archie.briefings.build import pick_meeting
 from archie.briefings.classify import TYPES
 from archie.derive.meetings import load_meetings, recent_or_upcoming
-from archie.derive.people import PeopleDirectory
+from archie.derive.people import PeopleDirectory, merge_people
 from archie.llm.prompts import load_prompt
 from archie.store.files import atomic_write, read_note, write_note
 
@@ -81,13 +81,9 @@ def correct_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     if alias not in aliases:
         aliases.append(alias)
     other = [h for h in d.find(alias) if h != eid]
-    for o in other:  # the user said they're the same person: fold the other dossier in, visibly
-        opath = ctx.home / f"people/{o}.md"
-        onote = read_note(opath)
-        aliases += [a for a in onote.meta.get("aliases") or [] if a not in aliases]
-        onote.meta.update(status="merged", merged_into=eid)
-        write_note(opath, onote)
     note.meta["aliases"] = aliases
     write_note(path, note)
+    for o in other:  # the user said they're the same person: fold the other dossier in, visibly
+        merge_people(ctx.home, eid, o)
     merged = f" I merged {', '.join(d.name(o) for o in other)} into them." if other else ""
     return Answer(plain=f"Got it: {alias} is {d.name(eid)}.{merged}")

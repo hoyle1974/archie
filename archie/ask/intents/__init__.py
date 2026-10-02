@@ -20,5 +20,5 @@ def intent(name: str):
 
 
 def load_all() -> None:
-    from archie.ask.intents import (brief, catchup, correct, handover, help, ledger, loops, next,  # noqa: F401
+    from archie.ask.intents import (brief, catchup, clarify, correct, handover, help, ledger, loops, next,  # noqa: F401
                                     notes, remember, search, who)

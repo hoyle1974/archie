@@ -22,9 +22,10 @@ def all_derivers() -> list:
 
 def post_index_steps() -> list:
     """Run after indexing, because they read the index."""
+    from archie.derive.dedupe import find_duplicates
     from archie.derive.enrich import enrich_people
 
-    return [enrich_people]
+    return [find_duplicates, enrich_people]
 
 
 def all_raw_paths(ctx: Ctx) -> list[Path]:

@@ -1,0 +1,47 @@
+"""`clarify`: the user answers Archie's open questions ("yes", "no, different people").
+One open question and a plain yes/no needs no model; with several, the fast model maps
+the reply to question numbers."""
+
+from __future__ import annotations
+
+import re
+
+from archie.ask.answer import Answer
+from archie.ask.context import Ctx
+from archie.ask.intents import intent
+from archie.derive.dedupe import answer_same_person, open_questions
+
+YES = re.compile(r"^\s*(yes|yep|yeah|y|same|correct|right|they('| a)re the same)\b", re.I)
+NO = re.compile(r"^\s*(no|nope|n|different|not the same|they('| a)re (different|not))\b", re.I)
+SCHEMA = {
+    "title": "clarify",
+    "type": "object",
+    "properties": {"answers": {"type": "array", "items": {
+        "type": "object", "properties": {"question": {"type": "integer"}, "same": {"type": "boolean"}},
+        "required": ["question", "same"], "additionalProperties": False}}},
+    "required": ["answers"],
+    "additionalProperties": False,
+}
+
+
+def looks_like_answer(text: str) -> bool:
+    return bool(YES.match(text) or NO.match(text))
+
+
+@intent("clarify")
+def clarify_intent(ctx: Ctx, question: str, params: dict) -> Answer:
+    qs = open_questions(ctx.home)
+    if not qs:
+        return Answer(plain="I don't have any open questions for you.")
+    if len(qs) == 1 and looks_like_answer(question):
+        return Answer(plain=answer_same_person(ctx, qs[0], bool(YES.match(question))))
+    listing = "\n".join(f"{i}. {q['text']}" for i, q in enumerate(qs, 1))
+    out = ctx.backend.complete(
+        "Match the user's reply to the numbered yes/no questions it answers. `same` is true if they say the two "
+        "are the same person. Only include questions the reply clearly answers.",
+        f"Questions:\n{listing}\n\nReply: {question}", SCHEMA, tier="fast")
+    done = [answer_same_person(ctx, qs[a["question"] - 1], bool(a["same"]))
+            for a in out.get("answers") or [] if 1 <= a.get("question", 0) <= len(qs)]
+    if not done:
+        return Answer(plain="Which question was that for?\n" + listing)
+    return Answer(plain="\n".join(done))

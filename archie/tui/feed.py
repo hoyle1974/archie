@@ -22,6 +22,19 @@ def build_feed(ctx: Ctx) -> str:
             parts.append(f"Later today: {later}")
     else:
         parts.append("No more meetings today.")
+    from datetime import timedelta
+
+    from archie.derive.dedupe import open_questions
+
+    day_ago = (ctx.now - timedelta(hours=24)).isoformat()
+    notices = [q for q in open_questions(ctx.home, include_notices=True)
+               if q.get("kind") == "notice" and q.get("asked_at", "") >= day_ago]
+    questions = open_questions(ctx.home)
+    if questions:
+        lines = [f"  • {q['text']}" for q in questions[:3]]
+        parts.append("Archie has a question (answer yes or no)\n" + "\n".join(lines))
+    if notices:
+        parts.append("Recently\n" + "\n".join(f"  • {q['text']}" for q in notices[:3]))
     ranked = [r for r in rank(load_loops(ctx.home), ctx.now, ctx.config) if not r.stale]
     if ranked:
         lines = [f"  • {r.loop.meta.get('counterpart_name')}: {r.loop.meta.get('summary')}"

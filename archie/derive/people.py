@@ -254,3 +254,50 @@ def derive_people(ctx: Ctx, paths: list[Path]) -> None:
     for email, s in sorted(merged.items()):
         upsert_person(ctx.home, directory, email, s)
     link_github(ctx, directory, paths)  # after this cycle's dossiers exist
+
+
+def merge_people(home: Home, keep: str, other: str) -> None:
+    """Fold `other` into `keep`: aliases, the user's notes, cited facts; re-point loops and
+    meetings. The other file stays, marked `status: merged`, so a merge is never lossy."""
+    from archie.derive.loops import load_loops, save_loop
+    from archie.derive.meetings import load_meetings
+
+    kpath, opath = home / f"people/{keep}.md", home / f"people/{other}.md"
+    knote, onote = read_note(kpath), read_note(opath)
+    aliases = list(knote.meta.get("aliases") or [])
+    for a in [onote.meta.get("name"), *(onote.meta.get("aliases") or [])]:
+        if a and a not in aliases and a != knote.meta.get("name"):
+            aliases.append(a)
+    knote.meta["aliases"] = aliases
+    for key in ("relationship", "role", "pronouns"):
+        if onote.meta.get(key) and not knote.meta.get(key):
+            knote.meta[key] = onote.meta[key]
+    knote.meta["first_seen"] = min(filter(None, [knote.meta.get("first_seen"), onote.meta.get("first_seen")]),
+                                   default=None)
+    knote.meta["last_interaction"] = max(filter(None, [knote.meta.get("last_interaction"),
+                                                       onote.meta.get("last_interaction")]), default=None)
+    their_notes = onote.body.split("<!-- archie:auto -->")[0].replace("## My notes", "").strip()
+    if their_notes and their_notes not in knote.body:
+        knote.body = knote.body.replace("## My notes\n", f"## My notes\n{their_notes}\n", 1)
+    facts = parse_facts(get_fence(knote.body))
+    for f in parse_facts(get_fence(onote.body)):
+        if all(f["text"] != x["text"] for x in facts):
+            facts.append(f)
+    knote.body = set_fence(knote.body, render_facts(knote.meta, facts[-8:]))
+    write_note(kpath, knote)
+    onote.meta.update(status="merged", merged_into=keep)
+    write_note(opath, onote)
+    for lp in load_loops(home):
+        if lp.meta.get("counterpart") == other:
+            lp.meta["counterpart"], lp.meta["counterpart_name"] = keep, knote.meta.get("name")
+            save_loop(home, lp)
+    for m in load_meetings(home):
+        ids = m.meta.get("attendees") or []
+        if other in ids:
+            merged_ids = []
+            for i in ids:
+                j = keep if i == other else i
+                if j not in merged_ids:
+                    merged_ids.append(j)
+            m.meta["attendees"] = merged_ids
+            write_note(home / m.rel_path, m.note)
