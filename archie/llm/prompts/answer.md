@@ -6,6 +6,10 @@ Every claim needs at least one citation: the source number (`ref`) and a short q
 copied EXACTLY, word for word, from that source (8+ characters). Claims whose quotes don't
 match are deleted before {me_name} sees them, so never paraphrase inside a quote.
 
+When the user message lists what {me_name} has told you about people, follow it over the
+sources: their relationship words, identity and pronouns are correct even when an email says
+otherwise.
+
 Write to {me_name} directly: call them "you", never by name.
 
 Write for someone skimming:

@@ -22,9 +22,10 @@ SCHEMA = {
         "type": "object",
         "properties": {"name": {"type": "string"}, "relationship": {"type": ["string", "null"]},
                        "role": {"type": ["string", "null"]}, "pronouns": {"type": ["string", "null"]},
+                       "identity": {"type": ["string", "null"]},
                        "other_names": {"type": "array", "items": {"type": "string"}},
                        "statement": {"type": "string"}},
-        "required": ["name", "relationship", "role", "pronouns", "other_names", "statement"],
+        "required": ["name", "relationship", "role", "pronouns", "identity", "other_names", "statement"],
         "additionalProperties": False}}},
     "required": ["people"],
     "additionalProperties": False,
@@ -69,9 +70,10 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
         eid = hits[0] if hits else _new_person(ctx, directory, best_name({name, *(p.get("other_names") or [])}) or name)
         path = ctx.home / f"people/{eid}.md"
         note = read_note(path)
-        for key in ("relationship", "role", "pronouns"):
+        for key in ("relationship", "role", "pronouns", "identity"):
             if p.get(key):
                 note.meta[key] = p[key].strip()
+        note.meta["facts_stale"] = True  # Archie's extracted facts get redone against what you said
         aliases = list(note.meta.get("aliases") or [])
         for a in [name, *(p.get("other_names") or [])]:
             if a and a not in aliases and a != note.meta.get("name"):
@@ -82,7 +84,7 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
             _add_note(note, statement, when)
         write_note(path, note)
         directory.add(eid, note.meta)
-        bits = [b for b in (p.get("relationship"), p.get("role"), p.get("pronouns")) if b]
+        bits = [b for b in (p.get("relationship"), p.get("identity"), p.get("role"), p.get("pronouns")) if b]
         done.append(f"{directory.name(eid)}" + (f" ({', '.join(bits)})" if bits else "") + ("" if hits else ", new"))
     return done + asks
 

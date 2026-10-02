@@ -30,6 +30,8 @@ SCHEMA = {
 }
 def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str) -> str | None:
     """Update one dossier; returns the newest chunk time considered, or None if skipped."""
+    if directory.meta.get(eid, {}).get("facts_stale"):
+        since = ""  # the user told us something: redo facts from scratch against it
     recent = [c for c in ctx.index.chunks_with_people(directory.identifiers(eid), limit=12, before=ctx.now.isoformat())
               if c["source"] not in ("briefings", "loops", "people")]
     newest = max((c["ts"] or "" for c in recent), default="")
@@ -39,14 +41,23 @@ def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str) -> s
     packet = Packet()
     for c in recent:
         packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
+    from archie.ask.synthesize import describe
+
     system = load_prompt("people_facts", person=name, me_name=ctx.me.name or "the user")
+    told = describe(directory.meta.get(eid, {}), name)
+    path = ctx.home / f"people/{eid}.md"
+    mine = read_note(path).body.split("<!-- archie:auto -->")[0].replace("## My notes", "").strip()
+    if told or mine:
+        system += ("\n\nWhat the user has told you about them is ground truth. Never state a fact that "
+                   "contradicts it (e.g. if they say 'my child', never write 'son').\n"
+                   + (f"Stated: {told}\n" if told else "") + (f"Their notes:\n{mine}" if mine else ""))
     try:
         out = ctx.backend.complete(system, f"Sources about {name}:\n\n{packet.render()}", SCHEMA, tier="fast")
     except LLMError:
         return None
-    path = ctx.home / f"people/{eid}.md"
     note = read_note(path)
-    facts = parse_facts(get_fence(note.body))
+    stale = note.meta.pop("facts_stale", None)
+    facts = [] if stale else parse_facts(get_fence(note.body))
     for f in out.get("facts") or []:
         cite = check_quote(packet, int(f.get("ref", 0)), f.get("quote", ""))
         if cite is None or not f.get("text"):

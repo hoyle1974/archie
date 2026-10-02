@@ -33,11 +33,47 @@ SCHEMA = {
 }
 
 
+def describe(meta: dict, name: str) -> str | None:
+    bits = [f"your {meta['relationship']}" if meta.get("relationship") else None, meta.get("identity"),
+            f"pronouns {meta['pronouns']}" if meta.get("pronouns") else None, meta.get("role")]
+    bits = [b for b in bits if b]
+    return f"{name}: {'; '.join(bits)}" if bits else None
+
+
+def people_context(ctx: Ctx, packet: Packet) -> str:
+    """What the user has told Archie about anyone the sources mention. It overrides how the
+    sources describe them (an email saying "my son" about the user's non-binary child)."""
+    import re
+
+    from archie.derive.people import PeopleDirectory
+
+    text = "\n".join(it.text + " " + it.label for it in packet.items).lower()
+    d = PeopleDirectory.load(ctx.home)
+    lines = []
+    for eid, meta in d.meta.items():
+        names = {str(n) for n in [meta.get("name"), *(meta.get("aliases") or [])] if n and "@" not in str(n)}
+        first = str(meta.get("name") or "").split(" ")[0]
+        if first and len(first) > 2:
+            names.add(first)
+        if any(re.search(rf"(?<!\w){re.escape(n.lower())}(?!\w)", text) for n in names):
+            line = describe(meta, d.name(eid))
+            if line:
+                lines.append(f"- {line}")
+    if not lines:
+        return ""
+    return ("What you've told me about people mentioned below. These override how the sources describe "
+            "them: use these relationship words and pronouns, never a gendered word the user hasn't used:\n"
+            + "\n".join(lines[:15]))
+
+
 def synthesize(ctx: Ctx, question: str, packet: Packet, instructions: str = "", tier: str = "strong",
                extra_context: str = "") -> Answer:
     system = load_prompt("answer", me_name=ctx.me.name or "the user",
                          now=ctx.now.astimezone().isoformat(timespec="minutes"), instructions=instructions)
-    user = f"Question: {question}\n\n{extra_context}\n\nSources:\n\n{packet.render()}".replace("\n\n\n", "\n\n")
+    known = people_context(ctx, packet)
+    user = f"Question: {question}\n\n{extra_context}\n\n{known}\n\nSources:\n\n{packet.render()}"
+    while "\n\n\n" in user:
+        user = user.replace("\n\n\n", "\n\n")
     out = ctx.backend.complete(system, user, SCHEMA, tier=tier)
     summary = verify_claims(out.get("summary") or [], packet)
     answer = Answer(summary=summary.kept, packet=packet, dropped=len(summary.dropped))

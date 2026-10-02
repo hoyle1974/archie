@@ -9,7 +9,7 @@ tags: [component]
 
 - `pipeline.py`: `ask(ctx, question) -> Answer` calls `route`, then the intent's handler. An unknown intent falls back to `search`. Every question is appended to `logs/usage.jsonl` (local and gitignored) with its intent, whether it was quick-routed, how long it took in ms, nothing_found, the dropped claim count, the answer as shown (with source paths) and any error, so the next round of changes can come from real use.
 - `router.py`: mixed messages ("I picked up the pizza. Sam is my neighbor.") are split. `route_all` returns the main intent plus `also` parts, which are action intents only, each with its own words matched ignoring whitespace. The pipeline runs every part and `combine`s the replies, and the usage log records `also`. `quick_route` handles unambiguous, parameter-free questions in code ("what's next?", "what do I owe people?", "help") and skips the model call. Everything else is classified with the `fast` model into an intent with parameters (people, since/until, topic, meeting, text). It states no facts, so it needs no citations. The intent list lives in `INTENT_HELP`.
-- `synthesize.py`: sends the packet to the `strong` model, which returns `{summary, sections}` made of claims, and runs every claim through the [verifier](llm.md).
+- `synthesize.py`: `people_context` adds what the user has told Archie (relationship, identity, pronouns, role) about every known person the packet mentions, and tells the model it overrides the sources, so an email saying "my son" can't override "my child". Then it sends the packet to the `strong` model, which returns `{summary, sections}` made of claims, and runs every claim through the [verifier](llm.md).
 - `answer.py`: `Answer` holds the summary claims, sections (cited items plus lines computed by code), the packet, the count of dropped claims, plain text, notes, and a `nothing_found` flag.
 - `render.py`: puts the summary first and numbers `[n]` markers in the order they appear. The source list is shown only with `--sources`. It says plainly when nothing was found or nothing could be verified.
 - `intents/`: each one registers with `@intent(name)`.
@@ -38,7 +38,7 @@ tags: [component]
     - `write_week_journal` writes `journal/weekly/<YYYY>-W<ww>.md` with the ledger inside the fence. The tick runs it on Fridays from 3 PM.
 
   - `remember`: the user tells Archie about one or more people ("Goodspouse is my wife, she goes by Belle", "Acorn is my youngest, he's three").
-    - Code sets `relationship`, `role`, `pronouns` and aliases on the dossier, creating a `status: known` dossier for someone with no email history.
+    - Code sets `relationship`, `role`, `pronouns`, `identity` and aliases on the dossier, creating a `status: known` dossier for someone with no email history.
     - Each person's sentence goes word for word under `## My notes`, but only if it really appears in the message.
     - `who` shows "Your <relationship> · pronouns" and passes pronouns to the model. "my family" lists dossiers whose relationship is a family word. Briefings show the relationship too.
   - `catchup`:

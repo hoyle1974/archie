@@ -35,7 +35,7 @@ def person_lines(directory: PeopleDirectory, eid: str, history: list[dict], fact
     meta = directory.meta[eid]
     lines = [directory.name(eid)]
     personal = [b for b in (f"Your {meta['relationship']}" if meta.get("relationship") else None,
-                            meta.get("pronouns")) if b]
+                            meta.get("identity"), meta.get("pronouns")) if b]
     if personal:
         lines.append(" · ".join(personal))
     if facts and not meta.get("role"):
@@ -65,7 +65,7 @@ def family_answer(ctx: Ctx) -> Answer:
     lines = []
     for e in sorted(fam, key=lambda e: d.name(e)):
         m = d.meta[e]
-        extra = f" · {m['pronouns']}" if m.get("pronouns") else ""
+        extra = "".join(f" · {m[k]}" for k in ("identity", "pronouns") if m.get(k))
         lines.append(f"  • {d.name(e)} (your {m['relationship']}){extra}")
     return Answer(plain="Your family, as you've told me:\n" + "\n".join(lines))
 
@@ -92,6 +92,8 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     about = f"The person asked about is {directory.name(eid)}."
     if meta.get("relationship"):
         about += f" They are your {meta['relationship']}."
+    if meta.get("identity"):
+        about += f" They are {meta['identity']}."
     if meta.get("pronouns"):
         about += f" Pronouns: {meta['pronouns']}; use them."
     answer = synthesize(ctx, question, packet, INSTRUCTIONS.replace("{me_name}", ctx.me.name or "the user"),
