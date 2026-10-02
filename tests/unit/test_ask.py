@@ -88,3 +88,16 @@ def test_obvious_questions_skip_the_routing_call(tmp_path):
     ctx = make_ctx(tmp_path, fb)
     assert "archie ask" in render(ask(ctx, "what can you do?"))
     assert fb.calls == []
+
+
+def test_each_question_is_logged_locally(tmp_path):
+    import json
+
+    fb = FakeBackend(by_schema(route=route("search", topic="zebras")))
+    ctx = make_ctx(tmp_path, fb)
+    ask(ctx, "zebras?")
+    ask(ctx, "help")
+    lines = [json.loads(x) for x in (ctx.home / "logs/usage.jsonl").read_text().splitlines()]
+    assert [x["intent"] for x in lines] == ["search", "help"]
+    assert lines[0]["nothing_found"] is True and lines[1]["quick"] is True
+    assert all("ms" in x and x["question"] for x in lines)
