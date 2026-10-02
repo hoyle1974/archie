@@ -8,7 +8,8 @@ everything else outside the fence is the user's.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from archie.ask.context import Ctx
@@ -88,3 +89,19 @@ def derive_meetings(ctx: Ctx, paths: list[Path]) -> None:
             note.body = set_fence(note.body, "## Decisions\n\n## Action items\n")
         write_note(ctx.home / rel_note, note)
         by_event[data["id"]] = Meeting(rel_note, note)
+
+def recent_or_upcoming(ctx: Ctx, text: str | None, back_hours: int = 24 * 7, ahead_hours: int = 24 * 7) -> Meeting | None:
+    if not text:
+        return None
+    lo, hi = ctx.now - timedelta(hours=back_hours), ctx.now + timedelta(hours=ahead_hours)
+    words = set(re.findall(r"\w+", text.lower())) - {"the", "my", "meeting", "with", "from", "notes", "a", "is"}
+    best, best_score = None, 0
+    for m in load_meetings(ctx.home):
+        start = datetime.fromisoformat(m.meta["start"])
+        if not lo <= start <= hi:
+            continue
+        score = len(words & set(re.findall(r"\w+", (m.meta.get("title") or "").lower())))
+        if score > best_score or (score == best_score and best and abs(start - ctx.now) < abs(
+                datetime.fromisoformat(best.meta["start"]) - ctx.now)):
+            best, best_score = m, score
+    return best if best_score else None

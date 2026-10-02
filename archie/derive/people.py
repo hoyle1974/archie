@@ -55,6 +55,8 @@ class PeopleDirectory:
         d = cls()
         for path in sorted((home / "people").glob("*.md")):
             meta = read_note(path).meta
+            if meta.get("status") == "merged":
+                continue  # its aliases now live on the dossier it was merged into
             d.add(meta.get("entity_id") or path.stem, meta)
         return d
 

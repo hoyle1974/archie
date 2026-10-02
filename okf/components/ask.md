@@ -28,4 +28,6 @@ tags: [component]
 
   - `next`: computed entirely in code. It works out the free time before the next meeting today, ranks loops (boosting anyone you meet today) under "Do next", and lists `waiting_on` items 3 or more days old under "Nudge". No LLM call.
 
-Intents still to build: ledger, handover, catchup, correct. Design: [DESIGN §8](../../docs/DESIGN.md#8-archie-ask). Principles: [one entry point](../principles/one-entry-point.md), [readable first](../principles/readable-first.md).
+  - `correct`: the fast model classifies the correction, and code applies it to files the user can see. A meeting type writes an override to `config/meeting_types.yaml` (by series id, or by exact title if there is no series) and re-types existing meeting notes. "X is Y" adds an alias to Y; if X is a separate dossier, it is merged into Y because the user said so, and marked `status: merged`. A role sets `role` on the dossier.
+
+Intents still to build: ledger, handover, catchup. Design: [DESIGN §8](../../docs/DESIGN.md#8-archie-ask). Principles: [one entry point](../principles/one-entry-point.md), [readable first](../principles/readable-first.md).
