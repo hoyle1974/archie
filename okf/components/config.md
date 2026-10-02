@@ -1,7 +1,7 @@
 ---
 type: Component
 title: Config
-description: Loads config.yaml, me.yaml (user identities) and state/cursors.yaml; secrets come from the Keychain.
+description: Loads config.yaml, me.yaml (the user's identities and name aliases) and state/cursors.yaml; secrets come from the Keychain.
 resource: archie/config.py
 status: planned
 tags: [component]

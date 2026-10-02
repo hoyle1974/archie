@@ -126,15 +126,19 @@ citation, which is marked "source deleted".
 ### 4.1 `me.yaml`
 
 ```yaml
-name: "Your Name"
-emails: ["you@personal.com", "you@company.com"]
-github: "your-handle"
-jira_account_id: "5f…"
+name: "Test Testerson"                 # what Archie calls the user
+legal_name: "Harold Test Testerson III"
+aliases: ["Test", "Test Testerson", "Harold Testerson", "Harold Test Testerson III", "H. Test Testerson"]
+emails: ["test.testerson@example.com"]   # add work addresses here
+github: null              # set when the GitHub connector is added
+jira_account_id: null
 slack_id: null            # phase 2
 timezone: "America/Los_Angeles"
 ```
 
-Everything that asks "is this me?" uses this file and nothing else.
+Everything that asks "is this me?" uses this file and nothing else. `aliases` covers
+mentions by name ("Test, can you…", "cc Harold Testerson"). Matching emails and handles is
+exact. Name aliases match whole words only, so "Test" never matches "Jackson".
 
 ### 4.2 Dossier (`people/alex_rivera.md`)
 
