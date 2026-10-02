@@ -12,7 +12,7 @@ from archie.llm.prompts import load_prompt
 
 INTENT_HELP = {
     "brief": "prepare for a meeting (\"prep me for 2pm\", \"what's my next meeting about?\")",
-    "who": "who someone is or history with them (\"who is Priya?\", \"history with Alex?\")",
+    "who": "who someone is, history with them, or a group like \"my family\" (\"who is Priya?\")",
     "loops": "open items: owed, promised, waiting on (\"what do I owe people?\")",
     "loop_update": "mark an open item done/snoozed/not-a-loop (\"done with Sarah's question\")",
     "next": "what to work on next",
@@ -20,7 +20,9 @@ INTENT_HELP = {
     "handover": "write a project handover",
     "notes": "the user is giving notes from a meeting",
     "catchup": "what happened while away",
-    "correct": "correct Archie (\"that's a 1:1\", \"Alex R. is Alex Rivera\")",
+    "remember": "the user tells you about people: relationships, roles, pronouns, other names "
+                "(\"Goodspouse is my wife\", \"Acorn is my youngest\", \"Robert is the principal\")",
+    "correct": "correct a meeting type or merge two names (\"that's a 1:1\", \"Alex R. is Alex Rivera\")",
     "help": "what Archie can do or how to use it",
     "search": "anything else: find information in the archive",
 }

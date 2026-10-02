@@ -96,6 +96,8 @@ def _people_lines(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> list[str]
         meta = directory.meta.get(eid, {})
         bits = [directory.name(eid)]
         facts = directory.facts(ctx.home, eid)
+        if meta.get("relationship"):
+            bits.append(f"your {meta['relationship']}")
         if meta.get("role"):
             bits.append(meta["role"])
         elif facts:

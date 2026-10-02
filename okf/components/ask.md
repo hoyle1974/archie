@@ -36,6 +36,10 @@ tags: [component]
     - Every item cites its source chunk, and no LLM is involved.
     - `write_week_journal` writes `journal/weekly/<YYYY>-W<ww>.md` with the ledger inside the fence. The tick runs it on Fridays from 3 PM.
 
+  - `remember`: the user tells Archie about one or more people ("Goodspouse is my wife, she goes by Belle", "Acorn is my youngest, he's three").
+    - Code sets `relationship`, `role`, `pronouns` and aliases on the dossier, creating a `status: known` dossier for someone with no email history.
+    - Each person's sentence goes word for word under `## My notes`, but only if it really appears in the message.
+    - `who` shows "Your <relationship> · pronouns" and passes pronouns to the model. "my family" lists dossiers whose relationship is a family word. Briefings show the relationship too.
   - `catchup`:
     - The window comes from since/until and defaults to the last 7 days.
     - The packet is up to 30 chunks from that window, limited to gmail, github, jira, drive and meetings. Gmail chunks count only from personal, non-bulk messages.
