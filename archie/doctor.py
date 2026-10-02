@@ -40,7 +40,10 @@ def check_google(source: str) -> Check:
     except KeychainWaiting as exc:
         return False, str(exc)
     if SCOPES[source] not in scopes:
-        return False, f"{source}: Google access missing: run `archie admin connect google --client client.json`"
+        from archie.secrets import get_secret
+
+        flag = "" if get_secret("google-client") else " --client client.json"
+        return False, f"{source}: Google access missing: run `archie admin connect google{flag}`"
     return True, f"{source}: Google access ok"
 
 

@@ -20,7 +20,10 @@ def test_claude_and_gh_checks():
 def test_google_scope_check(monkeypatch):
     from archie.connectors import google_auth
 
+    from archie import secrets
+
     monkeypatch.setattr(google_auth, "granted_scopes", lambda: {google_auth.SCOPES["gmail"]})
+    monkeypatch.setattr(secrets, "get_secret", lambda key, timeout=15: None)
     assert doctor.check_google("gmail")[0]
     ok, msg = doctor.check_google("calendar")
     assert not ok and "connect google" in msg
