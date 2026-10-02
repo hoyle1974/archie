@@ -36,12 +36,12 @@ def render(answer: Answer, sources: bool = False) -> str:
     num = _Numberer()
     out = []
     if answer.summary:
-        out.append(" ".join(f"{c.text} {num.mark(c)}" for c in answer.summary))
+        out.append(" ".join(f"{c.text} {num.mark(c)}".strip() for c in answer.summary))
     for sec in answer.sections:
         out.append("")
         out.append(sec.heading)
         out += [f"  {line}" for line in sec.lines]
-        out += [f"  • {c.text} {num.mark(c)}" for c in sec.items]
+        out += [f"  • {c.text} {num.mark(c)}".rstrip() for c in sec.items]
     for note in answer.notes:
         out += ["", note]
     if sources and num.order:

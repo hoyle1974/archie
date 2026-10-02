@@ -8,9 +8,10 @@ from archie.ask.context import Ctx
 
 
 def all_derivers() -> list:
+    from archie.derive.loops import derive_loops
     from archie.derive.people import derive_people
 
-    return [derive_people]
+    return [derive_people, derive_loops]
 
 
 def all_raw_paths(ctx: Ctx) -> list[Path]:

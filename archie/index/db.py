@@ -142,6 +142,10 @@ class Index:
                                  (path,))
         return [dict(zip(("path", "chunk_id", "text", "source", "ts", "label"), r)) for r in rows]
 
+    def label_of(self, path: str, chunk_id: str) -> str:
+        row = self.conn.execute("SELECT label FROM chunks WHERE path = ? AND chunk_id = ?", (path, chunk_id)).fetchone()
+        return row[0] if row else path
+
     def counts(self) -> dict[str, int]:
         return {"files": self.conn.execute("SELECT count(*) FROM files").fetchone()[0],
                 "chunks": self.conn.execute("SELECT count(*) FROM chunks").fetchone()[0]}
