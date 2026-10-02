@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Callable
 
-CHUNKER_VERSION = "1"
+CHUNKER_VERSION = "2"
 MAX_WORDS = 280  # ≈ 360 tokens, inside bge-small's 512-token window
 OVERLAP_WORDS = 40
 
@@ -32,6 +32,7 @@ class Chunk:
     source: str = ""
     ts: str | None = None
     people: list[str] = field(default_factory=list)
+    label: str = ""  # human-readable source name shown to the user, e.g. "Priya Sharma (dossier)"
 
 
 RawChunker = Callable[[str, dict], list[Chunk]]
@@ -87,11 +88,40 @@ def _md_ts(text: str) -> str | None:
     return m.group(1) if m else None
 
 
+KINDS = {"people": "dossier", "meetings": "meeting notes", "loops": "open item", "briefings": "briefing",
+         "projects": "project", "journal": "journal"}
+
+
+def short_date(ts: str | None) -> str:
+    from datetime import datetime
+
+    try:
+        d = datetime.fromisoformat((ts or "").replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    d = d.astimezone() if d.tzinfo else d
+    return f"{d:%b} {d.day}"
+
+
+def _md_label(path: str, text: str, ts: str | None) -> str:
+    m = re.search(r"^(?:title|name|summary):\s*['\"]?(.+?)['\"]?\s*$", text[:2000], re.MULTILINE)
+    name = m.group(1) if m and text.startswith("---\n") else PurePosixPath(path).stem.replace("_", " ").replace("-", " ")
+    kind = KINDS.get(PurePosixPath(path).parts[0], "")
+    when = short_date(ts)
+    detail = ", ".join(filter(None, [kind, when]))
+    return f"{name} ({detail})" if detail else name
+
+
 def chunk_file(path: str, text: str) -> list[Chunk]:
     """Chunk a file given its path relative to the Archie home."""
     parts = PurePosixPath(path).parts
     if path.endswith(".md"):
-        return chunk_markdown(path, text, source=parts[0] if len(parts) > 1 else "", ts=_md_ts(text))
+        ts = _md_ts(text)
+        chunks = chunk_markdown(path, text, source=parts[0] if len(parts) > 1 else "", ts=ts)
+        label = _md_label(path, text, ts)
+        for c in chunks:
+            c.label = label
+        return chunks
     if path.endswith(".json") and len(parts) > 2 and parts[0] == "sources":
         data = json.loads(text)
         fn = _RAW.get(parts[1])

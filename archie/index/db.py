@@ -18,7 +18,7 @@ from archie.index.chunk import CHUNKER_VERSION, Chunk, chunk_file
 from archie.index.embed import Embedder
 from archie.store.home import Home
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 # Only these top-level parts of the home are indexed; config, state and logs are not.
 INDEXED_ROOTS = ("sources", "people", "projects", "meetings", "briefings", "loops", "journal")
 
@@ -60,7 +60,7 @@ class Index:
         c.execute("CREATE TABLE IF NOT EXISTS files(path TEXT PRIMARY KEY, sha256 TEXT, indexed_at TEXT)")
         c.execute("""CREATE TABLE IF NOT EXISTS chunks(
             id INTEGER PRIMARY KEY, chunk_id TEXT, path TEXT, char_start INT, char_end INT,
-            source TEXT, ts TEXT, people TEXT, text TEXT)""")
+            source TEXT, ts TEXT, people TEXT, label TEXT, text TEXT)""")
         c.execute("CREATE INDEX IF NOT EXISTS chunks_path ON chunks(path)")
         c.execute("CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(text, tokenize='unicode61')")
         c.execute(f"CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(embedding float[{self.embedder.dim}])")
@@ -91,9 +91,10 @@ class Index:
         vecs = self.embedder.embed([c.text for c in chunks])
         for c, v in zip(chunks, vecs):
             cur = self.conn.execute(
-                "INSERT INTO chunks(chunk_id, path, char_start, char_end, source, ts, people, text)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (c.chunk_id, c.path, c.char_start, c.char_end, c.source, c.ts, json.dumps(c.people), c.text))
+                "INSERT INTO chunks(chunk_id, path, char_start, char_end, source, ts, people, label, text)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (c.chunk_id, c.path, c.char_start, c.char_end, c.source, c.ts, json.dumps(c.people),
+                 c.label or c.path, c.text))
             self.conn.execute("INSERT INTO chunks_fts(rowid, text) VALUES (?, ?)", (cur.lastrowid, c.text))
             self.conn.execute("INSERT INTO chunks_vec(rowid, embedding) VALUES (?, ?)",
                               (cur.lastrowid, sqlite_vec.serialize_float32(v)))

@@ -13,7 +13,7 @@ from archie.llm.verify import Packet
 def packet_from_hits(hits) -> Packet:
     p = Packet()
     for h in hits:
-        p.add(h.path, h.chunk_id, h.text, label=h.path, ts=h.ts)
+        p.add(h.path, h.chunk_id, h.text, label=h.label, ts=h.ts)
     return p
 
 

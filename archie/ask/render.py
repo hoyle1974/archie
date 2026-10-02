@@ -46,6 +46,5 @@ def render(answer: Answer, sources: bool = False) -> str:
         out += ["", note]
     if sources and num.order:
         out += ["", "Sources"]
-        out += [f"  [{i}] {label if label != path else path} ({path}#{chunk})" for i, (path, chunk, label) in
-                enumerate(num.order, 1)]
+        out += [f"  [{i}] {label}  · {path}" for i, (path, chunk, label) in enumerate(num.order, 1)]
     return "\n".join(out)

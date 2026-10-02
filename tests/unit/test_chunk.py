@@ -52,3 +52,14 @@ def test_chunk_file_dispatches_raw_json_by_source(tmp_path):
 def test_chunk_file_skips_tombstones_and_unknown_sources():
     assert chunk_file("sources/fake/1.json", '{"deleted": true}') == []
     assert chunk_file("sources/nobody/1.json", '{"x": 1}') == []
+
+
+def test_markdown_chunks_get_readable_labels():
+    c = chunk_file("people/priya_sharma.md", "---\nname: Priya Sharma\n---\nhi\n")
+    assert c[0].label == "Priya Sharma (dossier)"
+    m = chunk_file("meetings/2026/x.md", "---\ntitle: Design review\nstart: 2026-09-28T21:00:00Z\n---\nhi\n")
+    assert m[0].label == "Design review (meeting notes, Sep 28)"
+
+
+def test_label_falls_back_to_file_name():
+    assert chunk_file("people/alex_rivera.md", "hi\n")[0].label == "alex rivera (dossier)"

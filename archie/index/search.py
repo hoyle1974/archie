@@ -23,6 +23,7 @@ class Hit:
     char_start: int
     char_end: int
     people: list[str] = field(default_factory=list)
+    label: str = ""
     score: float = 0.0
 
 
@@ -63,11 +64,11 @@ def search(idx: Index, query: str, k: int = 10, source: str | None = None, since
     hits = []
     for rowid in fused:
         row = idx.conn.execute(
-            "SELECT path, chunk_id, text, source, ts, char_start, char_end, people FROM chunks WHERE id = ?",
+            "SELECT path, chunk_id, text, source, ts, char_start, char_end, people, label FROM chunks WHERE id = ?",
             (rowid,)).fetchone()
         if row is None:
             continue
-        hit = Hit(*row[:7], people=json.loads(row[7] or "[]"))
+        hit = Hit(*row[:7], people=json.loads(row[7] or "[]"), label=row[8])
         if source and hit.source != source:
             continue
         if since and (hit.ts or "") < since:
