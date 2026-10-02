@@ -19,3 +19,4 @@ Idempotent. Write only inside fences ([fence rule](../principles/fence-rule.md))
   - The note is found again by `event_id`, so renaming an event keeps the same file. Archie owns the frontmatter (`event_id`, `series_id`, `title`, `start`, `end`, `type`, `attendees`, `attendee_names`, `linked_docs`, `status`, `link`) and the Decisions/Action items fence. `## My notes` belongs to the user.
   - Attendees become `stub` dossiers. A future meeting never pushes `last_interaction` past now.
   - Cancelled events set `status: cancelled`.
+- `github_loops.py`: builds loops from structured data, with no LLM. An open PR that requests the user's review becomes an `asked_of_me` loop ("Review PR #n: title") whose counterpart is the author, resolved through a `gh:` alias if one exists. It closes when the user submits a review (citing that review's chunk) or the PR is merged or closed.

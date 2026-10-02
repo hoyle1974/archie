@@ -27,4 +27,10 @@ tags: [component]
   - The first sync lists docs modified during the backfill window. After that, the changes feed (page token) returns only what changed, and removed or trashed docs become tombstones. Each sync also fetches attached docs that haven't been mirrored yet.
   - The chunker splits a doc into word windows labeled "Doc: Title (edited Oct 1)".
 
-Phase 1 still to build: GitHub, Jira. Phase 2: Slack. Design: [DESIGN §5.1](../../docs/DESIGN.md#51-connectors). Principles: [read-only](../principles/read-only.md), [keep everything](../principles/keep-everything.md). Each cycle is run by [sync](sync.md).
+- `github.py`: read-only through the logged-in `gh` CLI (`gh api -X GET`). It uses search instead of a repo list, so it follows the user into any repo.
+  - Queries: `involves:<user> updated:>=…` for PRs and issues (with their comments, plus reviews and merge state for PRs), `is:pr is:open review-requested:<user>` (flagged `review_requested_me`), and `author:<user>` for commits (with changed files).
+  - Output: `sources/github/<owner>__<repo>/{pr,issue,commit}-<id>.json`. The cursor is `last_sync`, and each run re-queries from an hour before it.
+  - The chunker makes one chunk per PR/issue body and per review or comment, plus one per commit. People appear as `gh:<login>`.
+  - The live run found 102 items for `ttesterson1974`. Commit search returns at most 100 results per run.
+
+Phase 1 still to build: Jira. Phase 2: Slack. Design: [DESIGN §5.1](../../docs/DESIGN.md#51-connectors). Principles: [read-only](../principles/read-only.md), [keep everything](../principles/keep-everything.md). Each cycle is run by [sync](sync.md).

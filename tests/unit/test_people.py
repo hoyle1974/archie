@@ -129,3 +129,13 @@ def test_unsubscribe_and_contact_addresses_are_never_people(tmp_path):
             "2026-10-01T00:00:00+00:00", "unsubscribe", from_me=True)
     derive_people(ctx, [write_thread(ctx.home, "t1", [m])])
     assert list((ctx.home / "people").glob("*.md")) == []
+
+
+def test_github_login_resolves_through_alias(tmp_path):
+    ctx = make_ctx(tmp_path)
+    derive_people(ctx, [sarah_thread(ctx.home)])
+    path = ctx.home / "people/sarah_jones.md"
+    note = read_note(path)
+    note.meta["aliases"].append("sjones")
+    write_note(path, note)
+    assert PeopleDirectory.load(ctx.home).find("gh:sjones") == ["sarah_jones"]

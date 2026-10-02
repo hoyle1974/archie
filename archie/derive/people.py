@@ -76,6 +76,9 @@ class PeopleDirectory:
         """Entity ids matching an email, a full name/alias, or a first name. Ambiguity is
         returned, not resolved: the caller asks the user."""
         q = query.strip().lower()
+        if q.startswith("gh:"):  # a GitHub login, linked by alias ("alexr" or "gh:alexr")
+            return [e for e, m in self.meta.items()
+                    if {q, q[3:]} & {str(a).lower() for a in m.get("aliases") or []}]
         if EMAIL.match(q):
             hit = self.by_email(q)
             return [hit] if hit else []
