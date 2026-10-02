@@ -17,6 +17,7 @@ import re
 ROUTES = [
     (r"\bnotes?\b.*:", "notes"), (r"\b(prep|brief)\b|next meeting|\bmy \d", "brief"),
     (r"\b(done with|snooze|not a loop|reopen)\b", "loop_update"), (r"\bwho is\b|history with", "who"),
+    (r"while i was (out|away)|catch me up", "catchup"), (r"\bhandover\b", "handover"),
     (r"get done|accomplish|did i (do|ship)", "ledger"), (r"\bowe\b|waiting on|open items|\bloops?\b", "loops"), (r"work on next|what next|what should i do", "next"),
     (r"\bis a (1:1|standup|all-hands)\b| is the ", "correct"), (r"what can you do|\bhelp\b", "help"),
 ]
@@ -29,7 +30,11 @@ def _params(question: str) -> dict:
     if m:
         meeting = m.group(1).strip()
     text = question.split(":", 1)[1].strip() if ":" in question else None
-    return {"people": people, "since": None, "until": None, "topic": None, "meeting": meeting, "text": text}
+    since = None
+    d = re.search(r"since (Sep|Oct) (\d{1,2})", question)
+    if d:
+        since = f"2026-{'09' if d.group(1) == 'Sep' else '10'}-{int(d.group(2)):02d}"
+    return {"people": people, "since": since, "until": None, "topic": None, "meeting": meeting, "text": text}
 
 
 def _items(user: str) -> list[tuple[int, str, str]]:

@@ -5,6 +5,7 @@ description: Chronological history of design decisions and structural changes, n
 ---
 
 ## 2026-10-02
+- M4 is done: all 13 vignettes have passing end-to-end tests (`tests/vignettes/`). Added the catchup and handover intents. All-hands briefings were already handled by the meeting-type template.
 - M3 is done. Vignettes C, D, E, F and M pass, and A passes for standard meetings, 1:1s and standups. Added GitHub (live through `gh`) and Jira (fakes only), GitHub review-request loops, cross-channel closure, the activity module, the ledger, the weekly journal and code-computed standup sections.
 - Classifier change: an explicit title keyword (standup, all-hands) now wins over structure, so a 2-person "Daily Standup" stays a standup.
 - A loop more than 7 days past due is marked "still needed?". The live archive showed a long-overdue item ranking as most urgent.

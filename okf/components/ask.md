@@ -36,4 +36,13 @@ tags: [component]
     - Every item cites its source chunk, and no LLM is involved.
     - `write_week_journal` writes `journal/weekly/<YYYY>-W<ww>.md` with the ledger inside the fence. The tick runs it on Fridays from 3 PM.
 
-Intents still to build: handover, catchup. Design: [DESIGN §8](../../docs/DESIGN.md#8-archie-ask). Principles: [one entry point](../principles/one-entry-point.md), [readable first](../principles/readable-first.md).
+  - `catchup`:
+    - The window comes from since/until and defaults to the last 7 days.
+    - The packet is up to 30 chunks from that window, limited to gmail, github, jira, drive and meetings. Gmail chunks count only from personal, non-bulk messages.
+    - Code lists "Opened while you were out" (loops created in the window) and "Meetings in that window" (marked when they have notes). The LLM summarizes decisions and changes.
+  - `handover`:
+    - Searches for the project name plus any aliases from `projects/<slug>.md`, and finds loops that mention it.
+    - Code counts the people involved. The LLM writes cited Current state, Key decisions, Open issues, and Risks and tech debt.
+    - Saved to `projects/<slug>-handover-<date>.md`.
+
+Every intent in DESIGN §8 is now built. Design: [DESIGN §8](../../docs/DESIGN.md#8-archie-ask). Principles: [one entry point](../principles/one-entry-point.md), [readable first](../principles/readable-first.md).
