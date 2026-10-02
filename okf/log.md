@@ -5,6 +5,7 @@ description: Chronological history of design decisions and structural changes, n
 ---
 
 ## 2026-10-02
+- Drafted the design for `now` as a source (`docs/superpowers/specs/2026-10-02-now-source-design.md`). Waiting on the auth choice; no code yet.
 - Fixes from the first real use of the TUI:
   - Sync failed with "bad value(s) in fds_to_keep" because tqdm's multiprocessing lock can't spawn under Textual. tqdm now gets a thread lock.
   - Copying didn't work because macOS Terminal ignores OSC 52. Copying now also uses `pbcopy`, and Ctrl+Y copies the answer.
