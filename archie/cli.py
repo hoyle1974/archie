@@ -140,7 +140,27 @@ def cmd_admin(argv: list[str]) -> int:
     else:
         print(f"{counts['files']} files indexed ({counts['chunks']} chunks); "
               f"{stats.indexed} updated, {stats.removed} removed just now.")
+        print_sources(home, cfg)
     return 0
+
+
+def print_sources(home: Home, cfg: dict) -> None:
+    import yaml
+
+    path = home / "state/sync_status.yaml"
+    status = (yaml.safe_load(path.read_text()) or {}) if path.exists() else {}
+    enabled = [n for n, c in cfg["connectors"].items() if (c or {}).get("enabled")]
+    if not enabled:
+        print("No sources switched on (see config.yaml).")
+    for name in enabled:
+        st = status.get(name) or {}
+        if st.get("last_error"):
+            print(f"{name}: failing: {st['last_error']}")
+        elif st.get("last_success"):
+            when = datetime.fromisoformat(st["last_success"]).astimezone()
+            print(f"{name}: last synced {when:%b %-d %-I:%M %p}")
+        else:
+            print(f"{name}: not synced yet")
 
 
 def main(argv: list[str] | None = None) -> int:

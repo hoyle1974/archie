@@ -81,3 +81,14 @@ def test_rederive_builds_people_from_existing_mail(tmp_path, monkeypatch, capsys
     monkeypatch.setattr(cli, "make_backend", lambda cfg: FakeBackend([]))
     code, out = run(capsys, "admin", "rederive")
     assert code == 0 and (tmp_path / "h" / "people" / "sam_lee.md").exists()
+
+
+def test_status_shows_each_source(tmp_path, monkeypatch, capsys):
+    setup_home(tmp_path, monkeypatch)
+    (tmp_path / "h" / "config.yaml").write_text("index:\n  embed_model: hash\nconnectors:\n  gmail: {enabled: true}\n"
+                                                "  calendar: {enabled: true}\n")
+    (tmp_path / "h" / "state" / "sync_status.yaml").write_text(
+        "gmail: {last_success: '2026-10-01T23:00:00+00:00', last_count: 3, last_error: null}\n"
+        "calendar: {last_failure: '2026-10-01T23:00:00+00:00', last_error: \"Google access doesn't include calendar\"}\n")
+    code, out = run(capsys, "admin", "status")
+    assert "gmail: last synced" in out and "calendar: failing" in out and "doesn't include calendar" in out
