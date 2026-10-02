@@ -17,6 +17,28 @@ from archie.ask.render import render
 HINT = 'Ask anything, e.g. "prep me for my next meeting" or "what do I owe people?"'
 
 
+def _pbcopy(text: str) -> None:
+    import subprocess
+
+    try:
+        subprocess.run(["pbcopy"], input=text, text=True, timeout=5, check=False)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def log_error(ctx: Ctx, where: str) -> None:
+    """Append the current exception's traceback to logs/errors.log (local, gitignored)."""
+    import traceback
+
+    try:
+        path = ctx.home / "logs/errors.log"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(f"--- {datetime.now(timezone.utc).isoformat(timespec='seconds')} {where}\n{traceback.format_exc()}\n")
+    except OSError:
+        pass
+
+
 def default_feed(ctx: Ctx) -> str:
     from archie.tui.feed import build_feed
 
@@ -39,7 +61,8 @@ class ArchieApp(App):
     #answer-scroll { height: 1fr; border: round $accent; padding: 0 1; }
     #question { dock: bottom; }
     """
-    BINDINGS = [("ctrl+r", "sync_now", "Sync now"), ("ctrl+q", "quit", "Quit")]
+    BINDINGS = [("ctrl+y", "copy_answer", "Copy answer"), ("ctrl+r", "sync_now", "Sync now"),
+                ("ctrl+q", "quit", "Quit")]
 
     def __init__(self, ctx: Ctx, connectors: list, derivers: list, feed: Callable[[Ctx], str] = default_feed,
                  ticker: Callable[[Ctx], list[str]] = default_ticker, post_index: list | None = None):
@@ -65,7 +88,14 @@ class ArchieApp(App):
                 yield Input(placeholder="Ask Archie…", id="question")
         yield Footer()
 
+    async def on_unmount(self) -> None:
+        self.writer.release()
+
     async def on_mount(self) -> None:
+        from archie.store.lock import WriterLock
+
+        self.writer = WriterLock(self.ctx.home.root)
+        self.is_writer = self.writer.acquire()
         self.query_one("#feed").border_title = "Today"
         self.query_one("#activity").border_title = "Sync"
         self.query_one("#answer-scroll").border_title = "Ask"
@@ -75,6 +105,16 @@ class ArchieApp(App):
         self.set_interval(minutes * 60, lambda: self.run_worker(self.sync_cycle()))
         self.set_interval(60, lambda: self.run_worker(self.briefing_tick()))
 
+    def copy_to_clipboard(self, text: str) -> None:
+        """Textual copies with OSC 52, which macOS Terminal ignores; also use pbcopy."""
+        super().copy_to_clipboard(text)
+        _pbcopy(text)
+
+    def action_copy_answer(self) -> None:
+        text = str(self.query_one("#answer", Static).render())
+        self.copy_to_clipboard(text)
+        self.notify("Copied the answer.", timeout=2)
+
     async def action_sync_now(self) -> None:
         self.run_worker(self.sync_cycle())
 
@@ -83,6 +123,13 @@ class ArchieApp(App):
 
         if self._syncing.locked():
             return
+        if not self.is_writer:  # another Archie window owns syncing; this one only answers
+            self.is_writer = self.writer.acquire()
+            if not self.is_writer:
+                self.query_one("#activity", Static).update("Another Archie window is syncing; this one only answers.")
+                await self.refresh_feed()
+                self.sync_done.set()
+                return
         async with self._syncing:
             activity = self.query_one("#activity", Static)
             activity.update("Syncing…")
@@ -97,12 +144,15 @@ class ArchieApp(App):
                     lines.append("No sources switched on (see config.yaml).")
                 activity.update("\n".join(lines))
             except Exception as exc:  # the loop must survive anything
-                activity.update(f"Sync failed: {exc}")
+                log_error(self.ctx, "sync")
+                activity.update(f"Sync failed: {exc} (details in logs/errors.log)")
             await self.briefing_tick(refresh=False)
             await self.refresh_feed()
             self.sync_done.set()
 
     async def briefing_tick(self, refresh: bool = True) -> None:
+        if not getattr(self, "is_writer", False):
+            return  # briefings are written by the window that owns syncing
         self.ctx.now = datetime.now(timezone.utc)
         try:
             built = await asyncio.to_thread(self.ticker, self.ctx)

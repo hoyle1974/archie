@@ -22,6 +22,18 @@ class Embedder(Protocol):
     def embed(self, texts: list[str], query: bool = False) -> list[list[float]]: ...
 
 
+def _thread_lock_for_tqdm() -> None:
+    """sentence-transformers wraps encode() in tqdm, which builds a multiprocessing lock even
+    with the bar off. That spawns multiprocessing's resource tracker, passing stderr's fd;
+    inside the TUI, Textual has replaced stderr, so the spawn fails ("bad value(s) in
+    fds_to_keep"). A plain thread lock avoids the subprocess entirely."""
+    import threading
+
+    from tqdm import tqdm
+
+    tqdm.set_lock(threading.RLock())
+
+
 class SentenceTransformerEmbedder:
     """Local model via sentence-transformers. bge models want a prefix on queries."""
 
@@ -37,6 +49,7 @@ class SentenceTransformerEmbedder:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
+            _thread_lock_for_tqdm()
             self._model = SentenceTransformer(self.name)
         return self._model
 

@@ -111,11 +111,24 @@ def connect_jira(site: str | None, email: str | None) -> int:
 
 
 def cmd_admin(argv: list[str]) -> int:
+    from archie.store.lock import Busy, WriterLock
+
     if argv[:1] == ["connect"]:
         return cmd_connect(argv[1:])
     p = argparse.ArgumentParser(prog="archie admin")
     p.add_argument("action", choices=["init", "sync", "rederive", "reindex", "status", "doctor"])
     args = p.parse_args(argv)
+    if args.action in ("sync", "rederive", "reindex"):
+        try:
+            with WriterLock(Home.default().root):
+                return _admin(args)
+        except Busy as exc:
+            print(exc)
+            return 1
+    return _admin(args)
+
+
+def _admin(args) -> int:
     if args.action == "sync":
         return cmd_sync(Home.default())
     if args.action == "doctor":

@@ -116,3 +116,14 @@ def test_chunk_text_is_retrievable(tmp_path):
     idx = open_index(home)
     idx.sync()
     assert "review the patch" in idx.chunk_text("sources/mailtest/t1.json", "c0")
+
+
+def test_tqdm_gets_a_thread_lock_not_a_multiprocessing_one():
+    import threading
+
+    from tqdm import tqdm
+
+    from archie.index.embed import _thread_lock_for_tqdm
+
+    _thread_lock_for_tqdm()
+    assert isinstance(tqdm.get_lock(), type(threading.RLock()))

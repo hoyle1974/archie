@@ -69,3 +69,42 @@ def test_feed_shows_builder_output(tmp_path):
             assert "Nothing scheduled today." in text_of(app, "#feed")
 
     asyncio.run(go())
+
+
+def test_copy_uses_pbcopy_and_ctrl_y_copies_the_answer(tmp_path, monkeypatch):
+    import archie.tui.app as tui
+
+    copied = []
+    monkeypatch.setattr(tui, "_pbcopy", lambda text: copied.append(text))
+    ctx = make_ctx(tmp_path)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            app.copy_to_clipboard("selected bit")
+            await pilot.press("ctrl+y")
+            await pilot.pause()
+
+    asyncio.run(go())
+    assert copied[0] == "selected bit"
+    assert "Ask anything" in copied[1]
+
+
+def test_second_window_does_not_sync(tmp_path):
+    from archie.store.lock import WriterLock
+
+    ctx = make_ctx(tmp_path)
+    conn = Counting()
+    held = WriterLock(ctx.home.root)
+    assert held.acquire()
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[conn], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.pause()
+            assert conn.calls == 0 and "Another Archie window" in text_of(app, "#activity")
+
+    asyncio.run(go())
+    held.release()

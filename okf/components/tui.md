@@ -14,3 +14,7 @@ Design: [DESIGN §3.1, §10](../../docs/DESIGN.md#10-tui). Runs [connectors](con
   - Questions typed in the Ask input run `ask()` in a worker thread, and the answer is rendered with its sources.
   - `run_tui()` builds the real context.
 - `feed.py`: `build_feed(ctx)` fills the Today pane. For now it only shows a placeholder until briefings and loops exist.
+- Copying: drag to select and press Cmd+C or Ctrl+C, or press Ctrl+Y to copy the whole answer. `copy_to_clipboard` also calls `pbcopy`, because macOS Terminal ignores the OSC 52 escape that Textual uses.
+- Single writer: the window that holds the [store](store.md) lock (`store/lock.py`) syncs and writes briefings. Any other window only answers questions.
+- Sync failures write full tracebacks to `logs/errors.log`.
+- Gotcha: sentence-transformers' tqdm builds a multiprocessing lock even with progress bars off. That spawn fails under Textual ("bad value(s) in fds_to_keep"), so `embed._thread_lock_for_tqdm()` installs a thread lock first.

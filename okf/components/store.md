@@ -15,6 +15,7 @@ The only module that writes Archie's files. It enforces the [fence rule](../prin
   - `Note`/`read_note`/`write_note` handle YAML frontmatter. Timestamps stay as strings and key order is preserved.
   - `write_raw`/`read_raw` write stable JSON with sorted keys, so the same payload always produces the same bytes and the same hash.
   - `tombstone` marks a raw file as deleted.
+- `lock.py`: `WriterLock` takes an advisory flock on `~/.archie/.lock` so only one process syncs or rebuilds (DESIGN §3.1). The lock is released automatically if the process dies.
 - `fence.py`: `get_fence`/`set_fence` read and replace named `<!-- archie:NAME -->` fences. Damaged markers raise `FenceError` rather than risk overwriting the user's text.
 
 Known limit: rewriting a note re-renders its frontmatter, so YAML comments in frontmatter are lost.
