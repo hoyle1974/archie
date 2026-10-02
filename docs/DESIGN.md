@@ -36,9 +36,9 @@ from a shell.
    contents but never touches text outside a fence. Frontmatter keys Archie owns are listed
    per file type (§4). The user may also edit those keys, and the user's value wins.
 5. **The LLM extracts and writes. Code verifies.** The LLM may classify, extract and
-   summarize, but every factual claim it produces must carry a citation
-   `{source_file, chunk_id, quote}`. Code checks that `quote` appears verbatim in the
-   cited chunk, and **unverified claims are dropped, never shown**. Counts, dates, times
+   summarize, but every factual claim it produces must carry a citation. The model cites
+   `{ref, quote}` against a numbered packet of excerpts, and code maps `ref` to
+   `(file, chunk)`. Code checks that `quote` appears verbatim in the cited chunk, and **unverified claims are dropped, never shown**. Counts, dates, times
    and lists of items are computed by code, not by the LLM.
 6. **Readable first.** Every answer opens with a short plain-English summary (2–4
    sentences). Details follow. Citations show as small `[n]` markers that expand on
@@ -250,8 +250,19 @@ Rules:
 Derivers turn changed raw files into derived notes:
 - **calendar → meetings:** creates or updates meeting files and resolves attendees to people.
 - **gmail / jira / github → loops:** see §6.
-- **any → people:** updates aliases, `last_interaction`, and the recent interactions list.
-- **meeting notes → action items → loops.**
+- **any → people:** updates aliases and `last_interaction`. Only past contact counts:
+  an invite to a future meeting introduces a person but isn't an interaction. Inbound
+  mail creates a dossier only if Gmail filed it as Personal and it isn't from a role
+  address (support@, noreply@). GitHub logins join a dossier when the profile name
+  matches exactly one person.
+- **github → loops:** an open PR requesting the user's review is an `asked_of_me` loop
+  (no LLM). It closes when the user reviews it or the PR closes.
+- **meeting notes → action items → loops** (through the `notes` intent).
+- **last, across channels:** see §6.3.
+
+Recent interactions are computed at question time from the index, not stored in dossiers.
+Connectors that read another connector's mirror declare `after = (...)` and run in a
+second wave (Drive runs after Calendar for attachments).
 
 Derivers are idempotent: running one twice on the same input gives the same files.
 
@@ -299,13 +310,17 @@ A loop is something that needs closing and involves the user.
 ### 6.2 Detection
 
 1. **Code pre-filter:** keep only messages that involve the user (per `me.yaml`).
-   Skip automated mail (a `List-Unsubscribe` header, noreply senders, rules in
-   `config.yaml`). Being in To ranks above being in Cc.
+   Skip automated mail (a `List-Unsubscribe` header, noreply senders, `loops.mute` in
+   `config.yaml`, and inbound mail Gmail didn't file as Personal). Only NEW messages are
+   read (`state/loops_seen.yaml`). Being in To ranks above being in Cc.
 2. **LLM extraction:** a cheap model reads each new message and returns candidate loops
    `{kind, counterpart, summary, due?, quote}`.
 3. **Verify:** `quote` must appear verbatim in the message, or the candidate is dropped.
-4. **Dedup:** a candidate that matches an open loop (same counterpart and high vector
-   similarity on the summary) adds a source to that loop instead of creating a new one.
+   The kind must match the direction: `asked_of_me` cites someone else's message, and
+   `i_promised` or `waiting_on` cites the user's own. The counterpart comes from the
+   headers, not the model.
+4. **Dedup:** a candidate from the same message, of the same kind, with an overlapping
+   quote is the same loop, however it was worded.
 5. **Due dates:** an explicit date in the quote is parsed by code. Otherwise there is no due date.
 
 ### 6.3 Closure: evidence or the user, never silent
@@ -320,9 +335,13 @@ A loop is something that needs closing and involves the user.
   asks the user.
 - **By the user through `ask`:** "done with Sarah's question", "snooze the Redis review
   till Monday", "that's not a loop".
-- **Noise rules:** "that's not a loop" records a reason. A repeated pattern (same sender,
-  same kind of mail) becomes an explicit rule in `config.yaml` that the user can see. It
-  is never hidden learning.
+- **Noise rules:** "that's not a loop" records a reason. The second dismissal from the same
+  sender adds them to `loops.mute` in `config.yaml`, and Archie says so and how to undo
+  it. It is never hidden learning.
+- **Stale:** a loop more than 7 days past due is shown under "Maybe already done?" rather
+  than ranked as urgent.
+- Cross-channel checks run only when the user has new activity since the last check
+  (`state/cross_checked.yaml`).
 
 ### 6.4 File (`loops/2026/loop-20261001-0930-sarah-redis-review.md`)
 
@@ -445,7 +464,11 @@ What changed
 | `help`        | "what can you do?", "how do I …?"                         | (all) |
 | fallback      | anything else: hybrid search plus a cited answer          | — |
 
-`archie admin` (not for daily use): `reindex`, `connect <source>`, `status`, `doctor`.
+`archie admin` (not for daily use): `init`, `sync`, `rederive`, `reindex`, `status`,
+`connect google|jira`.
+
+Unambiguous questions with no parameters ("what's next?", "what do I owe people?",
+"help") are routed by code (`quick_route`) and skip the routing call.
 
 ## 9. LLM interface
 
