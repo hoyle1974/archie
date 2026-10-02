@@ -13,8 +13,9 @@ def all_derivers() -> list:
     from archie.derive.loops import derive_loops
     from archie.derive.meetings import derive_meetings
     from archie.derive.people import derive_people
+    from archie.derive.projects import derive_projects
 
-    return [derive_people, derive_meetings, derive_loops, derive_github_loops, close_across_channels]
+    return [derive_people, derive_meetings, derive_projects, derive_loops, derive_github_loops, close_across_channels]
 
 
 def post_index_steps() -> list:
