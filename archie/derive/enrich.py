@@ -28,40 +28,48 @@ SCHEMA = {
     "required": ["facts"],
     "additionalProperties": False,
 }
+def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str) -> str | None:
+    """Update one dossier; returns the newest chunk time considered, or None if skipped."""
+    recent = [c for c in ctx.index.chunks_with_people(directory.identifiers(eid), limit=12, before=ctx.now.isoformat())
+              if c["source"] not in ("briefings", "loops", "people")]
+    newest = max((c["ts"] or "" for c in recent), default="")
+    if not recent or newest <= since:
+        return None
+    name = directory.name(eid)
+    packet = Packet()
+    for c in recent:
+        packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
+    system = load_prompt("people_facts", person=name, me_name=ctx.me.name or "the user")
+    try:
+        out = ctx.backend.complete(system, f"Sources about {name}:\n\n{packet.render()}", SCHEMA, tier="fast")
+    except LLMError:
+        return None
+    path = ctx.home / f"people/{eid}.md"
+    note = read_note(path)
+    facts = parse_facts(get_fence(note.body))
+    for f in out.get("facts") or []:
+        cite = check_quote(packet, int(f.get("ref", 0)), f.get("quote", ""))
+        if cite is None or not f.get("text"):
+            continue
+        new = {"text": f["text"].strip().rstrip("."), "file": cite.path, "chunk": cite.chunk_id,
+               "quote": cite.quote.replace('"', "'")}
+        facts = [x for x in facts if normalize(x["text"]) != normalize(new["text"])] + [new]
+    note.body = set_fence(note.body, render_facts(note.meta, facts[-MAX_FACTS:]))
+    write_note(path, note)
+    return newest
+
+
 def enrich_people(ctx: Ctx, paths=None) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
     state_file = ctx.home / "state/people_enriched.yaml"
     done = (yaml.safe_load(state_file.read_text()) or {}) if state_file.exists() else {}
     directory = PeopleDirectory.load(ctx.home)
-    changed = False
-    for eid in sorted(directory.meta):
-        ids = directory.identifiers(eid)
-        recent = [c for c in ctx.index.chunks_with_people(ids, limit=12, before=ctx.now.isoformat())
-                  if c["source"] not in ("briefings", "loops", "people")]
-        newest = max((c["ts"] or "" for c in recent), default="")
-        if not recent or newest <= done.get(eid, ""):
-            continue
-        name = directory.name(eid)
-        packet = Packet()
-        for c in recent:
-            packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
-        system = load_prompt("people_facts", person=name, me_name=ctx.me.name or "the user")
-        try:
-            out = ctx.backend.complete(system, f"Sources about {name}:\n\n{packet.render()}", SCHEMA, tier="fast")
-        except LLMError:
-            continue
-        path = ctx.home / f"people/{eid}.md"
-        note = read_note(path)
-        facts = parse_facts(get_fence(note.body))
-        for f in out.get("facts") or []:
-            cite = check_quote(packet, int(f.get("ref", 0)), f.get("quote", ""))
-            if cite is None or not f.get("text"):
-                continue
-            new = {"text": f["text"].strip().rstrip("."), "file": cite.path, "chunk": cite.chunk_id,
-                   "quote": cite.quote.replace('"', "'")}
-            facts = [x for x in facts if normalize(x["text"]) != normalize(new["text"])] + [new]
-        note.body = set_fence(note.body, render_facts(note.meta, facts[-MAX_FACTS:]))
-        write_note(path, note)
-        done[eid] = newest
-        changed = True
-    if changed:
+    ids = sorted(directory.meta)
+    workers = max(1, int(ctx.config["llm"].get("parallel", 1)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        results = list(pool.map(lambda e: _enrich_one(ctx, directory, e, done.get(e, "")), ids))
+    updated = {e: r for e, r in zip(ids, results) if r}
+    if updated:
+        done.update(updated)
         atomic_write(state_file, yaml.safe_dump(done, sort_keys=True))

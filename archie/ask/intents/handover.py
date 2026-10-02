@@ -47,8 +47,8 @@ def handover_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     by_id = {i: e for e in directory.meta for i in directory.identifiers(e)}
     counts = Counter()
     for it in packet.items:
-        row = ctx.index.conn.execute("SELECT people FROM chunks WHERE path = ? AND chunk_id = ?",
-                                     (it.path, it.chunk_id)).fetchone()
+        rows = ctx.index.query("SELECT people FROM chunks WHERE path = ? AND chunk_id = ?", (it.path, it.chunk_id))
+        row = rows[0] if rows else None
         import json
 
         for pid in json.loads(row[0] if row else "[]"):

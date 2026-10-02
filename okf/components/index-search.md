@@ -18,6 +18,7 @@ tags: [component]
   - Tables: `files` (the sha256 list), `chunks`, `chunks_fts`, `chunks_vec`, and `meta`.
   - Any mismatch in the meta table (schema, chunker version, model or dimension) wipes and rebuilds the index.
   - `sync()` re-indexes changed files and drops deleted ones.
+  - Worker threads share one SQLite connection, so every read goes through `query()` under an `RLock`, and `sync()` holds the same lock.
   - Only `sources/` and the folders of derived notes are indexed; config, state and logs never are.
 - `search.py`: `search(idx, q, k, source, since, until, people)`.
   - Takes the top 50 FTS hits (each token quoted and OR'ed) and the top 50 vector hits, then merges them with RRF (k=60) before filtering.

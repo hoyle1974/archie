@@ -45,13 +45,13 @@ def _fts_ids(idx: Index, q: str) -> list[int]:
     fq = _fts_query(q)
     if not fq:
         return []
-    rows = idx.conn.execute("SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY rank LIMIT ?", (fq, POOL))
+    rows = idx.query("SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY rank LIMIT ?", (fq, POOL))
     return [r[0] for r in rows]
 
 
 def _vec_ids(idx: Index, q: str) -> list[int]:
     v = idx.embedder.embed([q], query=True)[0]
-    rows = idx.conn.execute(
+    rows = idx.query(
         "SELECT rowid, distance FROM chunks_vec WHERE embedding MATCH ? AND k = ? ORDER BY distance",
         (sqlite_vec.serialize_float32(v), POOL))
     # vec0 default metric is L2; for unit vectors cosine = 1 - d²/2.
@@ -63,11 +63,12 @@ def search(idx: Index, query: str, k: int = 10, source: str | None = None, since
     fused = rrf([_fts_ids(idx, query), _vec_ids(idx, query)])
     hits = []
     for rowid in fused:
-        row = idx.conn.execute(
+        rows = idx.query(
             "SELECT path, chunk_id, text, source, ts, char_start, char_end, people, label FROM chunks WHERE id = ?",
-            (rowid,)).fetchone()
-        if row is None:
+            (rowid,))
+        if not rows:
             continue
+        row = rows[0]
         hit = Hit(*row[:7], people=json.loads(row[7] or "[]"), label=row[8])
         if source and hit.source != source:
             continue

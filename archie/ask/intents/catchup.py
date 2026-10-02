@@ -53,9 +53,9 @@ def _human_mail(path: str, chunk_id: str, cache: dict) -> bool:
 def catchup_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     start, end = _window(ctx, params)
     s_iso, e_iso = start.isoformat(), end.isoformat()
-    rows = ctx.index.conn.execute(
+    rows = ctx.index.query(
         "SELECT path, chunk_id, text, source, ts, label FROM chunks WHERE ts >= ? AND ts <= ? ORDER BY ts DESC LIMIT 400",
-        (s_iso, e_iso)).fetchall()
+        (s_iso, e_iso))
     packet, cache = Packet(), {}
     for path, chunk, text, source, ts, label in rows:
         if source not in WORK_SOURCES:
