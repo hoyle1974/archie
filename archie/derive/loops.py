@@ -189,6 +189,9 @@ def _extract(ctx: Ctx, packet: Packet, data: dict, rel: str, tid: str, new_refs:
 
 
 def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
     seen = (yaml.safe_load(_seen_file(ctx.home).read_text()) or {}) if _seen_file(ctx.home).exists() else {}
     directory = PeopleDirectory.load(ctx.home)
     loops = load_loops(ctx.home)
@@ -196,20 +199,29 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
     by_thread: dict[str, list[Loop]] = {}
     for lp in loops:
         by_thread.setdefault(str(lp.meta.get("thread")), []).append(lp)
-    changed = False
-    for path in sorted(paths):
+    lock = threading.Lock()
+
+    class _Known:  # set-like view guarded by a lock, shared by worker threads
+        def __contains__(self, item):
+            with lock:
+                return item in known
+
+        def add(self, item):
+            with lock:
+                known.add(item)
+
+    def process(path: Path) -> tuple[str, str] | None:
         rel = Path(path).relative_to(ctx.home.root).as_posix()
         if not rel.startswith("sources/gmail/") or not Path(path).exists():
-            continue
+            return None
         data = read_raw(path)
         msgs = data.get("messages") or []
         tid = str(data.get("id") or Path(path).stem)
         if data.get("deleted") or not msgs:
-            continue
-        last = seen.get(tid, "")
-        new = {i for i, m in enumerate(msgs) if m["date"] > last}
+            return None
+        new = {i for i, m in enumerate(msgs) if m["date"] > seen.get(tid, "")}
         if not new:
-            continue
+            return None
         relevant_new = {i + 1 for i in new if _relevant(msgs[i])}
         if relevant_new:
             packet = _packet(rel, data, new)
@@ -217,12 +229,22 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
             try:
                 if open_here:
                     _close(ctx, packet, open_here, relevant_new, tid)
-                _extract(ctx, packet, data, rel, tid, relevant_new, directory, known)
+                _extract(ctx, packet, data, rel, tid, relevant_new, directory, _Known())
             except LLMError:
-                continue  # leave the thread unseen; the next cycle retries it
-        seen[tid] = max(m["date"] for m in msgs)
-        changed = True
-    if changed:
+                return None  # leave the thread unseen; the next cycle retries it
+        return tid, max(m["date"] for m in msgs)
+
+    workers = max(1, int(ctx.config["llm"].get("parallel", 1)))
+    finished = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for result in pool.map(process, sorted(paths)):
+            if not result:
+                continue
+            seen[result[0]] = result[1]
+            finished += 1
+            if finished % 10 == 0:  # save progress during long backfills
+                atomic_write(_seen_file(ctx.home), yaml.safe_dump(seen, sort_keys=True))
+    if finished:
         atomic_write(_seen_file(ctx.home), yaml.safe_dump(seen, sort_keys=True))
 
 
