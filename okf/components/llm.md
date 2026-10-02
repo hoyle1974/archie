@@ -1,10 +1,21 @@
 ---
 type: Component
 title: LLM interface
-description: One Backend.complete(messages, schema) -> dict; no tools. Backends: claude-code (default), anthropic, fake. Includes the citation verifier.
+description: One method, Backend.complete(system, user, schema, tier) -> dict, with no tools. Includes the context packet and the citation verifier.
 resource: archie/llm/
-status: planned
+status: active
 tags: [component]
 ---
 
-The verifier drops any claim whose quote isn't verbatim in the cited chunk ([cited LLM output](../principles/cited-llm-output.md)). Prompts live in archie/prompts/. Design: [DESIGN §9](../../docs/DESIGN.md#9-llm-interface).
+- `backend.py`:
+  - `ClaudeCodeBackend` runs `claude -p --safe-mode --tools "" --strict-mcp-config --no-session-persistence --json-schema …` from an empty temp dir. It drops `ANTHROPIC_API_KEY` from the environment, so the logged-in plan is used.
+  - `FakeBackend` replays canned replies for tests.
+  - `make_backend(config)` picks one from the config.
+  - Tiers: `fast` maps to haiku and `strong` maps to sonnet by default.
+  - The `anthropic` SDK backend is not built yet.
+- `verify.py`:
+  - A `Packet` holds numbered excerpts, and the model cites `{ref, quote}`.
+  - `verify_claims` keeps a claim only if at least one quote appears verbatim in the excerpt its ref points to. Whitespace, case and curly quotes are normalized, and quotes must be at least 8 characters.
+  - Everything else goes to `dropped` and is never shown.
+
+Enforces [cited LLM output](../principles/cited-llm-output.md). Design: [DESIGN §9](../../docs/DESIGN.md#9-llm-interface).

@@ -452,19 +452,24 @@ There is one module with one method:
 
 ```python
 class Backend(Protocol):
-    def complete(self, messages: list[dict], schema: dict) -> dict: ...
+    def complete(self, system: str, user: str, schema: dict, tier: str = "fast") -> dict: ...
 ```
+
+`tier` is `fast` (routing, extraction) or `strong` (briefings, conflicts, handovers); config
+maps each tier to a model.
 
 - Text in, **JSON matching a schema** out. **No tools**, no file access and no network
   beyond the model call itself.
 - **Backends:**
   - `claude-code` (default): the `claude -p` CLI in an empty temp directory with tools
     disabled, no MCP servers and no session persistence, using the user's Claude plan.
-  - `anthropic`: the SDK with an API key and structured outputs.
+  - `anthropic` (not built yet): the SDK with an API key and structured outputs.
   - `fake`: replays canned responses, for tests.
-- **Model per task** is set in `config.yaml`: a small, fast model for routing and
-  extraction, and a stronger model for briefings, conflict detection and handovers.
-- **Prompts** live in `archie/prompts/*.md` with `{placeholders}`, versioned in the repo.
+- **Citations by reference number.** The model sees a numbered *context packet* of
+  excerpts and cites `{ref, quote}`. Code maps `ref` back to `(file, chunk)` and checks the
+  quote (whitespace, case and curly quotes are normalized, and quotes must be at least 8
+  characters). The model never writes file paths, so it can't invent a source.
+- **Prompts** live in `archie/llm/prompts/*.md` with `{placeholders}`, versioned in the repo.
 - Calls run in parallel up to a configurable limit.
 
 ## 10. TUI
