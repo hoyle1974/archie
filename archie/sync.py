@@ -36,11 +36,22 @@ def _dump(path: Path, data: dict) -> None:
     atomic_write(path, yaml.safe_dump(data, sort_keys=True, allow_unicode=True))
 
 
+def friendly(error: str) -> str:
+    """Turn known raw API errors into a plain sentence with the fix."""
+    import re
+
+    m = re.search(r"(Google [\w ]+? API) has not been used in project \d+ before or it is disabled", error)
+    if m:
+        url = re.search(r"https://console\.developers\.google\.com/apis/api/\S+?project=\d+", error)
+        return f"{m.group(1)} is switched off for your Google project. Enable it: {url.group(0) if url else ''}".strip()
+    return error
+
+
 async def _one(conn: Connector, sctx: SyncCtx, cursor) -> tuple[ConnectorReport, SyncResult | None]:
     try:
         result = await conn.sync(sctx, cursor)
     except Exception as exc:  # isolate every connector
-        return ConnectorReport(ok=False, error=(str(exc) or type(exc).__name__)[:300]), None
+        return ConnectorReport(ok=False, error=friendly(str(exc) or type(exc).__name__)[:300]), None
     return ConnectorReport(ok=True, written=len(result.written), paths=result.written + result.deleted), result
 
 

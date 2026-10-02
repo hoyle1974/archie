@@ -68,3 +68,20 @@ def test_status_file_records_last_success(tmp_path):
     asyncio.run(run_cycle(ctx, [Good(), Broken()]))
     status = yaml.safe_load((ctx.home / "state/sync_status.yaml").read_text())
     assert status["good"]["last_success"] and status["broken"]["last_error"] == "token expired"
+
+
+def test_disabled_google_api_error_is_explained(tmp_path):
+    class Off:
+        name = "calendar"
+
+        async def sync(self, sctx, cursor):
+            raise RuntimeError('<HttpError 403 when requesting https://x returned "Google Calendar API has not been '
+                               'used in project 767842269502 before or it is disabled. Enable it by visiting '
+                               'https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview'
+                               '?project=767842269502 then retry.">')
+
+    ctx = make_ctx(tmp_path)
+    report = asyncio.run(run_cycle(ctx, [Off()]))
+    err = report["calendar"].error
+    assert err.startswith("Google Calendar API is switched off for your Google project. Enable it:")
+    assert "https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview?project=767842269502" in err

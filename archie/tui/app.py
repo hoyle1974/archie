@@ -139,7 +139,7 @@ class ArchieApp(App):
                 report = await run_cycle(self.ctx, self.connectors, self.derivers, post_index=self.post_index)
                 stamp = datetime.now().strftime("%-I:%M %p")
                 lines = [f"Last sync {stamp}"]
-                lines += [f"{n}: ok, {r.written} updated" if r.ok else f"{n}: failed: {r.error[:120]}"
+                lines += [f"{n}: ok, {r.written} updated" if r.ok else f"{n}: failed: {r.error[:220]}"
                           for n, r in report.items()]
                 if not report:
                     lines.append("No sources switched on (see config.yaml).")
