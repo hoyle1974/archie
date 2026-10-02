@@ -12,6 +12,7 @@ os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
 from archie.ask.context import Ctx  # noqa: E402
+from archie.connectors.registry import enabled_connectors  # noqa: E402
 from archie.config import load_config, load_me  # noqa: E402
 from archie.index.db import Index  # noqa: E402
 from archie.index.embed import make_embedder  # noqa: E402
@@ -21,7 +22,8 @@ from archie.store.home import Home, init_home  # noqa: E402
 USAGE = """\
 usage: archie                 open Archie (the TUI)
        archie ask "question"  ask anything, e.g. archie ask "what should I work on next?"
-       archie admin init|reindex|status"""
+       archie admin init|sync|reindex|status
+       archie admin connect google [--client client.json] [--import-token token.json]"""
 
 
 def build_ctx(home: Home) -> Ctx:
@@ -49,10 +51,46 @@ def cmd_ask(argv: list[str]) -> int:
     return 0
 
 
-def cmd_admin(argv: list[str]) -> int:
-    p = argparse.ArgumentParser(prog="archie admin")
-    p.add_argument("action", choices=["init", "reindex", "status"])
+def cmd_sync(home: Home) -> int:
+    import asyncio
+
+    from archie.derive.registry import all_derivers
+    from archie.sync import run_cycle
+
+    ctx = build_ctx(home)
+    connectors = enabled_connectors(ctx.config)
+    if not connectors:
+        print("No sources are switched on. Add e.g. `connectors: {gmail: {enabled: true}}` to config.yaml.")
+        return 0
+    report = asyncio.run(run_cycle(ctx, connectors, all_derivers()))
+    for name, rep in report.items():
+        print(f"{name}: ok, {rep.written} updated" if rep.ok else f"{name}: failed: {rep.error}")
+    return 0 if all(r.ok for r in report.values()) else 1
+
+
+def cmd_connect(argv: list[str]) -> int:
+    from archie.connectors import google_auth
+
+    p = argparse.ArgumentParser(prog="archie admin connect")
+    p.add_argument("service", choices=["google"])
+    p.add_argument("--client", help="Desktop OAuth client JSON from Google Cloud console")
+    p.add_argument("--import-token", help="adopt an existing authorized-user token file")
     args = p.parse_args(argv)
+    scopes = (google_auth.import_token(args.import_token) if args.import_token
+              else google_auth.connect(args.client))
+    names = sorted(n for n, s in google_auth.SCOPES.items() if s in scopes)
+    print(f"Google connected (read-only): {', '.join(names) or 'no Archie scopes'}.")
+    return 0
+
+
+def cmd_admin(argv: list[str]) -> int:
+    if argv[:1] == ["connect"]:
+        return cmd_connect(argv[1:])
+    p = argparse.ArgumentParser(prog="archie admin")
+    p.add_argument("action", choices=["init", "sync", "reindex", "status"])
+    args = p.parse_args(argv)
+    if args.action == "sync":
+        return cmd_sync(Home.default())
     if args.action == "init":
         home = init_home()
         print(f"Archie home ready at {home.root}. Fill in {home.me_file.name} so Archie knows who you are.")

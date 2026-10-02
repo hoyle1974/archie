@@ -45,3 +45,26 @@ def test_no_args_without_tui_shows_help(tmp_path, monkeypatch, capsys):
     setup_home(tmp_path, monkeypatch)
     code, out = run(capsys, "ask")
     assert code == 2 and "archie ask" in out
+
+
+def test_sync_with_nothing_enabled_says_how_to_enable(tmp_path, monkeypatch, capsys):
+    setup_home(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli, "make_backend", lambda cfg: FakeBackend([]))
+    code, out = run(capsys, "admin", "sync")
+    assert code == 0 and "No sources are switched on" in out
+
+
+def test_sync_reports_each_connector(tmp_path, monkeypatch, capsys):
+    from archie.connectors.base import SyncResult
+
+    class Ok:
+        name = "gmail"
+
+        async def sync(self, sctx, cursor):
+            return SyncResult(cursor={"x": 1})
+
+    setup_home(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli, "make_backend", lambda cfg: FakeBackend([]))
+    monkeypatch.setattr(cli, "enabled_connectors", lambda cfg: [Ok()])
+    code, out = run(capsys, "admin", "sync")
+    assert code == 0 and "gmail: ok" in out

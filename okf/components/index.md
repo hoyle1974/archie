@@ -6,6 +6,7 @@ description: The parts of Archie and where their code lives. status planned mean
 
 Data flows top to bottom:
 
+- [sync](sync.md): one cycle of connectors, then derivers, then the index
 - [connectors](connectors.md): remote sources to `sources/`
 - [derivers](derivers.md): `sources/` to people, meetings, loops and projects
 - [index-search](index-search.md): chunking, embeddings, FTS5 and vectors, hybrid search

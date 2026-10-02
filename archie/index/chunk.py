@@ -123,6 +123,8 @@ def chunk_file(path: str, text: str) -> list[Chunk]:
             c.label = label
         return chunks
     if path.endswith(".json") and len(parts) > 2 and parts[0] == "sources":
+        import archie.connectors.registry  # noqa: F401  (registers connector chunkers)
+
         data = json.loads(text)
         fn = _RAW.get(parts[1])
         if fn is None or data.get("deleted"):

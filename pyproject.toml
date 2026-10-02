@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "Local-first work memory: mirrors sources to files, indexes them, answers through `archie ask`."
 requires-python = ">=3.12"
 dependencies = [
+    "google-api-python-client>=2.201.0",
+    "google-auth-oauthlib>=1.5.0",
+    "keyring>=25.7.0",
     "pyyaml>=6",
     "sentence-transformers>=6.1.0",
     "sqlite-vec>=0.1.9",

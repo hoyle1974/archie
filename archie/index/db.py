@@ -34,7 +34,7 @@ class Index:
     def __init__(self, home: Home, embedder: Embedder, path: Path | None = None):
         self.home = home
         self.embedder = embedder
-        self.conn = sqlite3.connect(path or home.db)
+        self.conn = sqlite3.connect(path or home.db, check_same_thread=False)  # TUI runs sync in a worker thread
         self.conn.enable_load_extension(True)
         sqlite_vec.load(self.conn)
         self.conn.enable_load_extension(False)
