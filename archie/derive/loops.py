@@ -121,10 +121,24 @@ def _local(ts: str) -> datetime:
     return datetime.fromisoformat(ts).astimezone()
 
 
-def _packet(rel: str, data: dict, new: set[int]) -> Packet:
+def written_to(home: Home) -> set[str]:
+    """Every address the user has ever sent mail to (to tell real contacts from cold outreach)."""
+    out = set()
+    for p in (home / "sources/gmail").glob("*.json"):
+        for m in read_raw(p).get("messages") or []:
+            if m.get("from_me"):
+                out |= {a["email"].lower() for a in m.get("to", []) + m.get("cc", [])}
+    return out
+
+
+def _packet(rel: str, data: dict, new: set[int], known: set[str] | None = None) -> Packet:
     p = Packet()
+    msgs = data.get("messages") or []
     for i, c in enumerate(chunk_thread(rel, data)):
         tag = " NEW" if i in new else ""
+        m = msgs[i] if i < len(msgs) else {}
+        if known is not None and not m.get("from_me") and m.get("from_email", "").lower() not in known:
+            tag = " · first contact (you've never written to them)" + tag
         p.add(c.path, c.chunk_id, c.text, label=f"{c.label}{tag}")
     return p
 
@@ -227,6 +241,7 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
     for lp in loops:
         by_thread.setdefault(str(lp.meta.get("thread")), []).append(lp)
     lock = threading.Lock()
+    contacts = written_to(ctx.home)
 
     class _Known:  # set-like view guarded by a lock, shared by worker threads
         def __contains__(self, item):
@@ -251,7 +266,7 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
             return None
         relevant_new = {i + 1 for i in new if _relevant(msgs[i], ctx.config["loops"].get("mute"))}
         if relevant_new:
-            packet = _packet(rel, data, new)
+            packet = _packet(rel, data, new, contacts)
             open_here = [lp for lp in by_thread.get(tid, []) if lp.meta.get("status") in OPEN]
             try:
                 if open_here:

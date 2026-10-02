@@ -7,6 +7,10 @@ closing and involves {me_name}:
 
 Only look for loops in the messages marked NEW. Earlier messages are context.
 Skip pleasantries, FYIs, newsletters, automated notices, and rhetorical questions.
+Skip optional invitations from first contacts (messages marked "first contact"): cold
+recruiting or sales outreach, "reply if you're interested", "let me know if you'd like to
+chat". A first contact's concrete request about something {me_name} is already part of
+still counts.
 Skip anything already answered or done by a later message in the thread; if you list one
 anyway, set `resolved` true and cite the resolving message.
 

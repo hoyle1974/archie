@@ -181,3 +181,21 @@ def test_long_overdue_items_are_flagged_stale_not_urgent(tmp_path):
                   ctx.now, ctx.config)
     assert [r.loop.loop_id for r in ranked] == ["l2", "l1"]
     assert ranked[1].stale and "still needed?" in ranked[1].why[0]
+
+
+def test_first_contacts_are_marked_for_the_model(tmp_path):
+    seen = {}
+
+    def ext(system, user, schema, tier):
+        seen["user"] = user
+        return extraction()
+
+    ctx = ctx_with(tmp_path, loops_extract=ext)
+    cold = msg("c1", "recruiter@x.example", "Rita Recruiter", [addr(TEST)], "2026-09-30T00:00:00+00:00",
+               "Reply if you're interested!", to_me=True)
+    derive_loops(ctx, [write_thread(ctx.home, "t2", [PROMISE]), write_thread(ctx.home, "t8", [cold])])
+    assert "first contact" in seen["user"]
+    seen.clear()
+    ken = msg("k2", "ken@acme.example", "Ken Ito", [addr(TEST)], "2026-09-30T00:00:00+00:00", "Thanks!", to_me=True)
+    derive_loops(ctx, [write_thread(ctx.home, "t9", [ken])])
+    assert "first contact" not in seen.get("user", "")  # the user has written to Ken before

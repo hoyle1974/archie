@@ -11,7 +11,7 @@ Closing needs cited evidence or the user's word. Noise rules are explicit config
 
 Implementation (`archie/derive/loops.py`):
 - `derive_loops(ctx, paths)` runs once per changed Gmail thread, and only on messages it hasn't seen before. The last message seen per thread is stored in `state/loops_seen.yaml`.
-  1. Messages that are bulk, or inbound but not personal, never reach the LLM.
+  1. Messages that are bulk, inbound but not personal, or from muted senders never reach the LLM. Messages from addresses the user has never emailed are labeled "first contact", and the prompt skips optional invitations from them (cold recruiting or sales, "reply if interested").
   2. If the thread has open loops, `loops_close` (fast model) asks whether the NEW messages close them. A loop is marked `done` only with a verified quote from a new message, and only if the user hasn't set its status already.
   3. `loops_extract` (fast model) proposes candidates. Code then enforces that the cited message is new, that the quote is verbatim, and that the kind matches the direction (`asked_of_me` must cite someone else's message; `i_promised` and `waiting_on` must cite the user's own). The counterpart is taken from the headers and resolved to a dossier, and the id is deterministic from thread, message, kind and quote.
   4. An LLM error leaves the thread unseen so the next cycle retries it.
