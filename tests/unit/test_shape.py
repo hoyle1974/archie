@@ -65,3 +65,35 @@ def test_instructions_list_fields_records_and_example():
     assert "intent: one of search, remember, loop_update" in ROUTE.instructions()
     assert "people: list, separated by ;, or -" in ROUTE.instructions()
     assert ROUTE.instructions().endswith("Example:\nintent: search\npeople: -\nsince: -\ntext: -")
+
+
+ANSWER = Shape("answer", claims=True)
+
+
+def test_claims_summary_sections_and_several_citations():
+    reply = ('Here is what I found.\nSUMMARY\nYour earbud was delivered Oct 2. [1] "Your order\'s arrived"\n'
+             '## How it unfolded\n- It shipped Sep 29. [5] “has shipped” [4] "Order #507509S"\n## Empty\n')
+    out, problems = ANSWER.parse(reply)
+    assert problems == []
+    assert out["summary"] == [{"text": "Your earbud was delivered Oct 2.",
+                               "citations": [{"ref": 1, "quote": "Your order's arrived"}]}]
+    assert out["sections"] == [{"heading": "How it unfolded", "items": [
+        {"text": "It shipped Sep 29.", "citations": [{"ref": 5, "quote": "has shipped"},
+                                                     {"ref": 4, "quote": "Order #507509S"}]}]}]
+
+
+def test_quote_may_contain_double_quotes_and_bare_markers_get_empty_quotes():
+    out, _ = ANSWER.parse('SUMMARY\nShe wrote back. [2] "the subject was "Yeti bundle" today"\nAlex merged it [3].')
+    assert out["summary"][0]["citations"] == [{"ref": 2, "quote": 'the subject was "Yeti bundle" today'}]
+    assert out["summary"][1] == {"text": "Alex merged it.", "citations": [{"ref": 3, "quote": ""}]}
+
+
+def test_empty_summary_means_not_found_and_no_marker_reads_from_the_top():
+    assert ANSWER.parse("SUMMARY\n") == ({"summary": [], "sections": []}, [])
+    out, _ = ANSWER.parse('```\nDelivered Oct 2. [1] "Your order\'s arrived"\n```')
+    assert out["summary"][0]["citations"] == [{"ref": 1, "quote": "Your order's arrived"}]
+
+
+def test_claims_instructions():
+    text = ANSWER.instructions()
+    assert "SUMMARY" in text and "## <Heading>" in text and '[n] "words copied exactly from source n"' in text

@@ -20,6 +20,24 @@ KIND_TEXT = {"text": "text", "list": "list, separated by ;", "int": "a number",
 _BULLET = re.compile(r"^(?:[-*•]|\d+[.)])\s+")
 _HEAD = re.compile(r"^([A-Za-z_]+)\b[:\s]*(.*)$")
 _KV = re.compile(r"^([A-Za-z][\w ]*?)\s*:\s*(.*)$")
+_CITE = re.compile(r"\[(\d+)\]\s*(?=[\"“'‘])")
+_MARK = re.compile(r"\[(\d+)\]")
+_SUMMARY = re.compile(r"^#*\s*summary\s*:?$", re.I)
+CLAIMS_FORMAT = (
+    "Reply in this plain format, not JSON:\n"
+    "SUMMARY\n"
+    "<1 to 4 short sentences, one per line, each ending with its citations>\n"
+    "## <Heading>\n"
+    "- <one short fact, ending with its citations>\n"
+    'A citation is [n] "words copied exactly from source n" (8+ characters). A line may end with '
+    "several citations. Put citations at the end of the line, never in the middle. Write SUMMARY "
+    "with nothing under it if the sources don't answer the question.\n"
+    "Example:\n"
+    "SUMMARY\n"
+    'Your replacement earbud was delivered Oct 2. [1] "Your order\'s arrived"\n'
+    "## How it unfolded\n"
+    '- Status offered a right earbud for $49. [3] "replacement right earbud for $49"'
+)
 
 
 @dataclass(frozen=True)
@@ -58,6 +76,8 @@ class Shape:
     claims: bool = False
 
     def instructions(self) -> str:
+        if self.claims:
+            return CLAIMS_FORMAT
         out = ["Reply in this plain line format, not JSON: one `key: value` per line, `-` for an empty "
                "value, `;` between list items."]
         out += [f"{f.name}: {f.describe()}" for f in self.fields]
@@ -70,7 +90,7 @@ class Shape:
         return "\n".join(out)
 
     def parse(self, text: str) -> tuple[dict, list[str]]:
-        return _parse_fields(self, text)
+        return (_parse_claims(text), []) if self.claims else _parse_fields(self, text)
 
 
 def _lines(text: str):
@@ -158,3 +178,41 @@ def _parse_fields(shape: Shape, text: str) -> tuple[dict, list[str]]:
         key, names = shape.nest
         out[key] = {n: out.pop(n) for n in names}
     return out, problems
+
+
+def _claim_text(text: str) -> str:
+    text = re.sub(r"\s+", " ", _MARK.sub("", text)).strip()
+    return re.sub(r"\s+([.,;:])", r"\1", text)
+
+
+def _claim(line: str) -> dict:
+    cites = list(_CITE.finditer(line))
+    if not cites:
+        return {"text": _claim_text(line),
+                "citations": [{"ref": int(m.group(1)), "quote": ""} for m in _MARK.finditer(line)]}
+    out = []
+    for i, m in enumerate(cites):
+        end = cites[i + 1].start() if i + 1 < len(cites) else len(line)
+        out.append({"ref": int(m.group(1)), "quote": _unquote(line[m.end():end])})
+    return {"text": _claim_text(line[:cites[0].start()]), "citations": out}
+
+
+def _parse_claims(text: str) -> dict:
+    lines = list(_lines(text))
+    started = not any(_SUMMARY.match(x) for x in lines)
+    summary: list[dict] = []
+    sections: list[dict] = []
+    current: dict | None = None
+    for line in lines:
+        if _SUMMARY.match(line):
+            started, current = True, None
+        elif not started:
+            continue
+        elif line.startswith("#"):
+            current = {"heading": line.lstrip("#").strip(), "items": []}
+            sections.append(current)
+        else:
+            claim = _claim(_BULLET.sub("", line))
+            if claim["text"] or claim["citations"]:
+                (current["items"] if current else summary).append(claim)
+    return {"summary": summary, "sections": [s for s in sections if s["items"]]}
