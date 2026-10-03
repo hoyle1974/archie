@@ -23,6 +23,7 @@ USAGE = """\
 usage: archie                 open Archie (the TUI)
        archie ask "question"  ask anything, e.g. archie ask "what should I work on next?"
        archie admin init|sync|rederive|reindex|status|doctor
+       archie admin connect gemini
        archie admin connect google [--client client.json] [--import-token token.json]"""
 
 
@@ -76,12 +77,14 @@ def cmd_connect(argv: list[str]) -> int:
     from archie.connectors import google_auth
 
     p = argparse.ArgumentParser(prog="archie admin connect")
-    p.add_argument("service", choices=["google", "jira"])
+    p.add_argument("service", choices=["google", "jira", "gemini"])
     p.add_argument("--site", help="Jira site, e.g. https://acme.atlassian.net")
     p.add_argument("--email", help="Jira account email")
     p.add_argument("--client", help="Desktop OAuth client JSON from Google Cloud console")
     p.add_argument("--import-token", help="adopt an existing authorized-user token file")
     args = p.parse_args(argv)
+    if args.service == "gemini":
+        return connect_gemini()
     if args.service == "jira":
         return connect_jira(args.site, args.email)
     scopes = (google_auth.import_token(args.import_token) if args.import_token
@@ -108,6 +111,20 @@ def connect_jira(site: str | None, email: str | None) -> int:
     cfg.setdefault("connectors", {})["jira"] = {"enabled": True, "site": site, "email": email}
     home.config_file.write_text(yaml.safe_dump(cfg, sort_keys=False))
     print("Jira connected (read-only). Add your jira_account_id to me.yaml so Archie can tell what's yours.")
+    return 0
+
+
+def connect_gemini() -> int:
+    import getpass
+
+    from archie.secrets import set_secret
+
+    key = getpass.getpass("Gemini API key (aistudio.google.com → Get API key): ").strip()
+    if not key:
+        print("No key entered; nothing changed.")
+        return 1
+    set_secret("gemini-api-key", key)
+    print("Gemini API key saved in the Keychain.")
     return 0
 
 

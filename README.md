@@ -38,6 +38,7 @@ Add `--sources` to see where each `[n]` came from (`--paths` also shows the file
 ```
 uv sync                                         # once, in this folder
 uv run archie admin init                        # creates ~/.archie (never overwrites)
+uv run archie admin connect gemini              # Gemini API key, stored in the Keychain
 $EDITOR ~/.archie/me.yaml                       # your names, emails, GitHub/Jira ids
 uv run archie admin connect google --client client.json   # Gmail, Calendar, Drive (read-only)
 uv run archie admin connect jira --site https://you.atlassian.net --email you@work.com
@@ -55,7 +56,7 @@ connectors:
 ```
 
 **First launch:** macOS may ask whether `archie` can use a Keychain item ("archie",
-"google-token"). Choose **Always Allow**. Until you answer, syncing waits silently,
+"google-token" or "gemini-api-key"). Choose **Always Allow**. Until you answer, syncing waits silently,
 because only the program that saved the token is trusted automatically.
 
 Check your setup any time with `archie admin doctor`.

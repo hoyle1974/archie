@@ -1,6 +1,31 @@
+import pytest
+
 from archie import cli
 from archie.llm.backend import FakeBackend
 from tests.support.fixtures import by_schema
+
+
+def test_connect_gemini_stores_the_key(monkeypatch, capsys):
+    import getpass
+
+    from archie import secrets
+
+    saved = {}
+    monkeypatch.setattr(getpass, "getpass", lambda prompt: "  key-123 \n")
+    monkeypatch.setattr(secrets, "set_secret", lambda k, v: saved.update({k: v}))
+    assert cli.main(["admin", "connect", "gemini"]) == 0
+    assert saved == {"gemini-api-key": "key-123"}
+    assert "Keychain" in capsys.readouterr().out
+
+
+def test_connect_gemini_with_no_key_changes_nothing(monkeypatch):
+    import getpass
+
+    from archie import secrets
+
+    monkeypatch.setattr(getpass, "getpass", lambda prompt: "")
+    monkeypatch.setattr(secrets, "set_secret", lambda k, v: pytest.fail("should not save"))
+    assert cli.main(["admin", "connect", "gemini"]) == 1
 
 
 def run(capsys, *args):

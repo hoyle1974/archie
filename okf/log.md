@@ -5,6 +5,7 @@ description: Chronological history of design decisions and structural changes, n
 ---
 
 ## 2026-10-03
+- The model backend is now Gemini (`google-genai`), and replies use a plain line format instead of JSON schemas (`archie/llm/shape.py`). Each call declares a `Shape`; code writes the format instructions, parses and checks the reply, and retries once. Schema-forced JSON cost tokens and was less reliable. The Claude backend is removed (it's in git history). Spec: `docs/superpowers/specs/2026-10-03-gemini-line-format-design.md`.
 - Sync reports what it's waiting on (`on_progress`): the sources still running, then the deriver, index or final-check step. Derivers now run in a worker thread so the TUI keeps redrawing while they call the model.
 - People with the same full name are no longer merged on the name alone. A merge now also needs the same email username, and otherwise Archie asks. Two different people with one name would have been folded together, with no way to undo it.
 - Sync orders connectors with `graphlib.TopologicalSorter` instead of a fixed two-wave split, so `after` chains of any depth work.

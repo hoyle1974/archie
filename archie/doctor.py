@@ -3,7 +3,6 @@ working. Each check returns (ok, message)."""
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 from typing import Callable
 
@@ -20,10 +19,14 @@ def check_me(home: Home) -> Check:
     return True, f"me.yaml: {me.name}, {len(me.emails)} email(s)"
 
 
-def check_claude(which: Callable = shutil.which) -> Check:
-    if not which("claude"):
-        return False, "the `claude` CLI isn't on PATH: Archie uses it to write answers"
-    return True, "claude CLI found"
+def check_gemini() -> Check:
+    from archie.secrets import KeychainWaiting, get_secret
+
+    try:
+        ok = bool(get_secret("gemini-api-key"))
+    except KeychainWaiting as exc:
+        return False, str(exc)
+    return (True, "gemini: API key stored") if ok else (False, "gemini: no API key: run `archie admin connect gemini`")
 
 
 def check_gh(run: Callable = subprocess.run) -> Check:
@@ -62,7 +65,7 @@ def check_jira(cfg: dict) -> Check:
 
 def run_checks(home: Home) -> list[Check]:
     cfg = load_config(home)
-    results = [check_me(home), check_claude()]
+    results = [check_me(home), check_gemini()]
     enabled = [n for n, c in cfg["connectors"].items() if (c or {}).get("enabled")]
     if not enabled:
         results.append((False, "no sources switched on: add them under `connectors:` in config.yaml"))

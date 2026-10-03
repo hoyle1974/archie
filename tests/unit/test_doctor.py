@@ -10,9 +10,14 @@ def test_me_check_flags_empty_identity(tmp_path):
     assert doctor.check_me(home)[0]
 
 
-def test_claude_and_gh_checks():
-    assert not doctor.check_claude(which=lambda n: None)[0]
-    assert doctor.check_claude(which=lambda n: "/bin/claude")[0]
+def test_gemini_and_gh_checks(monkeypatch):
+    from archie import secrets
+
+    monkeypatch.setattr(secrets, "get_secret", lambda key, timeout=15: None)
+    ok, msg = doctor.check_gemini()
+    assert not ok and "archie admin connect gemini" in msg
+    monkeypatch.setattr(secrets, "get_secret", lambda key, timeout=15: "k" if key == "gemini-api-key" else None)
+    assert doctor.check_gemini() == (True, "gemini: API key stored")
     fail = lambda *a, **k: type("P", (), {"returncode": 1})()  # noqa: E731
     assert "gh auth login" in doctor.check_gh(run=fail)[1]
 

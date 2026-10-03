@@ -9,7 +9,7 @@ tags: [component]
 
 What it checks:
 - `me.yaml` has a name and at least one email.
-- The `claude` CLI is on PATH.
+- A Gemini API key is in the Keychain (`gemini-api-key`).
 - No sources enabled is reported as a failure.
 - Each enabled source:
   - gmail, calendar, drive: the Google scope was granted.

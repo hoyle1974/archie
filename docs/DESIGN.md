@@ -496,18 +496,21 @@ There is one module with one method:
 
 ```python
 class Backend(Protocol):
-    def complete(self, system: str, user: str, schema: dict, tier: str = "fast") -> dict: ...
+    def complete(self, system: str, user: str, shape: Shape, tier: str = "fast") -> dict: ...
 ```
 
 `tier` is `fast` (routing, extraction) or `strong` (briefings, conflicts, handovers); config
 maps each tier to a model.
 
-- Text in, **JSON matching a schema** out. **No tools**, no file access and no network
-  beyond the model call itself.
+- Text in, **a plain line format** out. Each call declares a `Shape` (fields, records, or
+  cited claims). Code appends the shape's format instructions to the system prompt,
+  parses the reply into a dict, checks it, and asks once more if it couldn't be read. No
+  JSON schema is sent: schema-forced output costs tokens and is less reliable. **No
+  tools**, no file access and no network beyond the model call itself.
 - **Backends:**
-  - `claude-code` (default): the `claude -p` CLI in an empty temp directory with tools
-    disabled, no MCP servers and no session persistence, using the user's Claude plan.
-  - `anthropic` (not built yet): the SDK with an API key and structured outputs.
+  - `gemini` (default): the Gemini API through `google-genai`. The key is in the Keychain
+    (`gemini-api-key`, set with `archie admin connect gemini`). Output tokens are capped
+    per tier and thinking is kept low for `fast`.
   - `fake`: replays canned responses, for tests.
 - **Citations by reference number.** The model sees a numbered *context packet* of
   excerpts and cites `{ref, quote}`. Code maps `ref` back to `(file, chunk)` and checks the
