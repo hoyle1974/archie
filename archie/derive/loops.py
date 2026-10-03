@@ -5,6 +5,7 @@ Rules enforced in code, not trusted to the model:
 - kind matches direction: asked_of_me cites someone else's message; i_promised and
   waiting_on cite the user's own message;
 - the counterpart comes from the message headers, not the model;
+- the due date is parsed by code from the verified quote, not taken from the model;
 - closing needs a verified quote from a NEW message (or the user's word);
 - a status the user set (done, dismissed, snoozed) is never overwritten.
 Messages are processed once: state/loops_seen.yaml remembers each thread's last message.
@@ -21,6 +22,7 @@ import yaml
 
 from archie.ask.context import Ctx
 from archie.connectors.gmail import chunk_thread
+from archie.derive.dates import due_in
 from archie.derive.people import PeopleDirectory, looks_personal, slug
 from archie.llm.backend import LLMError
 from archie.llm.prompts import load_prompt
@@ -40,10 +42,10 @@ EXTRACT_SCHEMA = {
         "type": "object",
         "properties": {
             "kind": {"type": "string", "enum": list(KINDS)}, "summary": {"type": "string"},
-            "ref": {"type": "integer"}, "quote": {"type": "string"}, "due": {"type": ["string", "null"]},
+            "ref": {"type": "integer"}, "quote": {"type": "string"},
             "resolved": {"type": "boolean"}, "resolved_ref": {"type": ["integer", "null"]},
             "resolved_quote": {"type": ["string", "null"]}},
-        "required": ["kind", "summary", "ref", "quote", "due", "resolved", "resolved_ref", "resolved_quote"],
+        "required": ["kind", "summary", "ref", "quote", "resolved", "resolved_ref", "resolved_quote"],
         "additionalProperties": False}}},
     "required": ["loops"],
     "additionalProperties": False,
@@ -143,13 +145,6 @@ def _packet(rel: str, data: dict, new: set[int], known: set[str] | None = None) 
     return p
 
 
-def _valid_due(due: str | None) -> str | None:
-    try:
-        return date.fromisoformat(due).isoformat() if due else None
-    except ValueError:
-        return None
-
-
 def _close(ctx: Ctx, packet: Packet, open_here: list[Loop], new_refs: set[int], tid: str) -> None:
     listing = "\n".join(f"{n}. ({lp.meta['kind']}) {lp.meta['summary']}" for n, lp in enumerate(open_here, 1))
     system = load_prompt("loops_close", me_name=ctx.me.name or "the user")
@@ -171,8 +166,7 @@ def _close(ctx: Ctx, packet: Packet, open_here: list[Loop], new_refs: set[int], 
 
 def _extract(ctx: Ctx, packet: Packet, data: dict, rel: str, tid: str, new_refs: set[int],
              directory: PeopleDirectory, known: set[str], existing: list[Loop]) -> None:
-    system = load_prompt("loops_extract", me_name=ctx.me.name or "the user",
-                         today=ctx.now.astimezone().date().isoformat())
+    system = load_prompt("loops_extract", me_name=ctx.me.name or "the user")
     out = ctx.backend.complete(system, f"Thread:\n\n{packet.render()}", EXTRACT_SCHEMA, tier="fast")
     msgs = data["messages"]
     for c in out.get("loops") or []:
@@ -200,7 +194,7 @@ def _extract(ctx: Ctx, packet: Packet, data: dict, rel: str, tid: str, new_refs:
         known.add(loop_id)
         meta = {"loop_id": loop_id, "kind": kind, "status": "open", "counterpart": cp_id,
                 "counterpart_name": cp_name, "summary": c.get("summary", "").strip(), "created_at": m["date"],
-                "due": _valid_due(c.get("due")), "snoozed_until": None, "thread": tid,
+                "due": due_in(cite.quote, when), "snoozed_until": None, "thread": tid,
                 "addressed": "to" if m.get("to_me") or m.get("from_me") else "cc",
                 "sources": [source], "closed_by": None}
         loop = Loop(loop_id, f"loops/{when:%Y}/{loop_id}.md", Note(meta=meta, body=""))

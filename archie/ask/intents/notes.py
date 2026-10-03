@@ -2,18 +2,20 @@
 
 The text is stored verbatim under `## My notes` of the matching meeting (the user's own
 words, so it goes outside the fence). Action items are extracted with verified quotes and
-become loops: the user's own items are i_promised; other people's are waiting_on.
+become loops: the user's own items are i_promised; other people's are waiting_on. Due
+dates ("by next Wed") are parsed by code from the quote, relative to when the notes were given.
 """
 
 from __future__ import annotations
 
 import hashlib
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from archie.ask.answer import Answer
 from archie.ask.context import Ctx
 from archie.ask.intents import intent
+from archie.derive.dates import due_in
 from archie.derive.loops import Loop, _history, save_loop
 from archie.derive.meetings import Meeting, load_meetings
 from archie.derive.people import PeopleDirectory, slug
@@ -28,9 +30,8 @@ SCHEMA = {
     "type": "object",
     "properties": {"items": {"type": "array", "items": {
         "type": "object",
-        "properties": {"owner": {"type": "string"}, "text": {"type": "string"}, "due": {"type": ["string", "null"]},
-                       "quote": {"type": "string"}},
-        "required": ["owner", "text", "due", "quote"], "additionalProperties": False}}},
+        "properties": {"owner": {"type": "string"}, "text": {"type": "string"}, "quote": {"type": "string"}},
+        "required": ["owner", "text", "quote"], "additionalProperties": False}}},
     "required": ["items"],
     "additionalProperties": False,
 }
@@ -106,8 +107,7 @@ def notes_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     packet = Packet()
     packet.add(rel, "notes", text, label=f"Your notes: {title}")
     local = ctx.now.astimezone()
-    system = load_prompt("notes_actions", me_name=ctx.me.name or "the user", today=local.date().isoformat(),
-                         weekday=local.strftime("%A"))
+    system = load_prompt("notes_actions", me_name=ctx.me.name or "the user")
     out = ctx.backend.complete(system, f"Notes:\n{text}", SCHEMA, tier="fast")
     note = read_note(ctx.home / rel)
     chunks = chunk_file(rel, (ctx.home / rel).read_text())
@@ -129,13 +129,13 @@ def notes_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         loop_id = f"loop-{local:%Y%m%d-%H%M}-{slug(cp_name)[:24]}-{h}"
         meta = {"loop_id": loop_id, "kind": kind, "status": "open", "counterpart": cp_id, "counterpart_name": cp_name,
                 "summary": item.get("text", "").strip(), "created_at": ctx.now.isoformat(),
-                "due": item.get("due"), "snoozed_until": None, "thread": rel, "addressed": "to",
+                "due": due_in(cite.quote, local), "snoozed_until": None, "thread": rel, "addressed": "to",
                 "sources": [{"file": rel, "chunk": chunk, "quote": item["quote"]}], "closed_by": None}
         loop = Loop(loop_id, f"loops/{local:%Y}/{loop_id}.md", Note(meta=meta, body=""))
         _history(loop, f"{local:%Y-%m-%d %H:%M} from your notes on {title}")
         save_loop(ctx.home, loop)
         owner = "you" if mine else cp_name
-        created.append(f"- [{owner}] {meta['summary']}" + (f" (due {meta['due']})" if meta["due"] else ""))
+        created.append(f"- [{owner}] {meta['summary']}" + (f" (due {date.fromisoformat(meta['due']):%a, %b %-d})" if meta["due"] else ""))
     if created:
         note = read_note(ctx.home / rel)
         note.body = set_fence(note.body, "## Decisions\n\n## Action items\n" + "\n".join(created) + "\n")

@@ -98,7 +98,15 @@ def github():
     })
 
 
-def jira():
+def jira(comments=()):
+    """comments: (author_name, author_email, iso_time, text, mentions_me) on ENG-402."""
+    def comment(name, email, when, text, mentions):
+        content = [{"type": "text", "text": text}]
+        if mentions:
+            content.insert(0, {"type": "mention", "attrs": {"id": "acc-test", "text": "@Test Testerson "}})
+        return {"author": {"accountId": f"acc-{name.split()[0].lower()}", "displayName": name, "emailAddress": email},
+                "created": when, "body": {"type": "doc", "content": [{"type": "paragraph", "content": content}]}}
+
     def issue(key, summary, status, cat, transitions=()):
         return {"key": key, "fields": {
             "summary": summary, "status": {"name": status, "statusCategory": {"key": cat}},
@@ -112,6 +120,7 @@ def jira():
     issues = [issue("ENG-402", "Token expiry fix", "In Progress", "indeterminate"),
               issue("ENG-398", "Session cleanup job", "Done", "done",
                     [("2026-09-30T21:00:00.000+0000", "In Progress", "Done")])]
+    issues[0]["fields"]["comment"]["comments"] = [comment(*c) for c in comments]
     return lambda path, params: {"issues": issues, "total": len(issues)}
 
 

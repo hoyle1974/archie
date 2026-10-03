@@ -24,7 +24,7 @@ tags: [component]
   - `notes`:
     - Finds the matching meeting: a recent one (from 24 hours ago to 1 hour ahead) that matches by title words. With no meeting named, it takes the most recent one.
     - Appends the text word for word, with a timestamp, under `## My notes`. Notes for nothing on the calendar become a standalone `notes_only` meeting file.
-    - Extracts action items (fast model, `notes_actions`) and keeps only those whose quotes verify against the note. The user's own items become `i_promised` loops and other people's become `waiting_on` loops, each citing the meeting file.
+    - Extracts action items (fast model, `notes_actions`) and keeps only those whose quotes verify against the note. The user's own items become `i_promised` loops and other people's become `waiting_on` loops, each citing the meeting file. Due dates ("by next Wed") are parsed by code from the quote, relative to when the notes were given, and shown as "due Wed, Oct 7".
     - Writes the list into the meeting's Action items fence.
 
   - `next`: computed entirely in code. It works out the free time before the next meeting today, ranks loops (boosting anyone you meet today) under "Do next", and lists `waiting_on` items 3 or more days old under "Nudge". No LLM call.

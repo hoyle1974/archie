@@ -4,6 +4,11 @@ title: Archie change log
 description: Chronological history of design decisions and structural changes, newest first.
 ---
 
+## 2026-10-03
+- Due dates are parsed by code from the verified quote (`archie/derive/dates.py`) for email, Jira and meeting-note loops. Before this, the model's date was used, which broke DESIGN §2.5. The model's schema no longer has `due`.
+- Vignette tests now check what the user sees: rebuilding once after an edit (A), names and emails resolving to one person and ambiguous names (B), the same ask in email and Jira (C), "next Wed" in notes (H), and open items with the person (J). Parts that aren't built yet are strict `xfail` tests, and A, B, C and J are back to 🟨.
+- DESIGN: the intent table lists `remember` and `clarify`. The example dossier no longer stores recent interactions, matching §5.2.
+
 ## 2026-10-02
 - Drafted the design for `now` as a source (`docs/superpowers/specs/2026-10-02-now-source-design.md`). Waiting on the auth choice; no code yet.
 - Fixes from the first real use of the TUI:

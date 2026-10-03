@@ -20,7 +20,8 @@ def route(meeting):
 
 
 ACTIONS = {"items": [
-    {"owner": "me", "text": "Update the runbook", "due": "2026-10-07", "quote": "I need to update the runbook by next Wed"},
+    {"owner": "me", "text": "Update the runbook", "due": "2099-01-01",  # ignored: code reads "next Wed"
+     "quote": "I need to update the runbook by next Wed"},
     {"owner": "Alex", "text": "Add circuit breaker", "due": None, "quote": "Alex to add circuit breaker"},
     {"owner": "Priya", "text": "Ship it", "due": None, "quote": "Priya ships it tomorrow"}]}
 

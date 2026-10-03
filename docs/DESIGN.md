@@ -162,9 +162,7 @@ Prefers code snippets over high-level summaries. Ask about their kid's soccer.
 - Co-owns auth token expiry pipeline [1]
 - Last 1:1 (Oct 14): agreed Alex drafts Redis fallback, I review by Oct 17 [2]
 
-## Recent interactions
-- Oct 14 — 1:1 (meetings/2026/2026-10-14-alex-1-1.md)
-- Oct 12 — PR #412 "Fix redis connection pool drop" merged
+- First seen 2026-10-01; last interaction 2026-10-14.
 <!-- /archie:auto -->
 
 <!-- archie:citations
@@ -326,14 +324,21 @@ A loop is something that needs closing and involves the user.
    `config.yaml`, and inbound mail Gmail didn't file as Personal). Only NEW messages are
    read (`state/loops_seen.yaml`). Being in To ranks above being in Cc.
 2. **LLM extraction:** a cheap model reads each new message and returns candidate loops
-   `{kind, counterpart, summary, due?, quote}`.
+   `{kind, summary, quote}`. The model gives no due date and no counterpart.
 3. **Verify:** `quote` must appear verbatim in the message, or the candidate is dropped.
    The kind must match the direction: `asked_of_me` cites someone else's message, and
    `i_promised` or `waiting_on` cites the user's own. The counterpart comes from the
    headers, not the model.
 4. **Dedup:** a candidate from the same message, of the same kind, with an overlapping
    quote is the same loop, however it was worded.
-5. **Due dates:** an explicit date in the quote is parsed by code. Otherwise there is no due date.
+5. **Due dates:** code parses the date from the verified quote, so the prompt asks the
+   model to include deadline words in it. Relative words resolve against when the message
+   (or pasted notes) was written: "Friday" is the next Friday (said on a Friday, the one
+   after), "next Wed" is Wednesday of the following week, plus "today", "end of day" and
+   "tomorrow". Explicit dates ("Oct 17", "17 Oct", "2026-10-17", and "by 10/17" after a
+   deadline word) roll into next year if they'd be more than 60 days past. A date right after
+   "by", "before", "due" or "until" wins over other dates. No date in the quote means no due
+   date. Notes answers show it readably ("due Wed, Oct 7").
 
 ### 6.3 Closure: evidence or the user, never silent
 
@@ -473,7 +478,9 @@ What changed
 | `handover`    | "write a handover for auth-redesign"                      | G |
 | `notes`       | "notes from the design review: …"                         | H |
 | `catchup`     | "what happened while I was out last week?"                | I |
+| `remember`    | "Goodspouse is my wife", "Childone is non-binary"               | B (§4.2) |
 | `correct`     | "that's a 1:1, not standup", "Alex R. is Alex Rivera"     | (all) |
+| `clarify`     | answers to the audit's questions ("yes, same person")     | (all) |
 | `help`        | "what can you do?", "how do I …?"                         | (all) |
 | fallback      | anything else: hybrid search plus a cited answer          | — |
 
@@ -524,10 +531,10 @@ The TUI owns the sync loop, morning batch, T-15 refresh and notifications.
 ```
 archie/
   cli.py                 # `archie`, `archie ask`, `archie admin …`
-  config.py  me.py
+  config.py              # config.yaml and me.yaml
   store/                 # file I/O, frontmatter, fences, atomic writes, tombstones
   connectors/            # calendar.py gmail.py drive.py github.py jira.py (+ base.py)
-  derive/                # meetings.py people.py loops.py projects.py
+  derive/                # meetings.py people.py loops.py projects.py dates.py
   index/                 # chunk.py embed.py db.py search.py
   llm/                   # backend.py verify.py prompts/
   ask/                   # router.py intents/<intent>.py render.py

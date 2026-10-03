@@ -17,7 +17,7 @@ anyway, set `resolved` true and cite the resolving message.
 For each loop give:
 - `kind`, a short imperative `summary` ("Review the Redis fallback patch"),
 - `ref`: the number of the message containing it, and `quote`: words copied EXACTLY from
-  that message (8+ characters) that show the request or promise,
-- `due`: an ISO date only if the message states or clearly implies one (today is {today}),
-  else null.
+  that message (8+ characters) that show the request or promise. If it has a deadline
+  ("before Friday", "by Oct 17"), include those words in the quote: the due date is read
+  from them.
 Return an empty list when there are no loops. Fewer, real loops beat many weak ones.

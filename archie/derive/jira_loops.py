@@ -11,6 +11,7 @@ from pathlib import Path
 import yaml
 
 from archie.ask.context import Ctx
+from archie.derive.dates import due_in
 from archie.derive.loops import (CLOSE_SCHEMA, EXTRACT_SCHEMA, OPEN, Loop, _duplicate, _history, load_loops,
                                  save_loop)
 from archie.derive.people import PeopleDirectory, slug
@@ -65,7 +66,7 @@ def derive_jira_loops(ctx: Ctx, paths: list[Path]) -> None:
                         _history(lp, f"{ctx.now.date().isoformat()} closed by your comment")
                         save_loop(ctx.home, lp)
             if asks_new:
-                system = load_prompt("loops_extract", me_name=me, today=ctx.now.astimezone().date().isoformat())
+                system = load_prompt("loops_extract", me_name=me)
                 out = ctx.backend.complete(system, f"Thread:\n\n{packet.render()}", EXTRACT_SCHEMA, tier="fast")
                 for c in out.get("loops") or []:
                     ref = int(c.get("ref", 0))
@@ -83,7 +84,7 @@ def derive_jira_loops(ctx: Ctx, paths: list[Path]) -> None:
                     loop_id = f"loop-{when:%Y%m%d-%H%M}-{slug(cp_name)[:24]}-{h}"
                     meta = {"loop_id": loop_id, "kind": "asked_of_me", "status": "open", "counterpart": cp_id,
                             "counterpart_name": cp_name, "summary": c.get("summary", "").strip() or f"Reply on {key}",
-                            "created_at": when.isoformat(), "due": c.get("due"), "snoozed_until": None, "thread": rel,
+                            "created_at": when.isoformat(), "due": due_in(cite.quote, when), "snoozed_until": None, "thread": rel,
                             "addressed": "to", "sources": [source], "closed_by": None}
                     lp = Loop(loop_id, f"loops/{when:%Y}/{loop_id}.md", Note(meta=meta, body=""))
                     _history(lp, f"{when:%Y-%m-%d %H:%M} mentioned on {key}")

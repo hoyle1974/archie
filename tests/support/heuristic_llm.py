@@ -24,7 +24,8 @@ ROUTES = [
 
 
 def _params(question: str) -> dict:
-    people = re.findall(r"\b(?:who is|history with|with)\s+([A-Z][a-z]+(?: [A-Z][a-z]+)?)", question)
+    people = re.findall(r"\b(?:who is|history with|with)\s+([\w.+-]+@[\w-]+(?:\.[\w-]+)+|"
+                        r"[A-Z][a-z]+(?: [A-Z][a-z]*\.?)?)", question)
     meeting = None
     m = re.search(r"(?:prep me for|brief me for|notes from)(?: my| the)?\s+([\w: ]+?)(?:[:?]|$)", question, re.I)
     if m:

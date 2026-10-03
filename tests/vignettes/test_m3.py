@@ -2,8 +2,11 @@
 
 from datetime import datetime, timezone
 
+import pytest
+
 from archie.derive.loops import load_loops
-from tests.vignettes.week import Week
+from archie.connectors.jira import JiraConnector
+from tests.vignettes.week import SARAH, ME, Week, at, jira, mail
 
 
 def test_A_standup_briefing(tmp_path):
@@ -21,6 +24,21 @@ def test_C_email_ask_closed_by_github_review(tmp_path):
     sarah = [lp for lp in load_loops(w.ctx.home) if lp.meta["counterpart"] == "sarah_jones"]
     assert sarah and sarah[0].meta["status"] == "done"
     assert sarah[0].meta["closed_by"]["file"] == "sources/github/acme__auth/pr-418.json"
+
+
+@pytest.mark.xfail(strict=True, reason="DESIGN §6.2: the same ask in email and Jira isn't merged yet")
+def test_C_same_ask_in_email_and_jira_is_one_loop(tmp_path):
+    w = Week(tmp_path, now=datetime(2026, 10, 1, 17, 30, tzinfo=timezone.utc), work=True)
+    ask = "can you update the session runbook before Friday?"
+    w.add_message("t_runbook", mail("r1", "t_runbook", f"Sarah Jones <{SARAH}>", f"Test Testerson <{ME}>", "Runbook",
+                                    f"Hi Test, {ask}", at(1, 16)), "502")
+    w.connectors[-1] = JiraConnector(client=jira(comments=[
+        ("Sarah Jones", SARAH, "2026-10-01T16:05:00.000+0000", ask, True)]))
+    w.sync()
+    out = w.ask("what do I owe people?")
+    assert out.count("update the session runbook") == 1
+    [loop] = [lp for lp in load_loops(w.ctx.home) if "runbook" in lp.meta["summary"]]
+    assert {s["file"].split("/")[1] for s in loop.meta["sources"]} == {"gmail", "jira"}
 
 
 def test_D_what_next(tmp_path):

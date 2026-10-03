@@ -10,18 +10,23 @@ When building, check: *which vignette does this move forward?* If none, stop and
 
 Status: ⬜ not started · 🟨 partial · ✅ test passing
 
+Tests check what the user sees, not only what the model was shown. A part of a vignette
+that isn't built yet has a test marked `xfail(strict=True)` naming the gap, and its row is
+🟨. Once that part is built, the test passes and strict mode makes pytest report it. Then
+remove the mark and set the row to ✅.
+
 | # | Vignette                     | Needs (sources → capabilities)                                  | Milestone | Status |
 |---|------------------------------|-----------------------------------------------------------------|-----------|--------|
-| A | Pre-meeting briefing         | Calendar, Gmail, Drive → meetings, people, loops, brief         | M2 (standard, 1:1), M3 (standup), M4 (all-hands) | ✅ |
-| B | Who is this? (memory assist) | Calendar, Gmail → people, entity resolution                     | M2 | ✅ |
-| C | The open loop I forgot       | Gmail (+Jira, GitHub) → loops detect/close                      | M2 (email), M3 (Jira/GitHub) | ✅ |
+| A | Pre-meeting briefing         | Calendar, Gmail, Drive → meetings, people, loops, brief         | M2 (standard, 1:1), M3 (standup), M4 (all-hands) | 🟨 no "refreshed" time |
+| B | Who is this? (memory assist) | Calendar, Gmail → people, entity resolution                     | M2 | 🟨 "Priya S." not found |
+| C | The open loop I forgot       | Gmail (+Jira, GitHub) → loops detect/close                      | M2 (email), M3 (Jira/GitHub) | 🟨 email+Jira not merged |
 | D | What should I work on next?  | loops + calendar + Jira/GitHub → ranking                        | M3 | ✅ |
 | E | Performance review ledger    | GitHub, Jira, Drive, meetings → ledger                          | M3 | ✅ |
 | F | Incident: who touched it?    | GitHub, Jira → hybrid search                                    | M3 | ✅ |
 | G | Project handover             | all → projects, handover                                        | M4 | ✅ |
 | H | After the meeting            | meetings → notes intake, action items → loops                   | M2 | ✅ |
 | I | Back from time off           | all → catch-up                                                  | M4 | ✅ |
-| J | Before I reply               | Gmail → who/history                                             | M2 | ✅ |
+| J | Before I reply               | Gmail → who/history                                             | M2 | 🟨 open items not shown |
 | K | Weekly brag doc              | ledger → journal                                                | M4 | ✅ |
 | L | Someone new                  | Calendar, Gmail → stub dossiers, bootstrap                      | M2 | ✅ |
 | M | Conflicting sources          | all → conflict callout in briefings                             | M3 | ✅ (both sides reach the model) |
@@ -37,7 +42,7 @@ Status: ⬜ not started · 🟨 partial · ✅ test passing
   1:1), B, C (email), H, J and L pass.
 - ✅ **M3 Know my work** (done 2026-10-02; tests in `tests/vignettes/test_m3.py`. Live GitHub is verified; Jira has only been tested against fakes so far): GitHub and Jira connectors. Standup briefing, `next`, ledger,
   conflicts, closing loops across channels. *Exit:* A (standup), C, D, E, F and M pass.
-- ✅ **M4 Long arc** (done 2026-10-02; tests in `tests/vignettes/test_m4.py`): projects, handover, catch-up, weekly journal, all-hands. *Exit:* all pass.
+- ✅ **M4 Long arc** (done 2026-10-02; tests in `tests/vignettes/test_m4.py`): projects, handover, catch-up, weekly journal, all-hands. *Exit:* all pass. (2026-10-03: stricter on-screen tests reopened gaps in A, B, C and J; see the Coverage table.)
 - **Phase 2:** the Slack connector. Then re-run every vignette with Slack data in the fixtures.
 
 ---

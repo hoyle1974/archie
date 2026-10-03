@@ -32,7 +32,7 @@ def ctx_with(tmp_path, **handlers):
 def test_inbound_request_becomes_open_asked_of_me_loop(tmp_path):
     ctx = ctx_with(tmp_path, loops_extract=extraction(
         cand("asked_of_me", 1, "can you review the Redis fallback patch before Friday", "Review the Redis fallback patch",
-             "2026-10-02")))
+             "2026-12-25")))  # the model's date is ignored: code reads "before Friday" from the quote
     path = write_thread(ctx.home, "t1", [ASK])
     derive_people(ctx, [path])
     derive_loops(ctx, [path])
