@@ -16,14 +16,6 @@ from archie.llm.prompts import load_prompt
 from archie.llm.shape import F, Shape
 from archie.store.files import atomic_write, read_note, write_note
 
-SCHEMA = {
-    "title": "correct",
-    "type": "object",
-    "properties": {"kind": {"type": "string", "enum": ["meeting_type", "same_person", "role"]},
-                   **{k: {"type": ["string", "null"]} for k in ("meeting", "meeting_type", "alias", "person", "role")}},
-    "required": ["kind", "meeting", "meeting_type", "alias", "person", "role"],
-    "additionalProperties": False,
-}
 SHAPE = Shape("correct",
               fields=(F("kind", "choice", choices=("meeting_type", "same_person", "role")),
                       *(F(k, required=False) for k in ("meeting", "meeting_type", "alias", "person", "role"))),
@@ -67,7 +59,7 @@ def _person(ctx: Ctx, name: str | None) -> tuple[PeopleDirectory, str | None, st
 
 @intent("correct")
 def correct_intent(ctx: Ctx, question: str, params: dict) -> Answer:
-    out = ctx.backend.complete(load_prompt("correct", me_name=ctx.me.name or "the user"), question, SCHEMA)
+    out = ctx.backend.complete(load_prompt("correct", me_name=ctx.me.name or "the user"), question, SHAPE)
     if out["kind"] == "meeting_type":
         return _meeting_type(ctx, out)
     d, eid, problem = _person(ctx, out.get("person"))

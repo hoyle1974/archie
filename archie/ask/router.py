@@ -29,29 +29,6 @@ INTENT_HELP = {
     "search": "anything else: find information in the archive",
 }
 
-_NULLABLE = {"type": ["string", "null"]}
-
-SCHEMA = {
-    "title": "route",
-    "type": "object",
-    "properties": {
-        "intent": {"type": "string", "enum": list(INTENT_HELP)},
-        "params": {
-            "type": "object",
-            "properties": {"people": {"type": "array", "items": {"type": "string"}}, "since": _NULLABLE,
-                           "until": _NULLABLE, "topic": _NULLABLE, "meeting": _NULLABLE, "text": _NULLABLE},
-            "required": ["people", "since", "until", "topic", "meeting", "text"],
-            "additionalProperties": False,
-        },
-        "also": {"type": "array", "items": {
-            "type": "object",
-            "properties": {"intent": {"type": "string", "enum": list(INTENT_HELP)}, "text": {"type": "string"}},
-            "required": ["intent", "text"], "additionalProperties": False}},
-    },
-    "required": ["intent", "params", "also"],
-    "additionalProperties": False,
-}
-
 _PARAMS = ("people", "since", "until", "topic", "meeting", "text")
 SHAPE = Shape(
     "route",
@@ -121,7 +98,7 @@ def route_all(ctx: Ctx, question: str) -> tuple[str, dict, list[tuple[str, str]]
     system = load_prompt("route", me_name=ctx.me.name or "the user", now=local.isoformat(timespec="minutes"),
                          weekday=local.strftime("%A"),
                          intents="\n".join(f"- {k}: {v}" for k, v in INTENT_HELP.items()))
-    out = ctx.backend.complete(system, question, SCHEMA, tier="fast")
+    out = ctx.backend.complete(system, question, SHAPE, tier="fast")
     params = {"people": [], "since": None, "until": None, "topic": None, "meeting": None, "text": None}
     params.update(out.get("params") or {})
     intent = out.get("intent", "search")

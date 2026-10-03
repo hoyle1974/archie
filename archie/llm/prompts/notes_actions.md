@@ -5,4 +5,4 @@ someone committed to or was assigned. For each:
 - `text`: a short imperative ("Update the runbook"),
 - `quote`: words copied EXACTLY from the notes (8+ characters) showing the item. If it has a
   deadline ("by next Wed"), include those words in the quote: the due date is read from them.
-Return an empty list if there are none.
+Write NONE if there are none.

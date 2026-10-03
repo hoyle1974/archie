@@ -12,12 +12,12 @@ recruiting or sales outreach, "reply if you're interested", "let me know if you'
 chat". A first contact's concrete request about something {me_name} is already part of
 still counts.
 Skip anything already answered or done by a later message in the thread; if you list one
-anyway, set `resolved` true and cite the resolving message.
+anyway, set `resolved: yes` and give `resolved_cite` for the resolving message.
 
 For each loop give:
 - `kind`, a short imperative `summary` ("Review the Redis fallback patch"),
-- `ref`: the number of the message containing it, and `quote`: words copied EXACTLY from
-  that message (8+ characters) that show the request or promise. If it has a deadline
+- `cite`: the number of the message containing it and words copied EXACTLY from that
+  message (8+ characters) that show the request or promise. If it has a deadline
   ("before Friday", "by Oct 17"), include those words in the quote: the due date is read
   from them.
-Return an empty list when there are no loops. Fewer, real loops beat many weak ones.
+Write NONE when there are no loops. Fewer, real loops beat many weak ones.

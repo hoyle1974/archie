@@ -36,34 +36,6 @@ KINDS = ("asked_of_me", "i_promised", "waiting_on")
 OPEN = ("open", "maybe_done")
 USER_STATUSES = ("done", "dismissed", "snoozed")
 
-EXTRACT_SCHEMA = {
-    "title": "loops_extract",
-    "type": "object",
-    "properties": {"loops": {"type": "array", "items": {
-        "type": "object",
-        "properties": {
-            "kind": {"type": "string", "enum": list(KINDS)}, "summary": {"type": "string"},
-            "ref": {"type": "integer"}, "quote": {"type": "string"},
-            "resolved": {"type": "boolean"}, "resolved_ref": {"type": ["integer", "null"]},
-            "resolved_quote": {"type": ["string", "null"]}},
-        "required": ["kind", "summary", "ref", "quote", "resolved", "resolved_ref", "resolved_quote"],
-        "additionalProperties": False}}},
-    "required": ["loops"],
-    "additionalProperties": False,
-}
-
-CLOSE_SCHEMA = {
-    "title": "loops_close",
-    "type": "object",
-    "properties": {"updates": {"type": "array", "items": {
-        "type": "object",
-        "properties": {"loop": {"type": "integer"}, "resolved": {"type": "boolean"}, "ref": {"type": "integer"},
-                       "quote": {"type": "string"}},
-        "required": ["loop", "resolved", "ref", "quote"], "additionalProperties": False}}},
-    "required": ["updates"],
-    "additionalProperties": False,
-}
-
 EXTRACT_SHAPE = Shape("loops_extract", records=(Record("LOOP", "loops", F("kind", "choice", choices=KINDS), (
     F("summary", hint="short imperative"),
     F("cite", "cite", hint="the message number and words showing the request or promise"),
@@ -161,7 +133,7 @@ def _close(ctx: Ctx, packet: Packet, open_here: list[Loop], new_refs: set[int], 
     listing = "\n".join(f"{n}. ({lp.meta['kind']}) {lp.meta['summary']}" for n, lp in enumerate(open_here, 1))
     system = load_prompt("loops_close", me_name=ctx.me.name or "the user")
     user = f"Open loops:\n{listing}\n\nThread (NEW messages are marked):\n\n{packet.render()}"
-    out = ctx.backend.complete(system, user, CLOSE_SCHEMA, tier="fast")
+    out = ctx.backend.complete(system, user, CLOSE_SHAPE, tier="fast")
     for upd in out.get("updates") or []:
         n = int(upd.get("loop", 0))
         if not upd.get("resolved") or not 1 <= n <= len(open_here) or int(upd.get("ref", 0)) not in new_refs:
@@ -179,7 +151,7 @@ def _close(ctx: Ctx, packet: Packet, open_here: list[Loop], new_refs: set[int], 
 def _extract(ctx: Ctx, packet: Packet, data: dict, rel: str, tid: str, new_refs: set[int],
              directory: PeopleDirectory, known: set[str], existing: list[Loop]) -> None:
     system = load_prompt("loops_extract", me_name=ctx.me.name or "the user")
-    out = ctx.backend.complete(system, f"Thread:\n\n{packet.render()}", EXTRACT_SCHEMA, tier="fast")
+    out = ctx.backend.complete(system, f"Thread:\n\n{packet.render()}", EXTRACT_SHAPE, tier="fast")
     msgs = data["messages"]
     for c in out.get("loops") or []:
         ref, kind = int(c.get("ref", 0)), c.get("kind")

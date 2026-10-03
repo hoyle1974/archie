@@ -8,31 +8,6 @@ from archie.llm.prompts import load_prompt
 from archie.llm.shape import Shape
 from archie.llm.verify import Packet, verify_claims
 
-_CLAIM = {
-    "type": "object",
-    "properties": {
-        "text": {"type": "string"},
-        "citations": {"type": "array", "items": {
-            "type": "object", "properties": {"ref": {"type": "integer"}, "quote": {"type": "string"}},
-            "required": ["ref", "quote"], "additionalProperties": False}},
-    },
-    "required": ["text", "citations"],
-    "additionalProperties": False,
-}
-
-SCHEMA = {
-    "title": "answer",
-    "type": "object",
-    "properties": {
-        "summary": {"type": "array", "items": _CLAIM},
-        "sections": {"type": "array", "items": {
-            "type": "object", "properties": {"heading": {"type": "string"}, "items": {"type": "array", "items": _CLAIM}},
-            "required": ["heading", "items"], "additionalProperties": False}},
-    },
-    "required": ["summary", "sections"],
-    "additionalProperties": False,
-}
-
 SHAPE = Shape("answer", claims=True)
 
 
@@ -79,7 +54,7 @@ def synthesize(ctx: Ctx, question: str, packet: Packet, instructions: str = "", 
     user = f"Question: {question}\n\n{extra_context}\n\n{known}\n\nSources:\n\n{packet.render()}"
     while "\n\n\n" in user:
         user = user.replace("\n\n\n", "\n\n")
-    out = ctx.backend.complete(system, user, SCHEMA, tier=tier)
+    out = ctx.backend.complete(system, user, SHAPE, tier=tier)
     summary = verify_claims(out.get("summary") or [], packet)
     answer = Answer(summary=summary.kept, packet=packet, dropped=len(summary.dropped))
     for sec in out.get("sections") or []:

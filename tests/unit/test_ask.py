@@ -34,7 +34,17 @@ def test_no_hits_says_so_without_calling_synthesis(tmp_path):
     ctx = make_ctx(tmp_path, fb)
     ans = ask(ctx, "zebras?")
     assert "couldn't find" in render(ans).lower()
-    assert [c["schema"]["title"] for c in fb.calls] == ["route"]
+    assert [c["shape"].name for c in fb.calls] == ["route"]
+
+
+def test_text_replies_run_through_the_real_parser_and_verifier(tmp_path):
+    route_text = "intent: search\npeople: -\nsince: -\nuntil: -\ntopic: Priya\nmeeting: -\ntext: -"
+    answer_text = ('SUMMARY\nPriya is the PM for auth. [1] "Priya is the PM for auth"\n'
+                   'Made up. [1] "nothing like this exists"')
+    ctx = seeded(tmp_path, by_schema(route=route_text, answer=answer_text))
+    ans = ask(ctx, "who is priya")
+    assert [c.text for c in ans.summary] == ["Priya is the PM for auth."]
+    assert ans.dropped == 1
 
 
 def test_everything_unverified_is_reported_honestly(tmp_path):

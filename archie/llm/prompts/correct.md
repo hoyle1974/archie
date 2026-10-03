@@ -4,4 +4,4 @@
 - same_person: two names are the same person. `alias`: the other name or email; `person`:
   the name Archie already knows them by.
 - role: someone's job or role. `person`: their name; `role`: the role in a few words.
-Leave fields that don't apply null.
+Write - for fields that don't apply.

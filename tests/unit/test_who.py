@@ -54,7 +54,7 @@ def test_ambiguous_name_asks_back_without_llm_synthesis(tmp_path):
     seed(ctx)
     out = render(ask(ctx, "who is Alex?"))
     assert "Which Alex" in out and "Alex Rivera" in out and "Alex Kim" in out
-    assert [c["schema"]["title"] for c in fb.calls] == ["route"]
+    assert [c["shape"].name for c in fb.calls] == ["route"]
 
 
 def test_unknown_person_says_so(tmp_path):

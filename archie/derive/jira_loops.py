@@ -12,7 +12,7 @@ import yaml
 
 from archie.ask.context import Ctx
 from archie.derive.dates import due_in
-from archie.derive.loops import (CLOSE_SCHEMA, EXTRACT_SCHEMA, OPEN, Loop, _duplicate, _history, load_loops,
+from archie.derive.loops import (CLOSE_SHAPE, EXTRACT_SHAPE, OPEN, Loop, _duplicate, _history, load_loops,
                                  save_loop)
 from archie.derive.people import PeopleDirectory, slug
 from archie.index.chunk import chunk_file
@@ -55,7 +55,7 @@ def derive_jira_loops(ctx: Ctx, paths: list[Path]) -> None:
                 listing = "\n".join(f"{n}. ({lp.meta['kind']}) {lp.meta['summary']}" for n, lp in enumerate(here, 1))
                 out = ctx.backend.complete(load_prompt("loops_close", me_name=me),
                                            f"Open loops:\n{listing}\n\nThread (NEW messages are marked):\n\n{packet.render()}",
-                                           CLOSE_SCHEMA, tier="fast")
+                                           CLOSE_SHAPE, tier="fast")
                 for upd in out.get("updates") or []:
                     n, ref = int(upd.get("loop", 0)), int(upd.get("ref", 0))
                     cite = check_quote(packet, ref, upd.get("quote", "")) if ref in mine_new else None
@@ -67,7 +67,7 @@ def derive_jira_loops(ctx: Ctx, paths: list[Path]) -> None:
                         save_loop(ctx.home, lp)
             if asks_new:
                 system = load_prompt("loops_extract", me_name=me)
-                out = ctx.backend.complete(system, f"Thread:\n\n{packet.render()}", EXTRACT_SCHEMA, tier="fast")
+                out = ctx.backend.complete(system, f"Thread:\n\n{packet.render()}", EXTRACT_SHAPE, tier="fast")
                 for c in out.get("loops") or []:
                     ref = int(c.get("ref", 0))
                     cite = check_quote(packet, ref, c.get("quote", "")) if ref in asks_new else None

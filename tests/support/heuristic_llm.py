@@ -72,8 +72,8 @@ class HeuristicLLM:
         """Every user message sent with this schema, joined: what retrieval put in front of the model."""
         return "\n".join(u for t, u in self.prompts if t == title)
 
-    def complete(self, system: str, user: str, schema: dict, tier: str = "fast") -> dict:
-        title = schema["title"]
+    def complete(self, system: str, user: str, shape, tier: str = "fast") -> dict:
+        title = shape.name
         self.calls.append(title)
         self.prompts.append((title, user))
         return getattr(self, f"_{title}")(system, user)

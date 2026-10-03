@@ -16,22 +16,6 @@ from archie.llm.shape import F, Record, Shape
 from archie.llm.verify import normalize
 from archie.store.files import Note, read_note, write_note
 
-SCHEMA = {
-    "title": "remember",
-    "type": "object",
-    "properties": {"people": {"type": "array", "items": {
-        "type": "object",
-        "properties": {"name": {"type": "string"}, "relationship": {"type": ["string", "null"]},
-                       "role": {"type": ["string", "null"]}, "pronouns": {"type": ["string", "null"]},
-                       "identity": {"type": ["string", "null"]},
-                       "avoid": {"type": "array", "items": {"type": "string"}},
-                       "other_names": {"type": "array", "items": {"type": "string"}},
-                       "statement": {"type": "string"}},
-        "required": ["name", "relationship", "role", "pronouns", "identity", "avoid", "other_names", "statement"],
-        "additionalProperties": False}}},
-    "required": ["people"],
-    "additionalProperties": False,
-}
 SHAPE = Shape("remember", records=(Record("PERSON", "people", F("name"), (
     F("relationship", required=False), F("role", required=False), F("pronouns", required=False),
     F("identity", required=False), F("avoid", "list", required=False), F("other_names", "list", required=False),
@@ -101,7 +85,7 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
 
 @intent("remember")
 def remember_intent(ctx: Ctx, question: str, params: dict) -> Answer:
-    out = ctx.backend.complete(load_prompt("remember", me_name=ctx.me.name or "the user"), question, SCHEMA)
+    out = ctx.backend.complete(load_prompt("remember", me_name=ctx.me.name or "the user"), question, SHAPE)
     lines = apply_facts(ctx, question, out.get("people") or [])
     if not lines:
         return Answer(plain="I didn't catch who that was about. Try \"Goodspouse is my wife\".")

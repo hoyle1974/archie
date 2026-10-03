@@ -26,16 +26,6 @@ from archie.llm.verify import Packet, check_quote
 from archie.store.fence import set_fence
 from archie.store.files import Note, read_note, write_note
 
-SCHEMA = {
-    "title": "notes_actions",
-    "type": "object",
-    "properties": {"items": {"type": "array", "items": {
-        "type": "object",
-        "properties": {"owner": {"type": "string"}, "text": {"type": "string"}, "quote": {"type": "string"}},
-        "required": ["owner", "text", "quote"], "additionalProperties": False}}},
-    "required": ["items"],
-    "additionalProperties": False,
-}
 SHAPE = Shape("notes_actions",
               records=(Record("ITEM", "items", F("owner", hint="me, or the person's name as written"),
                               (F("text", hint="short imperative"),
@@ -114,7 +104,7 @@ def notes_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     packet.add(rel, "notes", text, label=f"Your notes: {title}")
     local = ctx.now.astimezone()
     system = load_prompt("notes_actions", me_name=ctx.me.name or "the user")
-    out = ctx.backend.complete(system, f"Notes:\n{text}", SCHEMA, tier="fast")
+    out = ctx.backend.complete(system, f"Notes:\n{text}", SHAPE, tier="fast")
     note = read_note(ctx.home / rel)
     chunks = chunk_file(rel, (ctx.home / rel).read_text())
     directory = PeopleDirectory.load(ctx.home)

@@ -15,15 +15,6 @@ from archie.llm.shape import F, Record, Shape
 
 YES = re.compile(r"^\s*(yes|yep|yeah|y|same|correct|right|they('| a)re the same)\b", re.I)
 NO = re.compile(r"^\s*(no|nope|n|different|not the same|they('| a)re (different|not))\b", re.I)
-SCHEMA = {
-    "title": "clarify",
-    "type": "object",
-    "properties": {"answers": {"type": "array", "items": {
-        "type": "object", "properties": {"question": {"type": "integer"}, "same": {"type": "boolean"}},
-        "required": ["question", "same"], "additionalProperties": False}}},
-    "required": ["answers"],
-    "additionalProperties": False,
-}
 SHAPE = Shape("clarify", records=(Record("ANSWER", "answers", F("question", "int", hint="question number"),
                                          (F("same", "bool", hint="yes = same person / finished / still needed"),)),),
               example="ANSWER 2\nsame: yes")
@@ -42,9 +33,9 @@ def clarify_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         return Answer(plain=answer(ctx, qs[0], bool(YES.match(question))))
     listing = "\n".join(f"{i}. {q['text']}" for i, q in enumerate(qs, 1))
     out = ctx.backend.complete(
-        "Match the user's reply to the numbered yes/no questions it answers. `same` is true when the answer is "
+        "Match the user's reply to the numbered yes/no questions it answers. `same` is yes when the answer is "
         "yes (same person / finished / still needed). Only include questions the reply clearly answers.",
-        f"Questions:\n{listing}\n\nReply: {question}", SCHEMA, tier="fast")
+        f"Questions:\n{listing}\n\nReply: {question}", SHAPE, tier="fast")
     done = [answer(ctx, qs[a["question"] - 1], bool(a["same"]))
             for a in out.get("answers") or [] if 1 <= a.get("question", 0) <= len(qs)]
     if not done:

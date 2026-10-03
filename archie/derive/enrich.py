@@ -19,19 +19,10 @@ from archie.store.fence import get_fence, set_fence
 from archie.store.files import atomic_write, read_note, write_note
 
 MAX_FACTS = 8
-SCHEMA = {
-    "title": "people_facts",
-    "type": "object",
-    "properties": {"facts": {"type": "array", "items": {
-        "type": "object", "properties": {"text": {"type": "string"}, "ref": {"type": "integer"},
-                                         "quote": {"type": "string"}},
-        "required": ["text", "ref", "quote"], "additionalProperties": False}}},
-    "required": ["facts"],
-    "additionalProperties": False,
-}
 SHAPE = Shape("people_facts", records=(Record("FACT", "facts", F("text", hint="short phrase"),
                                               (F("cite", "cite"),)),),
               example='FACT Product manager for auth\ncite: [2] "I\'m the PM for auth"')
+
 
 def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str) -> str | None:
     """Update one dossier; returns the newest chunk time considered, or None if skipped."""
@@ -57,7 +48,7 @@ def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str) -> s
                    "contradicts it (e.g. if they say 'my child', never write 'son').\n"
                    + (f"Stated: {told}\n" if told else "") + (f"Their notes:\n{mine}" if mine else ""))
     try:
-        out = ctx.backend.complete(system, f"Sources about {name}:\n\n{packet.render()}", SCHEMA, tier="fast")
+        out = ctx.backend.complete(system, f"Sources about {name}:\n\n{packet.render()}", SHAPE, tier="fast")
     except LLMError:
         return None
     note = read_note(path)

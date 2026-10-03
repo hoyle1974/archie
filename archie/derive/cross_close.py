@@ -25,14 +25,6 @@ from archie.store.files import atomic_write
 
 STOP = {"the", "a", "an", "to", "for", "and", "of", "on", "in", "with", "by", "your", "you", "my", "me", "about",
         "send", "reply", "respond", "please", "review", "check", "get", "make", "do", "this", "that", "from", "it"}
-SCHEMA = {
-    "title": "loops_cross",
-    "type": "object",
-    "properties": {"done": {"type": "boolean"}, "strength": {"type": "string", "enum": ["strong", "weak"]},
-                   "ref": {"type": "integer"}, "quote": {"type": "string"}},
-    "required": ["done", "strength", "ref", "quote"],
-    "additionalProperties": False,
-}
 SHAPE = Shape("loops_cross",
               fields=(F("done", "bool"), F("strength", "choice", required=False, choices=("strong", "weak")),
                       F("cite", "cite", required=False)),
@@ -62,7 +54,7 @@ def _check(ctx: Ctx, lp, checked: dict) -> str | None:
     system = load_prompt("loops_cross", me_name=ctx.me.name or "the user")
     user = f"Open item: {m.get('summary')} (with {m.get('counterpart_name')})\n\nLater activity:\n\n{packet.render()}"
     try:
-        out = ctx.backend.complete(system, user, SCHEMA, tier="fast")
+        out = ctx.backend.complete(system, user, SHAPE, tier="fast")
     except LLMError:
         return None
     cite = check_quote(packet, int(out.get("ref", 0)), out.get("quote", "")) if out.get("done") else None

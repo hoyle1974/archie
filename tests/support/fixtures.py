@@ -28,10 +28,10 @@ def make_ctx(tmp_path, backend=None, now=NOW) -> Ctx:
 
 
 def by_schema(**handlers):
-    """FakeBackend reply fn that dispatches on the schema's title."""
+    """FakeBackend reply fn that dispatches on the shape's name."""
 
-    def reply(system, user, schema, tier):
-        fn = handlers[schema["title"]]
-        return fn(system, user, schema, tier) if callable(fn) else fn
+    def reply(system, user, shape, tier):
+        fn = handlers[shape.name]
+        return fn(system, user, shape, tier) if callable(fn) else fn
 
     return reply

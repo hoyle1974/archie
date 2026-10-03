@@ -71,15 +71,6 @@ def loops_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     return answer
 
 
-UPDATE_SCHEMA = {
-    "title": "loop_update",
-    "type": "object",
-    "properties": {"action": {"type": "string", "enum": ["done", "snooze", "dismiss", "reopen"]},
-                   "loops": {"type": "array", "items": {"type": "integer"}},
-                   "until": {"type": ["string", "null"]}, "reason": {"type": ["string", "null"]}},
-    "required": ["action", "loops", "until", "reason"],
-    "additionalProperties": False,
-}
 UPDATE_SHAPE = Shape("loop_update",
                      fields=(F("action", "choice", choices=("done", "snooze", "dismiss", "reopen")),
                              F("loops", "int_list", required=False, hint="item numbers"),
@@ -115,7 +106,7 @@ def loop_update_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     local = ctx.now.astimezone()
     system = load_prompt("loop_update", me_name=ctx.me.name or "the user", today=local.date().isoformat(),
                          weekday=local.strftime("%A"))
-    out = ctx.backend.complete(system, f"Items:\n{listing}\n\nThey said: {question}", UPDATE_SCHEMA, tier="fast")
+    out = ctx.backend.complete(system, f"Items:\n{listing}\n\nThey said: {question}", UPDATE_SHAPE, tier="fast")
     picked = [choices[n - 1] for n in out.get("loops") or [] if 1 <= n <= len(choices)]
     if not picked:
         top = "\n".join(f"  • {lp.meta.get('counterpart_name')}: {lp.meta.get('summary')}" for lp in active[:8])
