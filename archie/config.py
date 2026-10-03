@@ -14,10 +14,11 @@ from archie.store.home import Home
 DEFAULTS: dict[str, Any] = {
     "sync": {"interval_minutes": 15, "backfill_days": 14},
     "llm": {
-        "backend": "claude-code",
+        "backend": "gemini",
         "parallel": 4,
-        "models": {"fast": "haiku", "strong": "sonnet"},
-        "anthropic": {"fast": "claude-haiku-4-5-20251001", "strong": "claude-sonnet-5-5"},
+        "models": {"fast": "gemini-3.7-flash", "strong": "gemini-3.1-pro-preview"},
+        "max_output_tokens": {"fast": 2048, "strong": 8192},
+        "thinking": {"fast": "low", "strong": "medium"},
     },
     "index": {"embed_model": "BAAI/bge-small-en-v1.5"},
     "briefings": {"lead_minutes": 15, "all_hands_min_attendees": 25},

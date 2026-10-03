@@ -1,14 +1,12 @@
 """One LLM interface: text in, a line-format reply out, parsed and checked by code. No tools, ever (DESIGN §9).
 
 Model tiers: "fast" (routing, extraction) and "strong" (briefings, conflicts, handovers).
+Backend: Gemini (google-genai); the key is in the Keychain as "gemini-api-key".
 """
 
 from __future__ import annotations
 
-import json
-import os
-import subprocess
-import tempfile
+import threading
 from typing import Callable, Protocol
 
 from archie.llm.shape import Shape
@@ -65,57 +63,83 @@ class FakeBackend:
         return reply
 
 
-Runner = Callable[[list[str], str, dict], str]
+TIMEOUT_S = {"fast": 60, "strong": 300}
 
 
-def _run(cmd: list[str], user: str, env: dict) -> str:
-    with tempfile.TemporaryDirectory(prefix="archie-llm-") as empty:
+class GeminiBackend(TextBackend):
+    """The Gemini API through google-genai: plain text in and out, no tools."""
+
+    def __init__(self, llm: dict, client=None):
+        self.models = llm.get("models") or {}
+        self.caps = llm.get("max_output_tokens") or {}
+        self.thinking = llm.get("thinking") or {}
+        self._client = client
+        self._lock = threading.Lock()
+
+    def client(self):
+        with self._lock:
+            if self._client is None:
+                from google import genai
+
+                from archie.secrets import KeychainWaiting, get_secret
+
+                try:
+                    key = get_secret("gemini-api-key")
+                except KeychainWaiting as exc:
+                    raise LLMError(str(exc)) from exc
+                if not key:
+                    raise LLMError("Archie has no Gemini API key. Run `archie admin connect gemini`")
+                self._client = genai.Client(api_key=key)
+            return self._client
+
+    def generate(self, system: str, user: str, tier: str = "fast") -> str:
+        import httpx
+        from google.genai import errors, types
+
+        model = self.models.get(tier) or self.models.get("fast")
+        level = str(self.thinking.get(tier) or "low").upper()
+        config = types.GenerateContentConfig(
+            system_instruction=system,
+            max_output_tokens=int(self.caps.get(tier) or 2048),
+            thinking_config=None if level == "OFF" else types.ThinkingConfig(thinking_level=level),
+            http_options=types.HttpOptions(timeout=TIMEOUT_S.get(tier, 60) * 1000),
+        )
         try:
-            proc = subprocess.run(cmd, input=user, cwd=empty, env=env, capture_output=True, text=True, timeout=600)
-        except FileNotFoundError as exc:
-            raise LLMError("the `claude` CLI isn't installed or isn't on PATH") from exc
-        except subprocess.TimeoutExpired as exc:
-            raise LLMError("`claude` didn't answer within 10 minutes") from exc
-    if not proc.stdout.strip():
-        raise LLMError(f"`claude` exited {proc.returncode}: {proc.stderr.strip()[:300]}")
-    return proc.stdout
+            resp = self.client().models.generate_content(model=model, contents=user, config=config)
+        except errors.APIError as exc:
+            raise LLMError(_explain(exc, model)) from exc
+        except httpx.TimeoutException as exc:
+            raise LLMError(f"Gemini didn't answer within {TIMEOUT_S.get(tier, 60)} seconds") from exc
+        except httpx.TransportError as exc:
+            raise LLMError("couldn't reach Gemini; check the network connection") from exc
+        text = resp.text
+        if text and text.strip():
+            return text
+        block = getattr(getattr(resp, "prompt_feedback", None), "block_reason", None)
+        if block:
+            raise LLMError(f"Gemini blocked the request ({block.name})")
+        finish = resp.candidates[0].finish_reason.name if resp.candidates else ""
+        if finish == "MAX_TOKENS":
+            raise LLMError("Gemini's reply was cut off at the output limit (llm.max_output_tokens in config.yaml)")
+        raise LLMError("Gemini returned an empty reply")
 
 
-class ClaudeCodeBackend:
-    """`claude -p` from an empty temp dir with every tool and customization disabled.
-    Uses the logged-in Claude plan (ANTHROPIC_API_KEY is dropped from the environment)."""
-
-    def __init__(self, models: dict[str, str], runner: Runner = _run):
-        self.models = models
-        self.runner = runner
-
-    def command(self, system: str, schema: dict, tier: str) -> list[str]:
-        model = self.models.get(tier) or self.models.get("fast") or "haiku"
-        return ["claude", "-p", "--safe-mode", "--tools", "", "--strict-mcp-config", "--no-session-persistence",
-                "--model", model, "--system-prompt", system, "--json-schema", json.dumps(schema),
-                "--output-format", "json"]
-
-    def complete(self, system: str, user: str, schema: dict, tier: str = "fast") -> dict:
-        env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
-        out = self.runner(self.command(system, schema, tier), user, env)
-        try:
-            reply = json.loads(out)
-        except json.JSONDecodeError as exc:
-            raise LLMError(f"`claude` returned non-JSON output: {out[:200]!r}") from exc
-        if reply.get("is_error"):
-            detail = str(reply.get("result") or reply.get("subtype"))
-            if "limit" in detail.lower():
-                raise LLMError(f"your Claude plan's usage limit is reached ({detail.split('·')[-1].strip()}). "
-                               "Archie can still list items and plans without it, but can't write answers until then")
-            raise LLMError(f"`claude` reported an error: {detail}")
-        result = reply.get("structured_output")
-        if not isinstance(result, dict):
-            raise LLMError("`claude` returned no structured output")
-        return result
+def _explain(exc, model: str) -> str:
+    message = str(getattr(exc, "message", "") or "")
+    if exc.code == 429 or exc.status == "RESOURCE_EXHAUSTED":
+        return ("Gemini's rate or quota limit is reached. Archie can still list items and plans without it, "
+                "but can't write answers until then")
+    if exc.code in (401, 403) or "api key" in message.lower():
+        return "Gemini rejected the API key. Run `archie admin connect gemini` to store a new one"
+    if exc.code == 404:
+        return f"Gemini doesn't know the model {model!r}: check llm.models in config.yaml"
+    if exc.code and exc.code >= 500:
+        return f"Gemini had a server error ({exc.code}); try again shortly"
+    return f"Gemini reported an error: {exc.code} {message}".strip()
 
 
 def make_backend(config: dict) -> Backend:
     llm = config["llm"]
-    if llm["backend"] == "claude-code":
-        return ClaudeCodeBackend(llm["models"])
-    raise LLMError(f"unknown llm.backend {llm['backend']!r}")
+    if llm.get("backend") == "gemini":
+        return GeminiBackend(llm)
+    raise LLMError(f"unknown llm.backend {llm.get('backend')!r} in config.yaml (only 'gemini' is supported)")

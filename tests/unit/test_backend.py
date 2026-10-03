@@ -1,12 +1,16 @@
-import json
+import threading
+from types import SimpleNamespace
 
+import httpx
 import pytest
+from google.genai import errors
 
-from archie.llm.backend import ClaudeCodeBackend, FakeBackend, LLMError, TextBackend, make_backend
+from archie.llm.backend import FakeBackend, GeminiBackend, LLMError, TextBackend, make_backend
 from archie.llm.shape import F, Shape
 
-SCHEMA = {"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a"]}
 SHAPE = Shape("t", fields=(F("a"),), example="a: x")
+LLM = {"backend": "gemini", "models": {"fast": "flash-x", "strong": "pro-x"},
+       "max_output_tokens": {"fast": 100, "strong": 900}, "thinking": {"fast": "low", "strong": "medium"}}
 
 
 def test_fake_backend_replays_and_records():
@@ -50,36 +54,101 @@ def test_text_backend_retries_once_then_explains():
         Scripted(["oops", "still oops"]).complete("s", "hi", SHAPE)
 
 
-def test_claude_code_command_disables_tools_and_customizations():
-    cmd = ClaudeCodeBackend({"fast": "haiku", "strong": "sonnet"}).command("sys", SCHEMA, "strong")
-    assert cmd[:2] == ["claude", "-p"]
-    for flag in ("--safe-mode", "--strict-mcp-config", "--no-session-persistence"):
-        assert flag in cmd
-    assert cmd[cmd.index("--tools") + 1] == ""
-    assert cmd[cmd.index("--model") + 1] == "sonnet"
+def reply(text, finish="STOP", block=None):
+    cand = SimpleNamespace(finish_reason=SimpleNamespace(name=finish))
+    return SimpleNamespace(text=text, candidates=[cand] if finish else [],
+                           prompt_feedback=SimpleNamespace(block_reason=SimpleNamespace(name=block)) if block else None)
 
 
-def test_claude_code_parses_structured_output():
-    def runner(cmd, user, env):
-        return json.dumps({"is_error": False, "structured_output": {"a": "ok"}})
+class Client:
+    def __init__(self, result):
+        self.result, self.calls = result, []
+        self.models = self
 
-    b = ClaudeCodeBackend({"fast": "haiku", "strong": "sonnet"}, runner=runner)
-    assert b.complete("s", "u", SCHEMA) == {"a": "ok"}
-
-
-def test_claude_code_error_is_raised():
-    b = ClaudeCodeBackend({"fast": "haiku"}, runner=lambda *a: json.dumps({"is_error": True, "result": "nope"}))
-    with pytest.raises(LLMError):
-        b.complete("s", "u", SCHEMA)
+    def generate_content(self, model, contents, config):
+        self.calls.append((model, contents, config))
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
 
 
-def test_make_backend_from_config():
-    assert isinstance(make_backend({"llm": {"backend": "claude-code", "models": {"fast": "haiku", "strong": "sonnet"}}}),
-                      ClaudeCodeBackend)
+def test_gemini_sends_system_model_cap_and_thinking():
+    client = Client(reply("a: ok"))
+    b = GeminiBackend(LLM, client=client)
+    assert b.complete("Be brief.", "hi", SHAPE, tier="strong") == {"a": "ok"}
+    model, contents, config = client.calls[0]
+    assert model == "pro-x" and contents == "hi"
+    assert config.system_instruction.startswith("Be brief.") and config.max_output_tokens == 900
+    assert config.thinking_config.thinking_level.value == "MEDIUM"
+    assert config.http_options.timeout == 300_000
+    assert config.response_mime_type is None
 
 
-def test_usage_limit_error_is_explained():
-    b = ClaudeCodeBackend({"fast": "haiku"}, runner=lambda *a: json.dumps(
-        {"is_error": True, "result": "You've hit your session limit · resets 10:30am (America/Los_Angeles)"}))
-    with pytest.raises(LLMError, match="usage limit is reached \\(resets 10:30am"):
-        b.complete("s", "u", SCHEMA)
+def test_thinking_can_be_switched_off():
+    client = Client(reply("a: ok"))
+    GeminiBackend({**LLM, "thinking": {"fast": "off"}}, client=client).generate("s", "u", "fast")
+    assert client.calls[0][2].thinking_config is None
+
+
+@pytest.mark.parametrize("exc, words", [
+    (errors.ClientError(429, {"error": {"status": "RESOURCE_EXHAUSTED", "message": "quota"}}), "limit is reached"),
+    (errors.ClientError(400, {"error": {"status": "INVALID_ARGUMENT", "message": "API key not valid"}}), "rejected the API key"),
+    (errors.ClientError(404, {"error": {"status": "NOT_FOUND", "message": "no model"}}), "doesn't know the model 'flash-x'"),
+    (errors.ServerError(503, {"error": {"status": "UNAVAILABLE", "message": "busy"}}), "server error \\(503\\)"),
+    (httpx.ReadTimeout("slow"), "didn't answer within 60 seconds"),
+    (httpx.ConnectError("down"), "couldn't reach Gemini"),
+])
+def test_errors_are_explained(exc, words):
+    with pytest.raises(LLMError, match=words):
+        GeminiBackend(LLM, client=Client(exc)).generate("s", "u", "fast")
+
+
+def test_empty_reply_is_explained():
+    with pytest.raises(LLMError, match="blocked the request \\(SAFETY\\)"):
+        GeminiBackend(LLM, client=Client(reply(None, finish=None, block="SAFETY"))).generate("s", "u")
+    with pytest.raises(LLMError, match="cut off at the output limit"):
+        GeminiBackend(LLM, client=Client(reply(None, finish="MAX_TOKENS"))).generate("s", "u")
+    with pytest.raises(LLMError, match="empty reply"):
+        GeminiBackend(LLM, client=Client(reply("  "))).generate("s", "u")
+
+
+def test_missing_key_says_how_to_fix(monkeypatch):
+    from archie import secrets
+
+    monkeypatch.setattr(secrets, "get_secret", lambda key, timeout=15: None)
+    with pytest.raises(LLMError, match="archie admin connect gemini"):
+        GeminiBackend(LLM).generate("s", "u")
+
+
+def test_keychain_wait_becomes_llm_error(monkeypatch):
+    from archie import secrets
+
+    def waiting(key, timeout=15):
+        raise secrets.KeychainWaiting("waiting for Keychain permission")
+
+    monkeypatch.setattr(secrets, "get_secret", waiting)
+    with pytest.raises(LLMError, match="Keychain"):
+        GeminiBackend(LLM).generate("s", "u")
+
+
+def test_client_is_created_once_across_threads(monkeypatch):
+    from google import genai
+
+    from archie import secrets
+
+    made = []
+    monkeypatch.setattr(secrets, "get_secret", lambda key, timeout=15: "k")
+    monkeypatch.setattr(genai, "Client", lambda api_key: made.append(api_key) or Client(reply("a: ok")))
+    b = GeminiBackend(LLM)
+    threads = [threading.Thread(target=b.generate, args=("s", "u")) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert made == ["k"]
+
+
+def test_make_backend():
+    assert isinstance(make_backend({"llm": LLM}), GeminiBackend)
+    with pytest.raises(LLMError, match="llm.backend 'claude-code'"):
+        make_backend({"llm": {**LLM, "backend": "claude-code"}})
