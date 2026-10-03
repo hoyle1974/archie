@@ -85,3 +85,17 @@ def test_disabled_google_api_error_is_explained(tmp_path):
     err = report["calendar"].error
     assert err.startswith("Google Calendar API is switched off for your Google project. Enable it:")
     assert "https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview?project=767842269502" in err
+
+
+def test_after_chains_run_in_dependency_order(tmp_path):
+    ctx, order = make_ctx(tmp_path), []
+
+    def conn(name, after=()):
+        async def sync(sctx, cursor):
+            order.append(name)
+            return SyncResult(cursor={}, written=[])
+        return type(name, (), {"name": name, "after": after, "sync": staticmethod(sync)})()
+
+    report = asyncio.run(run_cycle(ctx, [conn("c", ("b",)), conn("b", ("a",)), conn("a")], index=False))
+    assert order == ["a", "b", "c"]
+    assert list(report) == ["c", "b", "a"]

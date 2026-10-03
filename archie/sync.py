@@ -7,6 +7,7 @@ every other connector proceeds. Cursors live in state/cursors.yaml (a file, trac
 from __future__ import annotations
 
 import asyncio
+from graphlib import TopologicalSorter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -66,12 +67,15 @@ async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Derive
         return _one(c, sctx, cursors.get(c.name))
 
     # Connectors that read another connector's mirror (e.g. drive reads calendar attachments)
-    # declare `after = ("calendar",)` and run in a second wave.
-    names = {c.name for c in connectors}
-    first = [c for c in connectors if not set(getattr(c, "after", ())) & names]
-    second = [c for c in connectors if c not in first]
-    by_name = dict(zip([c.name for c in first], await asyncio.gather(*(job(c) for c in first))))
-    by_name.update(zip([c.name for c in second], await asyncio.gather(*(job(c) for c in second))))
+    # declare `after = ("calendar",)`. Each batch whose dependencies are done runs in parallel.
+    by_conn = {c.name: c for c in connectors}
+    order = TopologicalSorter({c.name: [n for n in getattr(c, "after", ()) if n in by_conn] for c in connectors})
+    order.prepare()
+    by_name = {}
+    while order.is_active():
+        ready = order.get_ready()
+        by_name.update(zip(ready, await asyncio.gather(*(job(by_conn[n]) for n in ready))))
+        order.done(*ready)
     results = [by_name[c.name] for c in connectors]
     stamp = ctx.now.isoformat(timespec="seconds")
     report, changed = {}, []
