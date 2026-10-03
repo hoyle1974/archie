@@ -1,0 +1,160 @@
+"""Line-format model replies (DESIGN §9). Each model call declares a `Shape`; from it, code
+writes the format instructions, parses the reply into the dict the caller uses, and checks
+it. No JSON and no schema is sent to the model.
+
+- Fields are `key: value` lines; `-` is empty; `;` separates list items; yes/no for flags.
+- Repeated records start with an UPPERCASE keyword line, e.g. `LOOP asked_of_me`.
+- A citation is `[n] "words copied exactly from source n"`.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+NULLS = {"", "-", "none", "null", "n/a"}
+OPEN_QUOTES, CLOSE_QUOTES = "\"“'‘", "\"”'’"
+KIND_TEXT = {"text": "text", "list": "list, separated by ;", "int": "a number",
+             "int_list": "numbers, separated by ;", "bool": "yes or no",
+             "cite": '[n] "words copied exactly from source n"'}
+_BULLET = re.compile(r"^(?:[-*•]|\d+[.)])\s+")
+_HEAD = re.compile(r"^([A-Za-z_]+)\b[:\s]*(.*)$")
+_KV = re.compile(r"^([A-Za-z][\w ]*?)\s*:\s*(.*)$")
+
+
+@dataclass(frozen=True)
+class F:
+    """One field. `keys` is where a cite's number and quote land in the parsed dict."""
+
+    name: str
+    kind: str = "text"
+    required: bool = True
+    choices: tuple[str, ...] = ()
+    keys: tuple[str, str] = ("ref", "quote")
+    hint: str = ""
+
+    def describe(self) -> str:
+        what = f"one of {', '.join(self.choices)}" if self.kind == "choice" else KIND_TEXT[self.kind]
+        if self.hint:
+            what += f" ({self.hint})"
+        return what if self.required else f"{what}, or -"
+
+
+@dataclass(frozen=True)
+class Record:
+    keyword: str
+    key: str
+    head: F
+    fields: tuple[F, ...] = ()
+
+
+@dataclass(frozen=True)
+class Shape:
+    name: str
+    fields: tuple[F, ...] = ()
+    records: tuple[Record, ...] = ()
+    nest: tuple[str, tuple[str, ...]] | None = None
+    example: str = ""
+    claims: bool = False
+
+    def instructions(self) -> str:
+        out = ["Reply in this plain line format, not JSON: one `key: value` per line, `-` for an empty "
+               "value, `;` between list items."]
+        out += [f"{f.name}: {f.describe()}" for f in self.fields]
+        for r in self.records:
+            out.append("Then one block per item, starting with its keyword line (write NONE if there are none):")
+            out.append(f"{r.keyword} <{r.head.name}: {r.head.describe()}>")
+            out += [f"{f.name}: {f.describe()}" for f in r.fields]
+        if self.example:
+            out.append("Example:\n" + self.example)
+        return "\n".join(out)
+
+    def parse(self, text: str) -> tuple[dict, list[str]]:
+        return _parse_fields(self, text)
+
+
+def _lines(text: str):
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if line and not line.startswith("```"):
+            yield line
+
+
+def _unquote(text: str) -> str:
+    text = text.strip().rstrip(".,;").strip()
+    if text[:1] in OPEN_QUOTES:
+        text = text[1:]
+    if text[-1:] in CLOSE_QUOTES:
+        text = text[:-1]
+    return text.strip()
+
+
+def _put(out: dict, f: F, raw: str | None, problems: list[str], where: str) -> None:
+    value = None if raw is None or raw.strip().lower() in NULLS else raw.strip()
+    if value is None:
+        if f.required:
+            problems.append(f"missing `{where}{f.name}`")
+        if f.kind != "cite":
+            out[f.name] = {"list": [], "int_list": [], "bool": False}.get(f.kind)
+        return
+    try:
+        if f.kind == "text":
+            out[f.name] = value
+        elif f.kind == "list":
+            out[f.name] = [x.strip() for x in value.split(";") if x.strip().lower() not in NULLS]
+        elif f.kind == "int":
+            out[f.name] = int(re.match(r"\[?(-?\d+)", value).group(1))
+        elif f.kind == "int_list":
+            out[f.name] = [int(x) for x in re.findall(r"\d+", value)]
+        elif f.kind == "bool":
+            flag = {"yes": True, "y": True, "true": True, "no": False, "n": False, "false": False}[value.lower()]
+            out[f.name] = flag
+        elif f.kind == "choice":
+            norm = re.sub(r"[\s-]+", "_", value.lower())
+            if norm not in f.choices:
+                raise ValueError(norm)
+            out[f.name] = norm
+        elif f.kind == "cite":
+            m = re.match(r"\[?(\d+)\]?\s*(.*)$", value)
+            out[f.keys[0]], out[f.keys[1]] = int(m.group(1)), _unquote(m.group(2))
+    except (AttributeError, KeyError, ValueError):
+        problems.append(f"`{where}{f.name}` should be {f.describe()}, not {value!r}")
+
+
+def _parse_fields(shape: Shape, text: str) -> tuple[dict, list[str]]:
+    top = {f.name for f in shape.fields}
+    recs = {r.keyword: r for r in shape.records}
+    raw_top: dict[str, str] = {}
+    blocks: list[tuple[Record, dict[str, str]]] = []
+    for line in _lines(text):
+        line = _BULLET.sub("", line.replace("**", "")).strip()
+        head = _HEAD.match(line)
+        if head and head.group(1).upper() in recs:
+            blocks.append((recs[head.group(1).upper()], {"": head.group(2)}))
+            continue
+        kv = _KV.match(line)
+        if not kv:
+            continue
+        key, value = kv.group(1).strip().lower().replace(" ", "_"), kv.group(2)
+        if blocks and key in {f.name for f in blocks[-1][0].fields}:
+            blocks[-1][1][key] = value
+        elif blocks and key == blocks[-1][0].head.name:
+            blocks[-1][1][""] = value
+        elif key in top:
+            raw_top[key] = value
+    problems: list[str] = []
+    out: dict = {}
+    for f in shape.fields:
+        _put(out, f, raw_top.get(f.name), problems, "")
+    for r in shape.records:
+        out[r.key] = []
+    for r, raw in blocks:
+        item: dict = {}
+        _put(item, r.head, raw.get(""), problems, f"{r.keyword} ")
+        for f in r.fields:
+            _put(item, f, raw.get(f.name), problems, f"{r.keyword} ")
+        out[r.key].append(item)
+    if shape.nest:
+        key, names = shape.nest
+        out[key] = {n: out.pop(n) for n in names}
+    return out, problems
