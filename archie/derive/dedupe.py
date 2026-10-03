@@ -1,11 +1,12 @@
 """Find people who are probably the same and either merge them or ask (clarifying
 questions). Runs after indexing; no LLM.
 
-- Same full name (two or more words), different addresses: merged automatically, and
-  the Today pane says so.
-- Weaker evidence (one name contains the other with the same first and last name, a
-  shared alias, the same email username at different domains): a question in
-  state/questions.yaml, shown in the Today pane. "no" is remembered for good.
+- Same full name (two or more words) and the same email username at different domains:
+  merged automatically, and the Today pane says so. A name alone is never enough, since
+  two people can share one.
+- Weaker evidence (the same full name alone, one name containing the other with the same
+  first and last name, a shared alias, the same email username and first name): a
+  question in state/questions.yaml, shown in the Today pane. "no" is remembered for good.
 """
 
 from __future__ import annotations
@@ -56,8 +57,10 @@ def _who(d: PeopleDirectory, e: str) -> str:
 def _score(d: PeopleDirectory, a: str, b: str) -> str | None:
     ma, mb = d.meta[a], d.meta[b]
     ta, tb = _tokens(ma.get("name", "")), _tokens(mb.get("name", ""))
+    la = {x.split("@")[0] for x in d.identifiers(a) if EMAIL.match(x)}
+    lb = {x.split("@")[0] for x in d.identifiers(b) if EMAIL.match(x)}
     if len(ta) >= 2 and ta == tb:
-        return "merge"
+        return "merge" if la & lb else "ask"
     if len(ta) >= 2 and len(tb) >= 2 and ta[0] == tb[0] and ta[-1] == tb[-1] and (set(ta) <= set(tb) or set(tb) <= set(ta)):
         return "ask"
     if len(ta) >= 2 and len(tb) >= 2 and ta[0] == tb[0] and (set(ta) < set(tb) or set(tb) < set(ta)):
@@ -66,8 +69,6 @@ def _score(d: PeopleDirectory, a: str, b: str) -> str | None:
     nb = {str(x).lower() for x in [mb.get("name"), *(mb.get("aliases") or [])] if x and not EMAIL.match(str(x))}
     if {n for n in na & nb if len(_tokens(n)) >= 2}:
         return "ask"
-    la = {x.split("@")[0] for x in d.identifiers(a) if EMAIL.match(x)}
-    lb = {x.split("@")[0] for x in d.identifiers(b) if EMAIL.match(x)}
     if la & lb and ta and tb and ta[0] == tb[0]:
         return "ask"
     return None

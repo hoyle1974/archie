@@ -15,8 +15,8 @@ tags: [component]
 
   Questions answered some other way, such as a loop closed by hand, resolve themselves right away: `resolve_answered` runs after every answer and before Today is drawn, with no model call.
 - `find_duplicates` (`dedupe.py`) is called by the audit.
-  - The same full name (two or more words) under different addresses is merged automatically, and a "notice" shows in Today for 24 hours.
-  - Weaker evidence becomes a `same_person` question: names where one contains the other (same first and last name), a shared multi-word alias, or the same email username at different domains.
+  - The same full name (two or more words) plus the same email username at different domains is merged automatically, and a "notice" shows in Today for 24 hours. A name alone never merges, since two people can share one.
+  - Weaker evidence becomes a `same_person` question: the same full name alone, names where one contains the other (same first and last name), a shared multi-word alias, or the same email username and first name.
 - Questions live in `state/questions.yaml`. Answered ones are kept, so a "no" is never asked again.
 - `merge_people` (in `people.py`) folds one dossier into another and re-points loops and meetings. It merges aliases, the user's notes, cited facts and relationship, role and pronouns. The other file stays, marked `status: merged`.
 - The `clarify` intent handles replies. A plain yes or no to a single open yes/no question needs no model. With several open, the fast model maps the reply to question numbers, and `audit.answer` applies it. The router sends any yes/no-shaped reply here whenever such questions are open.

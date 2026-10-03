@@ -177,8 +177,8 @@ confirms through `ask`. Archie never silently merges two people.
 
 **Clarifying questions:** after each sync an audit looks for confusion and asks at most
 5 questions at a time in the Today pane, answered in plain English:
-- probable duplicate people (an identical full name is merged automatically and Archie
-  says so)
+- probable duplicate people (an identical full name plus the same email username is
+  merged automatically and Archie says so; a matching name alone is only a question)
 - "did you finish …?" when the evidence that an item is done is weak
 - "still needed?" for an item more than a week past due
 - "who is x@y?" for a correspondent known only by an address

@@ -17,14 +17,23 @@ def people(ctx, *pairs):
     derive_people(ctx, [write_thread(ctx.home, "t1", msgs)])
 
 
-def test_same_full_name_merges_automatically_and_says_so(tmp_path):
+def test_same_full_name_and_email_username_merges_automatically_and_says_so(tmp_path):
     ctx = make_ctx(tmp_path)
-    people(ctx, ("goodspouse@home.example", "Goodspouse Testerson"), ("gs@work.example", "Goodspouse Testerson"))
+    people(ctx, ("goodspouse@home.example", "Goodspouse Testerson"), ("goodspouse@work.example", "Goodspouse Testerson"))
     find_duplicates(ctx)
     d = PeopleDirectory.load(ctx.home)
     [eid] = d.find("Goodspouse Testerson")
-    assert {"goodspouse@home.example", "gs@work.example"} <= set(d.identifiers(eid))
+    assert {"goodspouse@home.example", "goodspouse@work.example"} <= set(d.identifiers(eid))
     assert any("Merged" in q["text"] for q in open_questions(ctx.home, include_notices=True))
+
+
+def test_same_full_name_alone_asks_instead_of_merging(tmp_path):
+    ctx = make_ctx(tmp_path)
+    people(ctx, ("jsmith@acme.example", "John Smith"), ("john.smith@other.example", "John Smith"))
+    find_duplicates(ctx)
+    assert len(PeopleDirectory.load(ctx.home).find("John Smith")) == 2
+    [q] = open_questions(ctx.home)
+    assert q["kind"] == "same_person" and "jsmith@acme.example" in q["text"]
 
 
 def test_partial_name_match_becomes_a_question_then_yes_merges(tmp_path):
