@@ -26,6 +26,7 @@ from archie.derive.dates import due_in
 from archie.derive.people import PeopleDirectory, looks_personal, slug
 from archie.llm.backend import LLMError
 from archie.llm.prompts import load_prompt
+from archie.llm.shape import F, Record, Shape
 from archie.llm.verify import Packet, check_quote, normalize
 from archie.store.fence import get_fence, set_fence
 from archie.store.files import Note, atomic_write, read_note, read_raw, write_note
@@ -62,6 +63,17 @@ CLOSE_SCHEMA = {
     "required": ["updates"],
     "additionalProperties": False,
 }
+
+EXTRACT_SHAPE = Shape("loops_extract", records=(Record("LOOP", "loops", F("kind", "choice", choices=KINDS), (
+    F("summary", hint="short imperative"),
+    F("cite", "cite", hint="the message number and words showing the request or promise"),
+    F("resolved", "bool", required=False),
+    F("resolved_cite", "cite", required=False, keys=("resolved_ref", "resolved_quote")))),),
+    example='LOOP asked_of_me\nsummary: Review the Redis fallback patch\n'
+            'cite: [3] "can you review the Redis fallback patch before Friday"\nresolved: no\nresolved_cite: -')
+CLOSE_SHAPE = Shape("loops_close", records=(Record("UPDATE", "updates", F("loop", "int", hint="loop number"), (
+    F("resolved", "bool"), F("cite", "cite", required=False))),),
+    example='UPDATE 1\nresolved: yes\ncite: [4] "I merged the fix this morning"')
 
 
 @dataclass

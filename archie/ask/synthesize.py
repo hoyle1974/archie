@@ -5,6 +5,7 @@ from __future__ import annotations
 from archie.ask.answer import Answer, Section
 from archie.ask.context import Ctx
 from archie.llm.prompts import load_prompt
+from archie.llm.shape import Shape
 from archie.llm.verify import Packet, verify_claims
 
 _CLAIM = {
@@ -31,6 +32,8 @@ SCHEMA = {
     "required": ["summary", "sections"],
     "additionalProperties": False,
 }
+
+SHAPE = Shape("answer", claims=True)
 
 
 def describe(meta: dict, name: str) -> str | None:

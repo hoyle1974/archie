@@ -19,6 +19,7 @@ from archie.ask.context import Ctx
 from archie.derive.loops import OPEN, _history, load_loops, save_loop
 from archie.llm.backend import LLMError
 from archie.llm.prompts import load_prompt
+from archie.llm.shape import F, Shape
 from archie.llm.verify import Packet, check_quote
 from archie.store.files import atomic_write
 
@@ -32,6 +33,10 @@ SCHEMA = {
     "required": ["done", "strength", "ref", "quote"],
     "additionalProperties": False,
 }
+SHAPE = Shape("loops_cross",
+              fields=(F("done", "bool"), F("strength", "choice", required=False, choices=("strong", "weak")),
+                      F("cite", "cite", required=False)),
+              example='done: yes\nstrength: strong\ncite: [2] "Approved the Redis fallback patch"')
 
 
 def _words(text: str) -> set[str]:

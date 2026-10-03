@@ -13,6 +13,7 @@ from archie.ask.context import Ctx
 from archie.derive.people import PeopleDirectory, parse_facts, render_facts
 from archie.llm.backend import LLMError
 from archie.llm.prompts import load_prompt
+from archie.llm.shape import F, Record, Shape
 from archie.llm.verify import Packet, check_quote, normalize
 from archie.store.fence import get_fence, set_fence
 from archie.store.files import atomic_write, read_note, write_note
@@ -28,6 +29,10 @@ SCHEMA = {
     "required": ["facts"],
     "additionalProperties": False,
 }
+SHAPE = Shape("people_facts", records=(Record("FACT", "facts", F("text", hint="short phrase"),
+                                              (F("cite", "cite"),)),),
+              example='FACT Product manager for auth\ncite: [2] "I\'m the PM for auth"')
+
 def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str) -> str | None:
     """Update one dossier; returns the newest chunk time considered, or None if skipped."""
     if directory.meta.get(eid, {}).get("facts_stale"):

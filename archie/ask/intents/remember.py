@@ -12,6 +12,7 @@ from archie.ask.context import Ctx
 from archie.ask.intents import intent
 from archie.derive.people import PeopleDirectory, best_name
 from archie.llm.prompts import load_prompt
+from archie.llm.shape import F, Record, Shape
 from archie.llm.verify import normalize
 from archie.store.files import Note, read_note, write_note
 
@@ -31,6 +32,12 @@ SCHEMA = {
     "required": ["people"],
     "additionalProperties": False,
 }
+SHAPE = Shape("remember", records=(Record("PERSON", "people", F("name"), (
+    F("relationship", required=False), F("role", required=False), F("pronouns", required=False),
+    F("identity", required=False), F("avoid", "list", required=False), F("other_names", "list", required=False),
+    F("statement", hint="their sentence(s) copied exactly from the message"))),),
+    example="PERSON Goodspouse\nrelationship: wife\nrole: -\npronouns: she/her\nidentity: -\navoid: -\n"
+            "other_names: Belle; Goodspouse Mae Testerson\nstatement: Goodspouse is my wife.")
 
 
 def _new_person(ctx: Ctx, directory: PeopleDirectory, name: str) -> str:

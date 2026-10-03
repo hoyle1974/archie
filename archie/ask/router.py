@@ -9,6 +9,7 @@ import re
 
 from archie.ask.context import Ctx
 from archie.llm.prompts import load_prompt
+from archie.llm.shape import F, Record, Shape
 
 INTENT_HELP = {
     "agenda": "what's on the calendar for a day or range (\"what do I have tomorrow?\", \"what's my week like?\")",
@@ -50,6 +51,21 @@ SCHEMA = {
     "required": ["intent", "params", "also"],
     "additionalProperties": False,
 }
+
+_PARAMS = ("people", "since", "until", "topic", "meeting", "text")
+SHAPE = Shape(
+    "route",
+    fields=(F("intent", "choice", choices=tuple(INTENT_HELP)),
+            F("people", "list", required=False, hint="names or emails mentioned"),
+            F("since", required=False, hint="ISO date"), F("until", required=False, hint="ISO date"),
+            F("topic", required=False), F("meeting", required=False),
+            F("text", required=False, hint="for notes: the note text verbatim")),
+    records=(Record("ALSO", "also", F("intent", "choice", choices=tuple(INTENT_HELP)),
+                    (F("text", hint="the exact sentences of that part"),)),),
+    nest=("params", _PARAMS),
+    example="intent: loop_update\npeople: Ken\nsince: -\nuntil: -\ntopic: -\nmeeting: -\ntext: -\n"
+            "ALSO remember\ntext: Sam is my neighbor.",
+)
 
 ACTIONS = ("loop_update", "remember", "correct", "notes", "clarify")
 

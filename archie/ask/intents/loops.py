@@ -8,6 +8,7 @@ from archie.ask.context import Ctx
 from archie.ask.intents import intent
 from archie.derive.loops import Loop, Ranked, _history, load_loops, rank, save_loop
 from archie.llm.prompts import load_prompt
+from archie.llm.shape import F, Shape
 from archie.llm.verify import Citation, Claim
 
 def _claim(ctx: Ctx, r: Ranked, text: str) -> Claim:
@@ -79,6 +80,11 @@ UPDATE_SCHEMA = {
     "required": ["action", "loops", "until", "reason"],
     "additionalProperties": False,
 }
+UPDATE_SHAPE = Shape("loop_update",
+                     fields=(F("action", "choice", choices=("done", "snooze", "dismiss", "reopen")),
+                             F("loops", "int_list", required=False, hint="item numbers"),
+                             F("until", required=False, hint="ISO date"), F("reason", required=False)),
+                     example="action: snooze\nloops: 2; 3\nuntil: 2026-10-05\nreason: -")
 
 
 def _apply(ctx: Ctx, loop: Loop, action: str, until: str | None, reason: str | None) -> str:

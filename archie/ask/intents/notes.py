@@ -21,6 +21,7 @@ from archie.derive.meetings import Meeting, load_meetings
 from archie.derive.people import PeopleDirectory, slug
 from archie.index.chunk import chunk_file
 from archie.llm.prompts import load_prompt
+from archie.llm.shape import F, Record, Shape
 from archie.llm.verify import Packet, check_quote
 from archie.store.fence import set_fence
 from archie.store.files import Note, read_note, write_note
@@ -35,6 +36,11 @@ SCHEMA = {
     "required": ["items"],
     "additionalProperties": False,
 }
+SHAPE = Shape("notes_actions",
+              records=(Record("ITEM", "items", F("owner", hint="me, or the person's name as written"),
+                              (F("text", hint="short imperative"),
+                               F("quote", hint="words copied exactly from the notes"))),),
+              example="ITEM me\ntext: Update the runbook\nquote: I need to update the runbook by next Wed")
 
 
 def _recent(ctx: Ctx) -> list[Meeting]:

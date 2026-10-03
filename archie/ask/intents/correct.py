@@ -13,6 +13,7 @@ from archie.briefings.classify import TYPES
 from archie.derive.meetings import load_meetings, recent_or_upcoming
 from archie.derive.people import PeopleDirectory, merge_people
 from archie.llm.prompts import load_prompt
+from archie.llm.shape import F, Shape
 from archie.store.files import atomic_write, read_note, write_note
 
 SCHEMA = {
@@ -23,6 +24,10 @@ SCHEMA = {
     "required": ["kind", "meeting", "meeting_type", "alias", "person", "role"],
     "additionalProperties": False,
 }
+SHAPE = Shape("correct",
+              fields=(F("kind", "choice", choices=("meeting_type", "same_person", "role")),
+                      *(F(k, required=False) for k in ("meeting", "meeting_type", "alias", "person", "role"))),
+              example="kind: same_person\nmeeting: -\nmeeting_type: -\nalias: Al R.\nperson: Alex Rivera\nrole: -")
 NAMES = {"one_on_one": "1:1", "standup": "standup", "all_hands": "all-hands", "standard": "regular meeting"}
 
 
