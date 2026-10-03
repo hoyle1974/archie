@@ -65,7 +65,8 @@ def cmd_sync(home: Home) -> int:
         return 0
     from archie.derive.registry import post_index_steps
 
-    report = asyncio.run(run_cycle(ctx, connectors, all_derivers(), post_index=post_index_steps()))
+    report = asyncio.run(run_cycle(ctx, connectors, all_derivers(), post_index=post_index_steps(),
+                                   on_progress=lambda text: print(text, file=sys.stderr, flush=True)))
     for name, rep in report.items():
         print(f"{name}: ok, {rep.written} updated" if rep.ok else f"{name}: failed: {rep.error}")
     return 0 if all(r.ok for r in report.values()) else 1

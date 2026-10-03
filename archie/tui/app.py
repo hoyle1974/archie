@@ -136,7 +136,8 @@ class ArchieApp(App):
             activity.update("Syncing…")
             self.ctx.now = datetime.now(timezone.utc)
             try:
-                report = await run_cycle(self.ctx, self.connectors, self.derivers, post_index=self.post_index)
+                report = await run_cycle(self.ctx, self.connectors, self.derivers, post_index=self.post_index,
+                                         on_progress=activity.update)
                 stamp = datetime.now().strftime("%-I:%M %p")
                 lines = [f"Last sync {stamp}"]
                 lines += [f"{n}: ok, {r.written} updated" if r.ok else f"{n}: failed: {r.error[:220]}"

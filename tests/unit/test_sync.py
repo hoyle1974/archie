@@ -99,3 +99,33 @@ def test_after_chains_run_in_dependency_order(tmp_path):
     report = asyncio.run(run_cycle(ctx, [conn("c", ("b",)), conn("b", ("a",)), conn("a")], index=False))
     assert order == ["a", "b", "c"]
     assert list(report) == ["c", "b", "a"]
+
+
+def test_progress_says_what_sync_is_waiting_on(tmp_path):
+    ctx, said = make_ctx(tmp_path), []
+    fast_done = asyncio.Event()
+
+    class Fast:
+        name = "calendar"
+
+        async def sync(self, sctx, cursor):
+            fast_done.set()
+            return SyncResult(cursor={}, written=[])
+
+    class Slow:
+        name = "gmail"
+
+        async def sync(self, sctx, cursor):
+            await fast_done.wait()
+            await asyncio.sleep(0)  # let the calendar finish being reported first
+            return SyncResult(cursor={}, written=[])
+
+    def derive_loops(c, paths):
+        pass
+
+    asyncio.run(run_cycle(ctx, [Slow(), Fast()], derivers=[derive_loops], post_index=[lambda c: None],
+                          on_progress=said.append))
+    assert said[0] == "Waiting on calendar, gmail…"
+    assert "Waiting on gmail…" in said
+    assert said[said.index("Waiting on gmail…") + 1:] == [
+        "Reading what's new: loops…", "Updating the search index…", "Final checks…"]

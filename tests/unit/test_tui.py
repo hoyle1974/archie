@@ -37,6 +37,30 @@ def test_launch_runs_catch_up_sync_and_shows_status(tmp_path):
     asyncio.run(go())
 
 
+def test_sync_pane_shows_what_sync_is_waiting_on(tmp_path):
+    ctx = make_ctx(tmp_path)
+    release = asyncio.Event()
+
+    class Stuck:
+        name = "gmail"
+
+        async def sync(self, sctx, cursor):
+            await release.wait()
+            return SyncResult(cursor={})
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[Stuck()], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert "Waiting on gmail…" in text_of(app, "#activity")
+            release.set()
+            await app.sync_done.wait()
+            await pilot.pause()
+            assert "gmail: ok" in text_of(app, "#activity")
+
+    asyncio.run(go())
+
+
 def test_question_in_ask_pane_shows_answer(tmp_path):
     route = {"intent": "search", "params": {"people": [], "since": None, "until": None, "topic": "Priya",
                                             "meeting": None, "text": None}}

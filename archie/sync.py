@@ -19,6 +19,7 @@ from archie.connectors.base import Connector, SyncCtx, SyncResult
 from archie.store.files import atomic_write
 
 Deriver = Callable[[Ctx, list[Path]], None]
+Progress = Callable[[str], None]
 
 
 @dataclass
@@ -56,15 +57,29 @@ async def _one(conn: Connector, sctx: SyncCtx, cursor) -> tuple[ConnectorReport,
     return ConnectorReport(ok=True, written=len(result.written), paths=result.written + result.deleted), result
 
 
+def _what(step: Callable) -> str:
+    return getattr(step, "__name__", "").removeprefix("derive_").replace("_", " ")
+
+
 async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Deriver] | None = None,
-                    index: bool = True, post_index: list | None = None) -> dict[str, ConnectorReport]:
+                    index: bool = True, post_index: list | None = None,
+                    on_progress: Progress | None = None) -> dict[str, ConnectorReport]:
+    """on_progress gets a plain sentence each time what the cycle is waiting on changes."""
+    say = on_progress or (lambda text: None)
     cursors = _load_yaml(ctx.home.cursors_file)
     status_file = ctx.home / "state/sync_status.yaml"
     status = _load_yaml(status_file)
     backfill = ctx.config["sync"]["backfill_days"]
-    def job(c):
+    waiting: set[str] = set()
+
+    async def job(c):
         sctx = SyncCtx(ctx.home, ctx.config["connectors"].get(c.name, {}), ctx.me, ctx.now, backfill)
-        return _one(c, sctx, cursors.get(c.name))
+        try:
+            return await _one(c, sctx, cursors.get(c.name))
+        finally:
+            waiting.discard(c.name)
+            if waiting:
+                say(f"Waiting on {', '.join(sorted(waiting))}…")
 
     # Connectors that read another connector's mirror (e.g. drive reads calendar attachments)
     # declare `after = ("calendar",)`. Each batch whose dependencies are done runs in parallel.
@@ -74,6 +89,8 @@ async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Derive
     by_name = {}
     while order.is_active():
         ready = order.get_ready()
+        waiting.update(ready)
+        say(f"Waiting on {', '.join(sorted(waiting))}…")
         by_name.update(zip(ready, await asyncio.gather(*(job(by_conn[n]) for n in ready))))
         order.done(*ready)
     results = [by_name[c.name] for c in connectors]
@@ -90,10 +107,14 @@ async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Derive
             entry.update(last_failure=stamp, last_error=rep.error)
     _dump(ctx.home.cursors_file, cursors)
     _dump(status_file, status)
-    for derive in derivers or []:
-        derive(ctx, changed)
+    for derive in derivers or []:  # in a thread: derivers call the model, and the TUI must stay live
+        say(f"Reading what's new: {_what(derive)}…")
+        await asyncio.to_thread(derive, ctx, changed)
     if index:
+        say("Updating the search index…")
         await asyncio.to_thread(ctx.index.sync)
+        if post_index:
+            say("Final checks…")
         for step in post_index or []:  # steps that read the index (e.g. people enrichment)
             await asyncio.to_thread(step, ctx)
         if post_index:
