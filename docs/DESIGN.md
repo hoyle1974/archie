@@ -102,7 +102,7 @@ from a shell.
 ├── me.yaml                  # the user's identities (see §4.1)
 ├── state/
 │   ├── cursors.yaml         # per-source sync cursors (tracked in git)
-│   └── conversation.jsonl   # recent ask exchanges, for follow-ups (last 200)
+│   └── conversation.jsonl   # recent ask exchanges, for follow-ups and the TUI (last 200)
 ├── sources/                 # RAW: written only by connectors
 │   ├── calendar/<eventId>.json
 │   ├── gmail/<threadId>.json
@@ -577,8 +577,8 @@ maps each tier to a model.
 Built with Textual. Three panes:
 1. **Feed:** the current or next briefing, top loops, and notifications.
 2. **Ask:** an input box plus the answer view. Up-arrow recalls history. Citations
-   expand inline. Earlier answers from this session stay above the newest one, to
-   scroll back to. The pane's border shows Gemini spend this month against the budget,
+   expand inline. Earlier answers stay above the newest one, to scroll back to, and
+   the pane opens with the last few exchanges. The pane's border shows Gemini spend this month against the budget,
    and Google's count of it when `llm.google_project` is set.
 3. **Activity:** sync status per source, the last sync time and recent errors, with
    earlier sync reports above.

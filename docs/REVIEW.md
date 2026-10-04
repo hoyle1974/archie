@@ -40,7 +40,7 @@ every prompt sent go to `~/.archie/reviews/evals/`, never the repo. A run costs 
 | File (under `~/.archie`) | What it tells you |
 |---|---|
 | `logs/usage.jsonl` | One line per `ask`: `question`, `intent`, `parts` (kind and handler of each part), `quick` (code-only shortcut), `gaps`, `claims`, `dropped` (claims the verifier removed), `nothing_found`, `answer` (as shown), `error`, `ms`. Older lines lack `parts` and `answer`. |
-| `state/conversation.jsonl` | Recent exchanges as follow-ups see them: `said`, `resolved` (the rewritten question), `summary`, `citations`, `pending`. |
+| `state/conversation.jsonl` | Recent exchanges as follow-ups see them: `said`, `resolved` (the rewritten question), `summary`, `citations`, `pending`, and `shown` (the answer as the TUI shows it on launch). |
 | `logs/errors.log` | Full tracebacks for failed syncs and asks, headed `--- <ts> ask: <question>`. |
 | `logs/llm_usage.jsonl` | Each model call: model, tier, tokens, `usd`. |
 | `state/questions.yaml` | Questions Archie asked the user, and whether they were resolved. |

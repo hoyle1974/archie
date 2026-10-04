@@ -172,11 +172,12 @@ def test_each_exchange_is_remembered_with_its_numbered_sources(tmp_path):
              "sections": []}
     reply = understood(question("search", topic="Priya", resolved="Who is Priya?"))
     ctx = seeded(tmp_path, by_schema(understand=reply, answer=synth))
-    ask(ctx, "who is priya")
+    ans = ask(ctx, "who is priya")
     [entry] = [json.loads(x) for x in (ctx.home / "state/conversation.jsonl").read_text().splitlines()]
     assert entry["said"] == "who is priya" and entry["resolved"] == "Who is Priya?"
     assert entry["citations"][0]["file"] == "people/priya_sharma.md" and entry["citations"][0]["n"] == 1
     assert entry["summary"].startswith("Priya is the PM for auth. [1]")
+    assert entry["shown"] == render(ans, sources=True, stamp=True)  # what the TUI shows again on launch
     log = [json.loads(x) for x in (ctx.home / "logs/usage.jsonl").read_text().splitlines()]
     assert log[0]["parts"] == [{"kind": "question", "handler": "search"}]
 

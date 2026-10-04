@@ -5,6 +5,7 @@ description: Chronological history of design decisions and structural changes, n
 ---
 
 ## 2026-10-04
+- The TUI opens with the last 5 asks and answers. Each exchange in `state/conversation.jsonl` now also keeps the answer as shown (`shown`); older entries show their time and summary. In the Ask pane, each ask is a block under a heavy rule, with the question on an accent band ("You asked: …").
 - TUI scrollback and mouse copying: earlier answers and sync reports stay in their panes to scroll back to, Today scrolls, and the panes no longer take focus from the question box (PageUp/PageDown scroll answers). Dragging over text copies it on release, since iTerm2 keeps Cmd+C for its own selection.
 - Spend is always shown in dollars (`budget.money`): "Gemini: $0.02 of $15 this month", "Google: $0.07", instead of switching to cents under $1.
 - Prompt optimization, measured with a new evaluation script (`scripts/prompt_eval.py`: 14 real questions graded by code against a throwaway copy of the real home). Baseline 28.0¢, 262k input tokens, 7 claims dropped; after: 14/14 graded checks pass, 22.4¢, 193k input tokens, 1 dropped.

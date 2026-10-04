@@ -21,6 +21,7 @@ from archie.llm.backend import LLMError
 ASK_TIMEOUT = 180  # seconds before the Ask pane gives up and frees itself
 SPEND_REFRESH_S = 3
 KEEP_ANSWERS = 50
+RESTORE_ASKS = 5
 KEEP_SYNC_REPORTS = 20
 HINT = 'Ask anything, e.g. "prep me for my next meeting" or "what do I owe people?"'
 
@@ -29,6 +30,12 @@ class Pane(VerticalScroll):
     """Scrolls with the mouse wheel but never takes focus, so the cursor stays in the question box."""
 
     can_focus = False
+
+
+def exchange(question: str, text: str) -> tuple[Vertical, Static]:
+    """One ask in the Ask pane: the question on its own band, the answer below it."""
+    out = Static(text, classes="answer", markup=False)
+    return Vertical(Static(f"You asked: {question}", classes="asked", markup=False), out, classes="exchange"), out
 
 
 def _pbcopy(text: str) -> None:
@@ -75,8 +82,10 @@ class ArchieApp(App):
     .earlier-sync { border-bottom: hkey $panel; }
     #right { width: 55%; }
     #answer-scroll { height: 1fr; border: round $accent; padding: 0 1; }
-    .answer { border-top: hkey $panel; }
-    .answer:first-child { border-top: none; }
+    .exchange { height: auto; margin-top: 1; padding-top: 1; border-top: heavy $accent; }
+    .exchange:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+    .asked { background: $accent 30%; color: $text; text-style: bold; padding: 0 1; }
+    .answer { padding-top: 1; }
     #question { dock: bottom; }
     """
     BINDINGS = [("ctrl+y", "copy_answer", "Copy answer"), ("ctrl+r", "sync_now", "Sync now"),
@@ -107,9 +116,23 @@ class ArchieApp(App):
                     yield Static("Starting up…", id="activity", markup=False)
             with Vertical(id="right"):
                 with Pane(id="answer-scroll"):
-                    yield Static(HINT, id="hint", markup=False)
+                    earlier = self.earlier_asks()
+                    for said, text in earlier:
+                        yield exchange(said, text)[0]
+                    if not earlier:
+                        yield Static(HINT, id="hint", markup=False)
                 yield Input(placeholder="Ask Archie…", id="question")
         yield Footer()
+
+    def earlier_asks(self) -> list[tuple[str, str]]:
+        """The last few exchanges (from this window, other windows or `archie ask`), oldest first."""
+        from archie.ask import conversation
+
+        try:
+            entries = conversation.load(self.ctx.home)[-RESTORE_ASKS:]
+        except OSError:
+            return []
+        return [(e.get("said") or "", conversation.shown(e)) for e in entries]
 
     async def on_unmount(self) -> None:
         self.writer.release()
@@ -123,6 +146,9 @@ class ArchieApp(App):
         self.query_one("#activity-scroll").border_title = "Sync"
         self.query_one("#answer-scroll").border_title = "Ask"
         self.query_one("#question").focus()
+        blocks = self.query(".exchange")
+        if blocks:
+            self.show_top_of(blocks.last())
         self.refresh_spend()
         self.set_interval(SPEND_REFRESH_S, self.refresh_spend)
         self.run_worker(self.sync_cycle(), exclusive=False)
@@ -272,15 +298,15 @@ class ArchieApp(App):
         event.input.value = ""
         pane = self.query_one("#answer-scroll", Pane)
         await pane.query("#hint").remove()
-        out = Static(f"> {question}\n\nThinking…", classes="answer", markup=False)
-        await pane.mount(out)
-        for old in list(pane.query(".answer"))[:-KEEP_ANSWERS]:
+        block, out = exchange(question, "Thinking…")
+        await pane.mount(block)
+        for old in list(pane.query(".exchange"))[:-KEEP_ANSWERS]:
             await old.remove()
-        self.show_top_of(out)
+        self.show_top_of(block)
         self.ask_done.clear()
-        self.run_worker(self._answer(question, out))
+        self.run_worker(self._answer(question, block, out))
 
-    async def _answer(self, question: str, out: Static) -> None:
+    async def _answer(self, question: str, block: Vertical, out: Static) -> None:
         from archie.ask.pipeline import ask
 
         self.ctx.now = datetime.now(timezone.utc)
@@ -289,22 +315,22 @@ class ArchieApp(App):
         def tick() -> None:
             waited = int(asyncio.get_running_loop().time() - started)
             if waited >= 20 and not self.ask_done.is_set():
-                out.update(f"> {question}\n\nStill working… ({waited}s)")
+                out.update(f"Still working… ({waited}s)")
 
         timer = self.set_interval(5, tick)
         try:
             answer = await asyncio.wait_for(asyncio.to_thread(ask, self.ctx, question), ASK_TIMEOUT)
-            out.update(f"> {question}\n\n{render(answer, sources=True, stamp=True)}")
+            out.update(render(answer, sources=True, stamp=True))
         except asyncio.TimeoutError:
-            out.update(f"> {question}\n\nThat took too long, so I stopped waiting. Try asking again.")
+            out.update("That took too long, so I stopped waiting. Try asking again.")
         except LLMError as exc:
-            out.update(f"> {question}\n\nArchie couldn't write an answer: {exc}")
+            out.update(f"Archie couldn't write an answer: {exc}")
         except Exception as exc:
             log_error(self.ctx, f"ask: {question}")
-            out.update(f"> {question}\n\nSomething went wrong: {exc} (details in logs/errors.log)")
+            out.update(f"Something went wrong: {exc} (details in logs/errors.log)")
         finally:
             timer.stop()
-        self.show_top_of(out)
+        self.show_top_of(block)
         await self.refresh_feed()  # answers can close loops, add notes or fix meetings
         self.ask_done.set()
 

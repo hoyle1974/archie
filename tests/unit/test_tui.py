@@ -245,6 +245,11 @@ def test_earlier_answers_stay_in_the_ask_pane_to_scroll_back_to(tmp_path, monkey
                 await pilot.pause()
             entries = [str(e.render()) for e in app.query(".answer")]
             assert len(entries) == 2 and "Answer to first" in entries[0] and "Answer to second" in entries[1]
+            assert len(app.query(".exchange")) == 2
+            asked = app.query(".asked")
+            assert [str(a.render()).strip() for a in asked] == ["You asked: first", "You asked: second"]
+            assert asked.last().styles.background != app.query(".answer").last().styles.background
+            assert entries[1].startswith("Answer to second")  # the question isn't repeated in the answer
             assert not app.query("#hint")
             pane = app.query_one("#answer-scroll")
             assert pane.max_scroll_y > 0 and pane.scroll_y > 0  # scrolled down to the newest answer
@@ -255,6 +260,53 @@ def test_earlier_answers_stay_in_the_ask_pane_to_scroll_back_to(tmp_path, monkey
             assert pane.scroll_y < before
             app.action_copy_answer()
             assert "Answer to second" in app.clipboard
+
+    asyncio.run(go())
+
+
+def test_launch_shows_the_last_few_asks(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    from archie.ask import conversation
+
+    ctx = make_ctx(tmp_path)
+    t0 = datetime(2026, 10, 4, 16, 0, tzinfo=timezone.utc)
+    conversation.append(ctx.home, {"ts": t0.isoformat(), "said": "oldest", "summary": "Saved before shown existed."})
+    for i in range(1, 7):
+        conversation.append(ctx.home, {"ts": (t0 + timedelta(minutes=i)).isoformat(), "said": f"q{i}",
+                                       "summary": "short", "shown": f"Full answer {i}\n\nSources:\n[1] Email"})
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.pause()
+            asked = [str(a.render()) for a in app.query(".asked")]
+            assert asked == [f"You asked: q{i}" for i in range(2, 7)]
+            assert str(app.query(".answer").last().render()) == "Full answer 6\n\nSources:\n[1] Email"
+            assert not app.query("#hint")
+            pane = app.query_one("#answer-scroll")
+            assert pane.scroll_y == pane.max_scroll_y > 0
+            assert app.focused is app.query_one("#question")
+
+    asyncio.run(go())
+
+
+def test_an_ask_saved_without_its_full_answer_shows_when_and_the_summary(tmp_path):
+    from datetime import datetime, timezone
+
+    from archie.ask import conversation
+    from archie.store.times import stamp
+
+    ctx = make_ctx(tmp_path)
+    at = datetime(2026, 10, 4, 16, 0, tzinfo=timezone.utc)
+    conversation.append(ctx.home, {"ts": at.isoformat(), "said": "who is priya", "summary": "Priya is the PM. [1]"})
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            assert text_of(app, ".answer") == f"{stamp(at)}\n\nPriya is the PM. [1]"
 
     asyncio.run(go())
 

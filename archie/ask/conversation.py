@@ -1,6 +1,7 @@
 """Conversation memory for `ask` (state/conversation.jsonl). Each finished exchange keeps the
-user's words, the question as understood, the answer's summary and its numbered citations.
-Follow-ups ("show 1", "really?", "them") read the recent ones."""
+user's words, the question as understood, the answer's summary, its numbered citations and
+the answer as shown (`shown`). Follow-ups ("show 1", "really?", "them") read the recent ones;
+the TUI shows the last few again on launch."""
 
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from datetime import datetime, timedelta
 
 from archie.store.files import atomic_write
 from archie.store.home import Home
+from archie.store.times import stamp
 
 FILE = "state/conversation.jsonl"
 KEEP = 200
@@ -41,6 +43,16 @@ def _when(entry: dict) -> datetime | None:
         return datetime.fromisoformat(entry["ts"])
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def shown(entry: dict) -> str:
+    """The answer as it was shown. Exchanges saved before `shown` existed give when they were
+    asked and the summary."""
+    if entry.get("shown"):
+        return entry["shown"]
+    when = _when(entry)
+    summary = entry.get("summary") or ""
+    return f"{stamp(when)}\n\n{summary}" if when else summary
 
 
 def recent(home: Home, now: datetime) -> list[dict]:
