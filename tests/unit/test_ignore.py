@@ -107,3 +107,29 @@ def test_describe_uses_the_name_when_there_is_one(tmp_path):
     assert describe(d, [SPAM]) == (f"Goodcompany ({SPAM})", "Goodcompany")
     assert describe(d, ["@sxziiqsov.us"]) == ("@sxziiqsov.us", "@sxziiqsov.us")
     assert describe(PeopleDirectory(), [SPAM]) == (SPAM, SPAM)
+
+
+def test_answers_leave_out_ignored_senders_unless_the_question_names_them(tmp_path):
+    from archie.ask.pipeline import ask
+    from tests.support.fixtures import question, understood
+
+    seen = []
+
+    def model(system, user, shape, tier):
+        if shape.name == "understand":
+            return understood(question("search", topic="Yeti offer"))
+        seen.append(user)
+        return {"summary": [], "sections": []}
+
+    ctx = make_ctx(tmp_path, FakeBackend(model))
+    seed(ctx, name="Goodcompany")
+    write_thread(ctx.home, "t3", [msg("m3", "ken@acme.example", "Ken", [addr("test@acme.example")],
+                                      "2026-09-30T10:00:00+00:00", "Ken says the Yeti offer is a scam.", to_me=True)])
+    ctx.index.sync()
+    set_ignored(ctx, [SPAM], on=True)
+    ask(ctx, "anything about the Yeti offer?")
+    assert "Ken says" in seen[-1] and "Can you check our Yeti offer" not in seen[-1]
+    for named in (f"what did {SPAM} say about the Yeti offer?", "what did Goodcompany say about the Yeti offer?",
+                  "anything from sxziiqsov.us about the Yeti offer?"):
+        ask(ctx, named)
+        assert "Can you check our Yeti offer" in seen[-1], named

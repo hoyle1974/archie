@@ -15,6 +15,7 @@ from archie.ask.intents import intent
 from archie.ask.intents.loops import _claim, _line
 from archie.ask.render import render
 from archie.ask.synthesize import synthesize
+from archie.derive.ignore import skipped_senders
 from archie.derive.loops import load_loops, rank
 from archie.derive.people import PeopleDirectory, slug
 from archie.index.search import search
@@ -37,8 +38,9 @@ def handover_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     proj = ctx.home / f"projects/{pslug}.md"
     aliases = [name] + list(read_note(proj).meta.get("aliases") or [] if proj.exists() else [])
     packet = Packet()
+    skip = skipped_senders(ctx, question)
     for a in aliases:
-        for h in search(ctx.index, a, k=25):
+        for h in search(ctx.index, a, k=25, skip_senders=skip):
             if h.source not in ("briefings", "loops", "journal", "projects"):
                 packet.add(h.path, h.chunk_id, h.text, label=h.label, ts=h.ts)
     if not packet.items:

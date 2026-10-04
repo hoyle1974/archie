@@ -66,6 +66,29 @@ def describe(directory, addresses: list[str]) -> tuple[str, str]:
     return f"{name} ({joined})", name
 
 
+def skipped_senders(ctx, asked: str) -> list[str]:
+    """Ignore entries to leave out of an answer: all of them except those the question names."""
+    from archie.derive.people import EMAIL, PeopleDirectory
+
+    entries = ignored(ctx.config)
+    if not entries:
+        return []
+    q = asked.lower()
+    directory = PeopleDirectory.load(ctx.home)
+    out = []
+    for e in entries:
+        names: list[str] = []
+        eid = directory.by_email(e) if EMAIL.match(e) else None
+        if eid:
+            m = directory.meta[eid]
+            names = [str(n).lower() for n in [m.get("name"), *(m.get("aliases") or [])] if n and not EMAIL.match(str(n))]
+        domain = e.rsplit("@", 1)[-1]
+        if e in q or domain in q or any(re.search(rf"(?<!\w){re.escape(n)}(?!\w)", q) for n in names):
+            continue
+        out.append(e)
+    return out
+
+
 def ignored_person(directory, entity_id: str, config: dict) -> bool:
     m = directory.meta.get(entity_id) or {}
     entries = ignored(config)
