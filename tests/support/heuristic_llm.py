@@ -42,7 +42,9 @@ def _items(user: str) -> list[tuple[int, str, str]]:
     """(ref, label, text) for each numbered packet item in the prompt."""
     out = []
     body = user.split("Sources:", 1)[-1].split("Thread:", 1)[-1].split("Later activity:", 1)[-1]
-    for block in re.split(r"\n\n(?=\[\d+\] )", body.strip()):
+    body = body.split("\n\nQuestion (answer it", 1)[0]
+    body = re.sub(r"(?m)^</?source[^>]*>\n?", "", body)  # the packet wraps each excerpt in <source> tags
+    for block in re.split(r"\n\n?(?=\[\d+\] )", body.strip()):
         m = re.match(r"\[(\d+)\] (.*)\n([\s\S]*)", block.strip())
         if m:
             out.append((int(m.group(1)), m.group(2), m.group(3)))

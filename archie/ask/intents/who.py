@@ -100,8 +100,16 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     packet = Packet()
     for c in ctx.index.chunks_of(f"people/{eid}.md"):
         packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"])
-    for c in history[:8]:
-        packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
+    from archie.ask.intents.search import limits
+
+    k, room = limits(ctx)
+    room -= sum(len(it.text) for it in packet.items)
+    for c in history:  # newest first, as many as fit
+        if len(packet.items) >= k:
+            break
+        if len(c["text"]) <= room:
+            packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
+            room -= len(c["text"])
     meta = directory.meta[eid]
     about = f"The person asked about is {directory.name(eid)}."
     if meta.get("full_name"):

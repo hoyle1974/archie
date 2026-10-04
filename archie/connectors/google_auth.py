@@ -4,6 +4,7 @@ Tokens live in the macOS Keychain (via keyring), never under ~/.archie or the re
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 from archie.secrets import get_secret, set_secret
@@ -17,6 +18,9 @@ SCOPES = {
     "drive": "https://www.googleapis.com/auth/drive.readonly",
     "monitoring": "https://www.googleapis.com/auth/monitoring.read",
 }
+
+
+_REFRESH = threading.Lock()
 
 
 class NeedsAuth(RuntimeError):
@@ -43,10 +47,17 @@ def credentials(source: str):
     info = json.loads(raw)
     if SCOPES[source] not in (info.get("scopes") or []):
         raise NeedsAuth(f"Google access doesn't include {source}: run `archie admin connect google` again")
-    creds = Credentials.from_authorized_user_info(info)
-    if not creds.valid and creds.refresh_token:
-        creds.refresh(Request())
-        _save(creds)
+    with _REFRESH:  # connectors sync in parallel and share one token: refresh it once
+        raw = get_secret(TOKEN_KEY) or raw  # another connector may have just refreshed it
+        creds = Credentials.from_authorized_user_info(json.loads(raw))
+        if not creds.valid and creds.refresh_token:
+            creds.refresh(Request())
+            try:
+                _save(creds)
+            except Exception as exc:  # the fresh token still works for this sync; save it next time
+                import logging
+
+                logging.getLogger(__name__).warning("couldn't save the refreshed Google token: %s", exc)
     return creds
 
 

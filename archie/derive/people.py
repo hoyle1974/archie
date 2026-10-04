@@ -130,17 +130,36 @@ class PeopleDirectory:
         return exact or first
 
     def mentioned_in(self, text: str) -> list[str]:
-        """Entity ids whose name, a name alias, or a first name (3+ letters) appears in text."""
-        text = text.lower()
+        """Entity ids whose name, a name alias, or a first name (3+ letters) appears in text.
+
+        A name inside another person's longer name doesn't count ("Acorn" in "Workperson Acorn" is
+        not Acorn), and a one-word name must be capitalized ("a acorn" is nobody)."""
+        full: list[tuple[str, str]] = []  # (multi-word name, entity id), longest first
+        for eid, meta in self.meta.items():
+            for n in [meta.get("name"), *(meta.get("aliases") or [])]:
+                if n and "@" not in str(n) and " " in str(n).strip():
+                    full.append((str(n).strip(), eid))
+        full.sort(key=lambda x: -len(x[0]))
         out = []
         for eid, meta in self.meta.items():
             names = {str(n) for n in [meta.get("name"), *(meta.get("aliases") or [])] if n and "@" not in str(n)}
             first = str(meta.get("name") or "").split(" ")[0]
             if first and len(first) > 2:
                 names.add(first)
-            if any(re.search(rf"(?<!\w){re.escape(n.lower())}(?!\w)", text) for n in names):
+            seen = text
+            for other, owner in full:  # blank out other people's longer names that contain ours
+                if owner != eid and any(re.search(rf"(?<!\w){re.escape(n.lower())}(?!\w)", other.lower())
+                                        for n in names):
+                    seen = re.sub(rf"(?<!\w){re.escape(other)}(?!\w)", " ", seen, flags=re.IGNORECASE)
+            if any(self._named(n, seen) for n in names):
                 out.append(eid)
         return out
+
+    @staticmethod
+    def _named(name: str, text: str) -> bool:
+        if " " in name.strip():
+            return bool(re.search(rf"(?<!\w){re.escape(name)}(?!\w)", text, re.IGNORECASE))
+        return bool(re.search(rf"(?<!\w){re.escape(name[:1].upper() + name[1:])}(?!\w)", text))
 
     def avoided_words(self, entity_ids: list[str]) -> set[str]:
         """Words the user said never to use for any of these people."""

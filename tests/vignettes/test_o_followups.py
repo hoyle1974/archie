@@ -38,7 +38,7 @@ def test_O_follow_ups(tmp_path):
     ask(ctx, "do you see the message I sent them?")
     seen = fb.calls[-2]["user"]  # the understanding call for the follow-up
     assert "You: did Status reply about my earbud?" in seen and "Archie: HeadphonesRUs offered" in seen
-    assert f"Question: {FOLLOW_UP}" in fb.calls[-1]["user"]  # the answer was written for the resolved question
+    assert f"Question (answer it from the sources above): {FOLLOW_UP}" in fb.calls[-1]["user"]  # the answer was written for the resolved question
 
     ctx.now = NOW + timedelta(minutes=3)
     calls = len(fb.calls)
@@ -51,7 +51,7 @@ def test_O_follow_ups(tmp_path):
     again = render(ask(ctx, "really?"))
     assert again.startswith("I checked again.")
     assert "This is different" not in again
-    assert f"Question: {FOLLOW_UP}" in fb.calls[-1]["user"]  # the same question, asked again
+    assert f"Question (answer it from the sources above): {FOLLOW_UP}" in fb.calls[-1]["user"]  # the same question, asked again
 
     ctx.now = NOW + timedelta(minutes=45)
     ask(ctx, "do you see the message I sent them?")

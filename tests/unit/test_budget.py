@@ -52,9 +52,9 @@ def test_spend_counts_only_this_month(tmp_path):
 def test_summary_reads_plainly_at_every_size(tmp_path):
     home = init_home(tmp_path / "h")
     b = Budget(home, 15, clock=lambda: OCT)
-    assert b.summary() == "Gemini: 0¢ of $15 this month"
-    b.record("gemini-3.7-flash", "fast", 28_000, 0, 0)  # 2.1¢
-    assert b.summary() == "Gemini: 2.1¢ of $15 this month"
+    assert b.summary() == "Gemini: $0.00 of $15 this month"
+    b.record("gemini-3.7-flash", "fast", 28_000, 0, 0)  # $0.021
+    assert b.summary() == "Gemini: $0.02 of $15 this month"
     b.record("gemini-3.7-flash", "fast", 1_600_000, 0, 0)  # +$1.20
     assert b.summary() == "Gemini: $1.22 of $15 this month"
     b.record("gemini-3.7-flash", "fast", 20_000_000, 0, 0)
@@ -93,3 +93,18 @@ def test_doctor_shows_spend_and_flags_a_used_up_budget(tmp_path):
     Budget(home, 2, clock=lambda: OCT).record("gemini-3.7-flash", "fast", 2_000_000, 200_000, 0)
     ok, msg = doctor.check_budget(home, cfg, clock=lambda: OCT)
     assert not ok and "$2.25 of $2" in msg and "monthly_budget_usd" in msg
+
+
+def test_each_call_records_its_prompt_name_and_cached_tokens_and_can_log_the_prompt(tmp_path):
+    from archie.llm.shape import F, Shape
+
+    home = init_home(tmp_path / "h")
+    meta = SimpleNamespace(prompt_token_count=100, candidates_token_count=5, thoughts_token_count=0,
+                           cached_content_token_count=60)
+    b = GeminiBackend(LLM, client=Client(meta=meta), budget=Budget(home, 15, clock=lambda: OCT),
+                      prompt_log=home.root / "logs/prompts")
+    b.complete("system words", "user words", Shape("probe", fields=(F("a"),)))
+    entry = json.loads((home.root / "logs/llm_usage.jsonl").read_text().splitlines()[-1])
+    assert entry["call"] == "probe" and entry["cached"] == 60
+    [logged] = (home.root / "logs/prompts").iterdir()
+    assert logged.name.endswith("-probe.md") and "system words" in logged.read_text()

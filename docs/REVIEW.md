@@ -18,6 +18,14 @@ does not make them.
   findings, they never lead them.
 - Don't add employer or work-data policy caveats.
 
+## Prompt evaluations
+
+To change a prompt, measure it: `uv run python scripts/prompt_eval.py --label <name>` runs a
+fixed set of real questions against a throwaway copy of `~/.archie`, grades each (how it
+was understood, words the answer must and must not contain) and reports claims kept and
+dropped, tokens, cost and time. `--set llm.thinking.strong=low` tries a setting. Results and
+every prompt sent go to `~/.archie/reviews/evals/`, never the repo. A run costs about $0.20.
+
 ## 1. Context
 
 1. Read `CLAUDE.md`, [VIGNETTES.md](VIGNETTES.md) (targets and Coverage table) and

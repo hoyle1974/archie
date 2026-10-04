@@ -38,12 +38,20 @@ def people_context(ctx: Ctx, packet: Packet) -> str:
             + "\n".join(lines[:15]))
 
 
+def now_line(ctx: Ctx) -> str:
+    """"Sun, Oct 4, 1:14 PM (2026-10-04T13:14-07:00)": the current local time, for the user message."""
+    local = ctx.now.astimezone()
+    return f"{local:%a, %b} {local.day}, {local:%-I:%M %p} ({local.isoformat(timespec='minutes')})"
+
+
 def synthesize(ctx: Ctx, question: str, packet: Packet, instructions: str = "", tier: str = "strong",
                extra_context: str = "") -> Answer:
-    system = load_prompt("answer", me_name=ctx.me.name or "the user",
-                         now=ctx.now.astimezone().isoformat(timespec="minutes"), instructions=instructions)
+    # The system prompt holds nothing that changes per call (not even the time), so Gemini can
+    # cache it. The question comes last, after the sources: models answer long inputs better so.
+    system = load_prompt("answer", instructions=instructions)
     known = people_context(ctx, packet)
-    user = f"Question: {question}\n\n{extra_context}\n\n{known}\n\nSources:\n\n{packet.render()}"
+    user = (f"Now: {now_line(ctx)}\n\n{extra_context}\n\n{known}\n\nSources:\n\n{packet.render()}\n\n"
+            f"Question (answer it from the sources above): {question}")
     while "\n\n\n" in user:
         user = user.replace("\n\n\n", "\n\n")
     out = ctx.backend.complete(system, user, SHAPE, tier=tier)

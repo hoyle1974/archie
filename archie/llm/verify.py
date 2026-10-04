@@ -12,12 +12,45 @@ import re
 from dataclasses import dataclass, field
 
 MIN_QUOTE_CHARS = 8
+# Quotes that are verbatim but can't show anything: "Workperson Acorn <workperson@x.io>", "Hi Ms. Workpersonfour & Maestra,",
+# "Re: Student Support Team Meeting". The claim they were attached to is dropped.
+_HOLLOW = re.compile(
+    r"^(?:[\w .,'’&-]*<[^<>@\s]+@[^<>\s]+>[\s,;]*)+$"  # names and addresses only
+    r"|^(?:hi|hello|hey|dear|good (?:morning|afternoon|evening))\b.{0,40}[,!:]$"  # a greeting line
+    r"|^(?:re|fwd?|subject):\s",  # a subject line
+    re.IGNORECASE)
 
 _QUOTES = str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'", " ": " "})
 
 
 def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.translate(_QUOTES)).strip().lower()
+
+
+_FRONTMATTER = re.compile(r"\A---\n.*?\n---\n?", re.DOTALL)
+_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)  # fences and hidden citation blocks in derived notes
+_MD_IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+_IMAGE = re.compile(r"\[image:[^\]]*\]", re.IGNORECASE)
+_LONG_URL = re.compile(r"<?https?://\S{50,}>?")
+_FOOTER = re.compile(r"unsubscribe|you received this (?:email|message)|view (?:it )?in (?:your )?browser|"
+                     r"manage (?:your )?(?:preferences|subscription)|email preferences", re.IGNORECASE)
+_HEADER_TIME = re.compile(r"^(From .*?), (\d{4}-\d\d-\d\dT\d\d:\d\d)$", re.MULTILINE)
+
+
+def tidy(text: str) -> str:
+    """What the model reads: the excerpt without data blocks, tracking links, images,
+    unsubscribe footers and UTC header times. Quotes are still checked against the original,
+    so tidying can never let an unverifiable claim through."""
+    from archie.store.times import when
+
+    text = _FRONTMATTER.sub("", text)
+    text = _COMMENT.sub("", text)
+    text = _HEADER_TIME.sub(lambda m: f"{m.group(1)}, {when(m.group(2) + '+00:00')}", text)
+    text = _MD_IMAGE.sub("", _IMAGE.sub("(image)", text))
+    text = _LONG_URL.sub("<link>", text)
+    lines = [ln.rstrip() for ln in text.splitlines()
+             if not _FOOTER.search(ln) and ln.strip() not in ("|", "￼", "<link>")]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 
 @dataclass
@@ -28,28 +61,38 @@ class PacketItem:
     text: str
     label: str = ""
     ts: str | None = None
+    score: float | None = None  # search match, 0–1 relative to the best source
+    note: str = ""  # computed by code and shown after the excerpt (e.g. other dates of a repeating event)
 
 
 @dataclass
 class Packet:
     items: list[PacketItem] = field(default_factory=list)
 
-    def add(self, path: str, chunk_id: str, text: str, label: str = "", ts: str | None = None) -> int:
+    def add(self, path: str, chunk_id: str, text: str, label: str = "", ts: str | None = None,
+            score: float | None = None, note: str = "") -> int:
         for it in self.items:
             if it.path == path and it.chunk_id == chunk_id:
                 return it.ref
         ref = len(self.items) + 1
-        self.items.append(PacketItem(ref, path, chunk_id, text, label or path, ts))
+        self.items.append(PacketItem(ref, path, chunk_id, text, label or path, ts, score, note))
         return ref
 
     def get(self, ref: int) -> PacketItem | None:
         return self.items[ref - 1] if 1 <= ref <= len(self.items) else None
 
     def render(self) -> str:
+        """Each excerpt in a <source> block (emails contain brackets, so plain `[n]` lines alone
+        are ambiguous): its match score, then `[n] label` (the label names the source and its
+        local date) and the tidied text."""
         blocks = []
         for it in self.items:
-            when = f" ({it.ts})" if it.ts else ""
-            blocks.append(f"[{it.ref}] {it.label}{when}\n{it.text.strip()}")
+            match = f' match="{it.score:.2f}"' if it.score is not None else ""
+            body = tidy(it.text)
+            if not body and not it.note:
+                continue  # only a data block (e.g. an empty notes file): nothing to read
+            note = f"\n{it.note}" if it.note else ""
+            blocks.append(f'<source n="{it.ref}"{match}>\n[{it.ref}] {it.label}\n{body}{note}\n</source>')
         return "\n\n".join(blocks)
 
 
@@ -78,7 +121,7 @@ class Verified:
 def check_quote(packet: Packet, ref: int, quote: str) -> Citation | None:
     item = packet.get(ref)
     q = normalize(quote or "")
-    if item is None or len(q) < MIN_QUOTE_CHARS or q not in normalize(item.text):
+    if item is None or len(q) < MIN_QUOTE_CHARS or q not in normalize(item.text) or _HOLLOW.match(q.strip()):
         return None
     return Citation(ref, item.path, item.chunk_id, quote, item.label)
 

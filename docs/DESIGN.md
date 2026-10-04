@@ -484,7 +484,9 @@ What changed
    shortcuts come first: the quick questions, "show N" (a citation from the last answer),
    "really?" (the last question again), and a plain yes or no to one open question.
 2. **Retrieve:** the intent's plan runs in code (file reads plus index queries) and
-   builds a **context packet** (JSON, each item with a citation key).
+   builds a **context packet** (JSON, each item with a citation key). Gemini's context is
+   large, so the packet is too: up to `ask.max_sources` excerpts and
+   `ask.max_source_chars` characters, best match first, each with a 0–1 match score.
 3. **Synthesize:** the LLM writes the answer from the packet only, with citations.
 4. **Verify:** drop uncited or unverified claims. If nothing survives, say so plainly
    ("I couldn't find that").

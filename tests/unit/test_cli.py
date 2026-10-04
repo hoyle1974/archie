@@ -115,7 +115,7 @@ def test_sync_prints_googles_token_count_when_a_project_is_set(tmp_path, monkeyp
     monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend([]))
     monkeypatch.setattr(cli, "enabled_connectors", lambda cfg: [Ok()])
     code, out = run(capsys, "admin", "sync")
-    assert code == 0 and "Google's count this month: 0¢ (Archie logged 0¢)" in out
+    assert code == 0 and "Google's count this month: $0.00 (Archie logged $0.00)" in out
 
 
 def test_connect_google_asks_for_monitoring_only_with_a_project(tmp_path, monkeypatch, capsys):

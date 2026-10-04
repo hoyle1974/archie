@@ -34,7 +34,7 @@ def cost_usd(model: str, prompt_tokens: int, output_tokens: int, when: datetime)
 
 
 def money(usd: float) -> str:
-    return f"${usd:.2f}" if usd >= 1 else f"{usd * 100:.1f}".rstrip("0").rstrip(".") + "¢"
+    return f"${usd:.2f}"
 
 
 def _now() -> datetime:
@@ -95,11 +95,14 @@ class Budget:
             raise LLMError(f"Archie's monthly Gemini budget (${self.limit:g}) is used up; it resets on "
                            f"{self.resets()}. Raise llm.monthly_budget_usd in config.yaml to continue sooner")
 
-    def record(self, model: str, tier: str, prompt_tokens: int, output_tokens: int, thinking_tokens: int) -> None:
+    def record(self, model: str, tier: str, prompt_tokens: int, output_tokens: int, thinking_tokens: int,
+               call: str = "", cached: int = 0) -> None:
+        """`call`: which prompt (its shape name). `cached`: input tokens Google served from its cache;
+        they are still counted at the full input price here, so the budget never undercounts."""
         now = self.clock()
         usd = cost_usd(model, prompt_tokens, output_tokens + thinking_tokens, now)
-        entry = {"ts": now.isoformat(), "model": model, "tier": tier, "in": prompt_tokens, "out": output_tokens,
-                 "thinking": thinking_tokens, "usd": round(usd, 6)}
+        entry = {"ts": now.isoformat(), "model": model, "tier": tier, "call": call, "in": prompt_tokens,
+                 "cached": cached, "out": output_tokens, "thinking": thinking_tokens, "usd": round(usd, 6)}
         with self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8") as fh:

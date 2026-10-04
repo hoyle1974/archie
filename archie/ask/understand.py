@@ -53,10 +53,7 @@ SHAPE = Shape(
         F("options", "int_list", required=False),
         F("ask", required=False, hint="for unclear: one short question back"),
         F("notes", required=False, hint="for notes: the first line of the pasted notes, copied exactly"))),),
-    example="PART question\ntext: Do you see the message I sent them?\n"
-            "resolved: Do you see the message I sent HeadphonesRUs about the earbud pairing?\n"
-            "intent: search\npeople: HeadphonesRUs\ntopic: earbud pairing\n"
-            "PART tell\ntext: Sam is my neighbor.\nfact: person\nabout: Sam",
+    # worked examples live in understand.md, where they cover the hard cases
 )
 
 _NAMEISH = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+|\b[A-Z][\w'-]*")
@@ -88,6 +85,12 @@ def _squash(text: str | None) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
 
+def _brief(summary: str | None, limit: int = 240) -> str:
+    """An earlier answer in a line: its opening sentences, not a squashed agenda or source list."""
+    text = _squash((summary or "").split("\n\n")[0])
+    return text if len(text) <= limit else text[:limit].rsplit(" ", 1)[0] + " …"
+
+
 def _labels(pending: dict | None) -> list[str]:
     return [o.get("label", "") for o in (pending or {}).get("options") or []]
 
@@ -109,14 +112,14 @@ def open_items(ctx: Ctx) -> list[str]:
 
 
 def prompt_input(message: str, recent: list[dict], open_qs: list[dict], pending: dict | None = None,
-                 items: list[str] | None = None) -> str:
-    out: list[str] = []
+                 items: list[str] | None = None, now: str = "") -> str:
+    out: list[str] = [f"Now: {now}", ""] if now else []
     if recent:
         out.append("Recent conversation (oldest first):")
         for e in recent:
             meaning = f" (meaning: {e['resolved']})" if e.get("resolved") else ""
             out.append(f"You: {e.get('said', '')}{meaning}")
-            out.append(f"Archie: {_squash(e.get('summary'))[:400]}")
+            out.append(f"Archie: {_brief(e.get('summary'))}")
             cites = "; ".join(f"[{c.get('n')}] {c.get('label', '')}" for c in e.get("citations") or [])
             if cites:
                 out.append(f"Sources: {cites}")
@@ -202,10 +205,11 @@ def checked(raw: list[dict], message: str, recent: list[dict], open_qs: list[dic
 
 def understand(ctx: Ctx, message: str, recent: list[dict], open_qs: list[dict],
                pending: dict | None = None) -> list[Part]:
-    local = ctx.now.astimezone()
-    system = load_prompt("understand", me_name=ctx.me.name or "the user", now=local.isoformat(timespec="minutes"),
-                         weekday=local.strftime("%A"),
+    from archie.ask.synthesize import now_line
+
+    # nothing in the system prompt changes between calls, so Gemini can cache it
+    system = load_prompt("understand", me_name=ctx.me.name or "the user",
                          intents="\n".join(f"- {k}: {v}" for k, v in QUESTION_INTENTS.items()))
-    user = prompt_input(message, recent, open_qs, pending, open_items(ctx))
+    user = prompt_input(message, recent, open_qs, pending, open_items(ctx), now_line(ctx))
     out = ctx.backend.complete(system, user, SHAPE, tier="fast")
     return checked(out.get("parts") or [], message, recent, open_qs, pending)

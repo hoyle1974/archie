@@ -69,10 +69,10 @@ def test_matching_counts_show_both_figures_and_no_warning(tmp_path):
 
 def test_more_than_a_dollar_apart_is_a_warning_everywhere(tmp_path):
     home = init_home(tmp_path / "h")
-    record(home, 200_000, 0, NOW - timedelta(hours=1))  # 15¢
+    record(home, 200_000, 0, NOW - timedelta(hours=1))  # $0.15
     get = fake_google({TIER2: [series(FLASH, 3_000_000)], OUT: [series(FLASH, 0)]})  # $2.25
     entry = google_usage.check(home, "archie-email", NOW, get)
-    expected = "Google counts $2.10 more Gemini use this month than Archie logged ($2.25 vs 15¢)"
+    expected = "Google counts $2.10 more Gemini use this month than Archie logged ($2.25 vs $0.15)"
     assert google_usage.warning(entry) == expected
     assert google_usage.status_line(entry) == f"Warning: {expected}"
     assert google_usage.subtitle(home, NOW) == " · Google: $2.25, out of step"

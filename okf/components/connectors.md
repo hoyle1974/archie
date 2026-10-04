@@ -9,7 +9,7 @@ tags: [component]
 
 - `base.py`: the `Connector` protocol is `async sync(sctx, cursor) -> SyncResult(cursor, written, deleted)`. `SyncCtx` carries home, the connector's config section, me, now and backfill days.
 - `registry.py`: `enabled_connectors(config)` returns the connectors switched on with `connectors: {name: {enabled: true}}`. Importing it also registers each connector's raw chunker.
-- `google_auth.py`: read-only scopes for gmail, calendar and drive, plus `monitoring.read` for the Gemini usage check when `llm.google_project` is set. The token and client are stored in the Keychain via `keyring`. `archie admin connect google [--client f] [--import-token f]` sets them up.
+- `google_auth.py`: read-only scopes for gmail, calendar and drive, plus `monitoring.read` for the Gemini usage check when `llm.google_project` is set. The token and client are stored in the Keychain via `keyring`. Connectors run in parallel and share one token, so refreshing it takes a lock (one refresh per expiry), and a failed Keychain save is logged and ignored: the refreshed token still works for this sync (a parallel save had failed calendar with "Can't store password on keychain"). `archie admin connect google [--client f] [--import-token f]` sets them up.
 - `gmail.py`: writes one file per thread to `sources/gmail/<threadId>.json`.
   - Messages are normalized with from/to/cc, an ISO date, the plain-text body, and the flags `from_me`, `to_me`, `cc_me` and `bulk` (List-Unsubscribe header or a noreply sender).
   - Incremental sync uses `historyId`. If that history has expired (404), it falls back to an `after:` date query from the last sync.

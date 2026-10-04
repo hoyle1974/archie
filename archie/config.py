@@ -20,8 +20,11 @@ DEFAULTS: dict[str, Any] = {
         "max_output_tokens": {"fast": 2048, "strong": 8192},
         "thinking": {"fast": "low", "strong": "medium"},
         "monthly_budget_usd": 15,
+        "log_prompts": False,  # true: save every call's prompt and reply under logs/prompts/ (for prompt review)
         "google_project": None,  # Google Cloud project of the Gemini key, to compare Google's token count
     },
+    # sources handed to the model for an answer, best match first, up to both limits
+    "ask": {"max_sources": 40, "max_source_chars": 160_000},
     "index": {"embed_model": "BAAI/bge-small-en-v1.5", "embed_device": "cpu"},  # "mps" for the Apple GPU
     "briefings": {"lead_minutes": 15, "all_hands_min_attendees": 25},
     "nudges": {"after_days": 3},  # ask "want to follow up?" after waiting this long with no reply

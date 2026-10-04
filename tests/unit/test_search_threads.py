@@ -43,8 +43,8 @@ def run(tmp_path, said):
 def test_a_conversation_question_shows_the_newest_messages_first(tmp_path):
     seen = run(tmp_path, "did Status reply about my earbud?")
     sources = seen["user"].split("Sources:", 1)[1]
-    first = sources.strip().split("\n\n")[0]
-    assert "2026-10-01T04:47" in first
+    first = sources.strip().split("</source>")[0]
+    assert "Please pair this earbud" in first  # Oct 1 04:47 UTC, the newest message
     assert "I received the new one" in sources  # your own latest message is there too
     assert "Lead with its newest message" in seen["system"]
 

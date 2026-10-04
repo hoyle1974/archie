@@ -23,8 +23,32 @@ def test_eleven_shapes_named_like_the_old_schemas():
 
 @pytest.mark.parametrize("shape", [s for s in ALL if not s.claims], ids=lambda s: s.name)
 def test_each_example_parses_cleanly(shape):
-    out, problems = shape.parse(shape.example)
+    example = shape.example or _prompt_examples(shape.name)
+    out, problems = shape.parse(example)
     assert problems == [] and out
+
+
+def _prompt_examples(name: str) -> str:
+    """The worked examples written in a prompt file (understand.md keeps them there)."""
+    import re
+
+    from archie.llm.prompts import load_prompt
+
+    text = load_prompt(name).split("Examples", 1)[1]
+    return "\n".join(line for line in text.splitlines() if not line.startswith("Message:") and
+                     re.match(r"^(PART |[a-z_]+: )", line))
+
+
+def test_every_understand_example_parses_into_its_parts():
+    import re
+
+    from archie.llm.prompts import load_prompt
+
+    text = load_prompt("understand").split("Examples", 1)[1]
+    for block in re.split(r"\n(?=Message: )", text)[1:]:
+        reply = "\n".join(block.splitlines()[1:]).strip()
+        out, problems = UNDERSTAND.parse(reply)
+        assert problems == [] and out["parts"], block
 
 
 def test_understand():

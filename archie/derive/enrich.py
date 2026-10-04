@@ -25,7 +25,7 @@ from archie.store.fence import get_fence, set_fence
 from archie.store.files import atomic_write, read_note, write_note
 
 MAX_FACTS = 8
-INSTRUCTIONS_VERSION = 1  # bump when the instructions written below in code change
+INSTRUCTIONS_VERSION = 2  # bump when the instructions written below in code change
 OLD_DAYS = 365  # sources older than this are written about in the past tense
 SHAPE = Shape("people_facts", records=(Record("FACT", "facts", F("text", hint="short phrase"),
                                               (F("cite", "cite"),)),),
@@ -70,8 +70,9 @@ def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str, fail
     mine = read_note(path).body.split("<!-- archie:auto -->")[0].replace("## My notes", "").strip()
     if told or mine:
         system += ("\n\nWhat the user has told you about them is ground truth. Never state a fact that "
-                   "contradicts it (e.g. if they say 'my child', never write 'son'). Don't restate it "
-                   "either: Archie already shows it in the user's own words.\n"
+                   "contradicts it (e.g. if they say 'my child', never write 'son'). Don't repeat it "
+                   "(Archie shows it in their own words); add what the sources show beyond it: where they "
+                   "work or study, what they do, what they care about.\n"
                    + (f"Stated: {told}\n" if told else "") + (f"Their notes:\n{mine}" if mine else ""))
     if newest and (ctx.now - datetime.fromisoformat(newest).replace(tzinfo=ctx.now.tzinfo)).days > OLD_DAYS:
         system += (f"\n\nThe newest source is from {newest[:4]}, over a year ago. Write each fact in the past "

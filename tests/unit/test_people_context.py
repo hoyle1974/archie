@@ -96,3 +96,14 @@ def test_remember_records_words_to_avoid(tmp_path):
                              "identity": "non-binary", "avoid": ["boy", "son"], "other_names": [],
                              "statement": said}])
     assert read_note(ctx.home / "people/childone_testerson.md").meta["avoid"] == ["boy", "son"]
+
+
+def test_a_first_name_inside_someone_elses_full_name_is_not_them():
+    from archie.derive.people import PeopleDirectory
+
+    d = PeopleDirectory()
+    d.add("acorn", {"entity_id": "acorn", "name": "Acorn", "aliases": ["Acorn Testerson"], "relationship": "kid"})
+    d.add("workperson_acorn", {"entity_id": "workperson_acorn", "name": "Workperson Acorn", "aliases": ["workperson@ow.example"]})
+    assert d.mentioned_in("From Workperson Acorn <workperson@ow.example>: welcome aboard") == ["workperson_acorn"]
+    assert d.mentioned_in("Acorn pick up at 4, then Workperson Acorn called") == ["acorn", "workperson_acorn"]
+    assert d.mentioned_in("the acorn on Shattuck has bread") == []

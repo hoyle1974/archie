@@ -80,8 +80,8 @@ class Shape:
     def instructions(self) -> str:
         if self.claims:
             return CLAIMS_FORMAT
-        out = ["Reply in this plain line format, not JSON: one `key: value` per line, `-` for an empty "
-               "value, `;` between list items."]
+        out = ["Reply in this plain line format, not JSON: one `key: value` per line, `;` between list "
+               "items. Leave out a line marked \"or -\" when it doesn't apply."]
         out += [f"{f.name}: {f.describe()}" for f in self.fields]
         for r in self.records:
             out.append("Then one block per item, starting with its keyword line (write NONE if there are none):")

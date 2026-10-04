@@ -60,5 +60,32 @@ def test_one_bad_citation_does_not_sink_a_good_one():
 
 def test_packet_renders_numbered_items_for_the_prompt():
     text = packet().render()
-    assert text.startswith("[1] Email from Sarah, Oct 1")
+    assert text.startswith('<source n="1">\n[1] Email from Sarah, Oct 1')
     assert "[2] Alex's dossier" in text
+
+
+def test_hollow_quotes_support_nothing():
+    from archie.llm.verify import Packet, check_quote
+
+    p = Packet()
+    p.add("a.json", "c0", "From Workperson Acorn <workperson@x.io> to Test\nSubject: Re: Onboarding\n\nHi Ms. Workpersonfour & Maestra,\n"
+                          "Welcome aboard! I run people ops at Overwatch.")
+    assert check_quote(p, 1, "Workperson Acorn <workperson@x.io>") is None
+    assert check_quote(p, 1, "Hi Ms. Workpersonfour & Maestra,") is None
+    assert check_quote(p, 1, "Re: Onboarding") is None
+    assert check_quote(p, 1, "I run people ops at Overwatch") is not None
+
+
+def test_the_model_reads_a_tidy_excerpt_but_quotes_are_checked_against_the_original():
+    from archie.llm.verify import Packet, check_quote, tidy
+
+    raw = ("---\nevent_id: x\n---\nFrom Pool <p@x.io> to Test, 2026-10-01T04:47\nSubject: Swim\n\n"
+           "Lessons move to Tuesday. ![](https://img.example/a.png) [image: map.png]\n"
+           "Track: https://t.example/" + "a" * 80 + "\nTo unsubscribe click here\n\n\n\nThanks")
+    shown = tidy(raw)
+    assert "event_id" not in shown and "unsubscribe" not in shown and "aaaa" not in shown
+    assert "2026-10-01T04:47" not in shown and "(image)" in shown and "Lessons move to Tuesday." in shown
+    p = Packet()
+    p.add("a.json", "c0", raw)
+    assert check_quote(p, 1, "Lessons move to Tuesday.") is not None
+    assert check_quote(p, 1, "Track: <link>") is None  # only words really in the source verify

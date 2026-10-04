@@ -111,10 +111,10 @@ def update_loops(ctx: Ctx, said: str, action: str, until: str | None = None, tar
     listing = "\n".join(f"{i}. {lp.meta.get('counterpart_name')}: {lp.meta.get('summary')}"
                         + (" (snoozed)" if lp in snoozed else "") for i, lp in enumerate(choices, 1))
     local = ctx.now.astimezone()
-    system = load_prompt("loop_update", me_name=ctx.me.name or "the user", today=local.date().isoformat(),
-                         weekday=local.strftime("%A"), wants=WANTS[action])
+    system = load_prompt("loop_update", me_name=ctx.me.name or "the user", wants=WANTS[action])
     meant = f"\nThey mean: {target}" if target else ""
-    out = ctx.backend.complete(system, f"Items:\n{listing}\n\nThey said: {said}{meant}", UPDATE_SHAPE, tier="fast")
+    out = ctx.backend.complete(system, f"Today: {local:%A}, {local.date().isoformat()}\n\nItems:\n{listing}\n\n"
+                                       f"They said: {said}{meant}", UPDATE_SHAPE, tier="fast")
     picked = [choices[n - 1] for n in sorted(set(out.get("loops") or [])) if 1 <= n <= len(choices)]
     if not picked:
         top = "\n".join(f"  • {lp.meta.get('counterpart_name')}: {lp.meta.get('summary')}" for lp in choices[:8])
