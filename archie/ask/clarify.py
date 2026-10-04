@@ -12,8 +12,8 @@ from archie.derive.audit import YES_NO, answer
 from archie.derive.dedupe import open_questions
 from archie.llm.shape import F, Record, Shape
 
-YES = re.compile(r"^\s*(yes|yep|yeah|y|same|correct|right|they('| a)re the same)\b", re.IGNORECASE)
-NO = re.compile(r"^\s*(no|nope|n|different|not the same|they('| a)re (different|not))\b", re.IGNORECASE)
+YES = re.compile(r"^\s*(yes|yep|yeah|y|same|correct|right|they('| a)re the same)\b", re.I)
+NO = re.compile(r"^\s*(no|nope|n|different|not the same|they('| a)re (different|not))\b", re.I)
 SHAPE = Shape("clarify", records=(Record("ANSWER", "answers", F("question", "int", hint="question number"),
                                          (F("same", "bool", hint="yes = same person / finished / still needed"),)),),
               example="ANSWER 2\nsame: yes")

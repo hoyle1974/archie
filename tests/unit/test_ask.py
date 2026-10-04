@@ -243,7 +243,7 @@ def test_really_after_something_that_was_not_a_question_does_not_redo_it(tmp_pat
         msg = user.rsplit("Message:", 1)[-1].strip()
         return understood(part("unclear", ask="Really what?") if msg == "really?" else part("tell"))
 
-    remember = lambda s, u, sh, t: (told.append(u), {"people": []})[1]
+    remember = lambda s, u, sh, t: (told.append(u), {"people": []})[1]  # noqa: E731
     ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=model, remember=remember)))
     ask(ctx, "Sam is my neighbor.")
     out = render(ask(ctx, "really?"))

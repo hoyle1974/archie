@@ -32,7 +32,7 @@ remove the mark and set the row to ✅.
 | M | Conflicting sources          | all → conflict callout in briefings                             | M3 | ✅ (both sides reach the model) |
 | N | Telling Archie something     | Gmail, questions → understand, told record, ignore list         | M5 | ✅ |
 | O | Follow-ups                   | ask history → understand, conversation memory, citations        | M5 | ✅ |
-| P | "I can't do that yet"        | ask → understand, actions, gaps                                 | M5 | ⬜ |
+| P | "I can't do that yet"        | ask → understand, actions, gaps                                 | M5 | ✅ |
 | Q | "Which one did you mean?"    | loops, people → understand, pending questions                   | M5 | ⬜ |
 | R | Nudges                       | Gmail, loops → audit (waiting_nudge), snooze                    | M5 | ⬜ |
 

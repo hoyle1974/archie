@@ -27,7 +27,7 @@ WISH = "can't do this yet"
 WHICH = 'Which source? Say, for example, "show 2".'
 UNTIL_WHEN = 'Until when? Say e.g. "snooze that till Monday".'
 _SHOW_N = re.compile(r"\[(\d+)\]|\b(?:show|open|source|citation|number)\s+(?:me\s+)?(?:the\s+)?"
-                     r"(?:source\s+|citation\s+)?#?(\d+)\b(?!\s*(?:st|nd|rd|th)\b)", re.IGNORECASE)
+                     r"(?:source\s+|citation\s+)?#?(\d+)\b(?!\s*(?:st|nd|rd|th)\b)", re.I)
 
 UPDATE_SHAPE = Shape("loop_update",
                      fields=(F("loops", "int_list", required=False, hint="item numbers"),

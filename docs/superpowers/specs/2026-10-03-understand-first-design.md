@@ -280,6 +280,21 @@ The reply to an instruction is built only from the sentences the actions returne
   request is not saved as a wish.
 - The help menu is never the reply to a `tell` or `instruct` part.
 
+### 4.4 Added while building step 3
+
+- The understanding call's `action` decides what happens to an open item; the item-picking
+  call (`loop_update` shape) returns only item numbers, plus a date if the understanding
+  call gave no `until`. A snooze with no valid date asks "Until when?" and changes nothing.
+  Reopen picks from the last 10 closed items, the others from open ones.
+- Loop confirmations read `<Verb>: <who>, <summary>.` and snooze dates are a weekday name
+  within six days ("Monday"), "today" or "tomorrow", otherwise "Tue, Oct 20".
+- Gaps are a list (`"gaps": [...]`) holding each send, can't-do and `other` telling. Any
+  instruction whose action is missing or unknown is treated as `none`.
+- When every reply in such a message is one line, they're joined into one line; otherwise
+  each stays a paragraph, tellings first.
+- `remember`, `correct` and `clarify` are no longer intents; they're plain functions
+  (`archie/ask/remember.py`, `correct.py`, `clarify.py`).
+
 ## 5. Asking back, and nudges
 
 ### 5.1 "Which one did you mean?"

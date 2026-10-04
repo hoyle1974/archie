@@ -494,10 +494,17 @@ one of Archie's questions, is saved word for word in `journal/told.md`, then app
 facts about a person (the `remember` code), ignoring or un-ignoring a sender (the
 `ignore:` list in `config.yaml`; their mail makes no open items or questions, and answers
 leave it out unless the question names them), or nothing yet ("Saved. I don't use that for
-anything yet."). Yes/no answers use `clarify`. Until build step 3 of the understand-first
-spec lands, instructions use `loop_update` (done, snooze, dismiss, reopen), `correct`
-(meeting type, merging names) and `notes`. Sending anything gets "I can't send anything;
-I only read."
+anything yet."). Yes/no answers use the `clarify` code.
+
+Instructions run through a fixed list of actions, each a function whose reply says what
+it actually did: marking an open item done, snoozing, dismissing or reopening it (the
+fast model only picks which items; "Snoozed until Monday: HeadphonesRUs, earbud
+pairing."), a meeting's type, merging two names, meeting notes, ignoring or un-ignoring a
+sender, and showing a source. The model never writes a confirmation. Sending anything gets
+"I can't send anything; I only read." Anything else gets "I can't filter Today by day yet.
+I've saved that you want it." and is saved in `journal/told.md`. Both are recorded as gaps
+in the usage log, and anything the user told Archie in the same message is saved and said
+first. The help menu is never the reply to a telling or an instruction.
 
 `archie admin` (not for daily use): `init`, `sync`, `rederive`, `reindex`, `status`,
 `connect google|jira`.
