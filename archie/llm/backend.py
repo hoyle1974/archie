@@ -103,6 +103,7 @@ class GeminiBackend(TextBackend):
             max_output_tokens=int(self.caps.get(tier) or 2048),
             thinking_config=None if level == "OFF" else types.ThinkingConfig(thinking_level=level),
             http_options=types.HttpOptions(timeout=TIMEOUT_S.get(tier, 60) * 1000),
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )
         try:
             resp = self.client().models.generate_content(model=model, contents=user, config=config)
@@ -126,6 +127,9 @@ class GeminiBackend(TextBackend):
 
 def _explain(exc, model: str) -> str:
     message = str(getattr(exc, "message", "") or "")
+    if exc.code == 402:
+        return ("Gemini's prepaid credits are used up. Add credits at https://ai.studio/projects; until then Archie "
+                "can still list items and plans, but can't write answers")
     if exc.code == 429 or exc.status == "RESOURCE_EXHAUSTED":
         return ("Gemini's rate or quota limit is reached. Archie can still list items and plans without it, "
                 "but can't write answers until then")

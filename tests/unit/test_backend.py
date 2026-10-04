@@ -82,6 +82,7 @@ def test_gemini_sends_system_model_cap_and_thinking():
     assert config.thinking_config.thinking_level.value == "MEDIUM"
     assert config.http_options.timeout == 300_000
     assert config.response_mime_type is None
+    assert config.automatic_function_calling.disable is True
 
 
 def test_thinking_can_be_switched_off():
@@ -92,6 +93,8 @@ def test_thinking_can_be_switched_off():
 
 @pytest.mark.parametrize("exc, words", [
     (errors.ClientError(429, {"error": {"status": "RESOURCE_EXHAUSTED", "message": "quota"}}), "limit is reached"),
+    (errors.ClientError(402, {"error": {"status": "RESOURCE_EXHAUSTED", "message": "Your prepayment credits are "
+                                        "depleted."}}), "prepaid credits are used up.*ai.studio/projects"),
     (errors.ClientError(400, {"error": {"status": "INVALID_ARGUMENT", "message": "API key not valid"}}), "rejected the API key"),
     (errors.ClientError(404, {"error": {"status": "NOT_FOUND", "message": "no model"}}), "doesn't know the model 'flash-x'"),
     (errors.ServerError(503, {"error": {"status": "UNAVAILABLE", "message": "busy"}}), "server error \\(503\\)"),
