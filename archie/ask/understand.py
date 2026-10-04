@@ -47,7 +47,7 @@ SHAPE = Shape(
         F("fact", "choice", required=False, choices=FACTS),
         F("about", required=False, hint="who or what a telling is about"),
         F("question", "int", required=False, hint="the open question's number"),
-        F("action", "choice", required=False, choices=ACTIONS),
+        F("action", "choice", required=False, choices=ACTIONS, lenient=True),
         F("target", required=False, hint="which item, in the user's words"),
         F("wanted", required=False, hint="for action none: a short verb phrase"),
         F("options", "int_list", required=False),

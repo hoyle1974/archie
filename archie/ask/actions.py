@@ -56,15 +56,30 @@ def _iso(day: str | None) -> str | None:
         return None
 
 
-def _lower_first(text: str) -> str:
-    """"Review the patch" → "review the patch", but "IEP form" stays."""
-    return text[0].lower() + text[1:] if text[:1].isupper() and not text[1:2].isupper() else text
+_FIRST = re.compile(r"[A-Za-z][\w'’]*")
+_I = {"i", "i'm", "i’m", "i'll", "i’ll", "i've", "i’ve", "i'd", "i’d"}
 
 
-def _label(loop: Loop) -> str:
+def _lower_first(ctx: Ctx, text: str, names: tuple[str, ...] = ()) -> str:
+    """"Review the patch" → "review the patch", for text placed mid-sentence. "I", acronyms
+    ("IEP form") and names of people Archie knows keep their capitals."""
+    from archie.derive.people import PeopleDirectory
+
+    m = _FIRST.match(text)
+    if not m or not text[:1].isupper() or text[1:2].isupper():
+        return text
+    word = m.group(0)
+    base = re.sub(r"['’]s$", "", word)
+    known = {w.lower() for n in names for w in str(n or "").split()}
+    if word.lower() in _I or base.lower() in known or PeopleDirectory.load(ctx.home).find(base):
+        return text
+    return text[0].lower() + text[1:]
+
+
+def _label(ctx: Ctx, loop: Loop) -> str:
     m = loop.meta
-    what = _lower_first(str(m.get("summary") or "").strip().rstrip("."))
-    return f"{m.get('counterpart_name') or m.get('counterpart')}, {what}"
+    who = m.get("counterpart_name") or m.get("counterpart")
+    return f"{who}, {_lower_first(ctx, str(m.get('summary') or '').strip().rstrip('.'), (who,))}"
 
 
 def _apply(ctx: Ctx, loop: Loop, action: str, until: str | None, reason: str | None) -> None:
@@ -81,33 +96,36 @@ def _apply(ctx: Ctx, loop: Loop, action: str, until: str | None, reason: str | N
     save_loop(ctx.home, loop)
 
 
-def update_loops(ctx: Ctx, said: str, action: str, until: str | None = None) -> Answer:
-    """Mark open items done, snoozed or dismissed, or reopen closed ones."""
+def update_loops(ctx: Ctx, said: str, action: str, until: str | None = None, target: str | None = None) -> Answer:
+    """Mark open (or snoozed) items done, snoozed or dismissed, or reopen closed ones."""
     all_loops = load_loops(ctx.home)
     active = [r.loop for r in rank(all_loops, ctx.now, ctx.config)]
-    choices = [lp for lp in all_loops if lp not in active][-10:] if action == "reopen" else active
+    snoozed = [lp for lp in all_loops if lp.meta.get("status") == "snoozed" and lp not in active]
+    closed = [lp for lp in all_loops if lp not in active and lp not in snoozed]
+    choices = closed[-10:] if action == "reopen" else active + snoozed
     if not choices:
         return Answer(plain="You have nothing closed to reopen." if action == "reopen"
                       else "You have no open items to update.")
     listing = "\n".join(f"{i}. {lp.meta.get('counterpart_name')}: {lp.meta.get('summary')}"
-                        for i, lp in enumerate(choices, 1))
+                        + (" (snoozed)" if lp in snoozed else "") for i, lp in enumerate(choices, 1))
     local = ctx.now.astimezone()
     system = load_prompt("loop_update", me_name=ctx.me.name or "the user", today=local.date().isoformat(),
                          weekday=local.strftime("%A"), wants=WANTS[action])
-    out = ctx.backend.complete(system, f"Items:\n{listing}\n\nThey said: {said}", UPDATE_SHAPE, tier="fast")
+    meant = f"\nThey mean: {target}" if target else ""
+    out = ctx.backend.complete(system, f"Items:\n{listing}\n\nThey said: {said}{meant}", UPDATE_SHAPE, tier="fast")
     picked = [choices[n - 1] for n in out.get("loops") or [] if 1 <= n <= len(choices)]
     if not picked:
         top = "\n".join(f"  • {lp.meta.get('counterpart_name')}: {lp.meta.get('summary')}" for lp in choices[:8])
         return Answer(plain=f"I couldn't tell which item you meant. Your {'closed' if action == 'reopen' else 'open'} "
                             f"items:\n{top}")
-    until = _iso(until) or _iso(out.get("until"))
+    until = next((d for d in (_iso(until), _iso(out.get("until"))) if d and d > local.date().isoformat()), None)
     if action == "snooze" and not until:
         return Answer(plain=UNTIL_WHEN)
     for lp in picked:
         _apply(ctx, lp, action, until if action == "snooze" else None, out.get("reason"))
     verb = {"done": "Marked done", "dismiss": "Dismissed", "reopen": "Reopened",
             "snooze": f"Snoozed until {when(until, local.date())}" if until else ""}[action]
-    text = f"{verb}: " + "; ".join(_label(lp) for lp in picked) + "."
+    text = f"{verb}: " + "; ".join(_label(ctx, lp) for lp in picked) + "."
     if action == "dismiss":
         muted = _maybe_mute(ctx, picked)
         if muted:
@@ -145,7 +163,8 @@ def _maybe_mute(ctx: Ctx, picked: list[Loop]) -> list[str]:
 
 
 def _loop(action: str) -> Callable[[Ctx, Part, str, dict | None], Answer]:
-    return lambda ctx, part, message, last: update_loops(ctx, part.text, action, part.params.get("until"))
+    return lambda ctx, part, message, last: update_loops(ctx, part.text, action, part.params.get("until"),
+                                                         part.target)
 
 
 def _show(ctx: Ctx, part: Part, message: str, last: dict | None) -> Answer:
@@ -163,25 +182,22 @@ def cant_do(ctx: Ctx, part: Part) -> Answer:
     """Something Archie can't do yet: say so in the user's terms and save it as a wish."""
     wanted = (part.wanted or "").strip().rstrip(".")
     if wanted and "\n" not in wanted and len(wanted.split()) <= 12:
-        head = f"I can't {_lower_first(' '.join(wanted.split()))} yet."
+        head = f"I can't {_lower_first(ctx, ' '.join(wanted.split()))} yet."
     else:
         head = f"I can't do “{' '.join(part.text.split()).rstrip('.')}” yet."
     save_told(ctx, part.text, WISH)
     return Answer(plain=f"{head} I've saved that you want it.")
 
 
-def _saved(text: str) -> str:
-    return f"I saved that {_lower_first(' '.join(text.split()).rstrip('.!'))}."
-
-
-def compose_cant(handled: list[tuple[Part, str, Answer]]) -> list[tuple[Part, Answer]]:
-    """When a message has something Archie can't do, tellings are said first ("I saved that
-    …"), and one-line replies become one line."""
+def compose_cant(ctx: Ctx, handled: list[tuple[Part, str, Answer]]) -> list[tuple[Part, Answer]]:
+    """When a message has something Archie can't do, tellings (and answers) are said first
+    ("I saved that …"), and one-line replies become one line."""
     if not any(p.kind == "instruct" and label.endswith("->gap") for p, label, _ in handled):
         return [(p, a) for p, _, a in handled]
-    tells = [(p, Answer(plain=_saved(p.text)) if label == "other->gap" else a)
-             for p, label, a in handled if p.kind == "tell"]
-    ordered = tells + [(p, a) for p, _, a in handled if p.kind != "tell"]
+    told = ("tell", "answer")
+    tells = [(p, Answer(plain=f"I saved that {_lower_first(ctx, ' '.join(p.text.split()).rstrip('.!'))}.")
+              if label == "other->gap" else a) for p, label, a in handled if p.kind in told]
+    ordered = tells + [(p, a) for p, _, a in handled if p.kind not in told]
     if all(a.plain is not None and "\n" not in a.plain for _, a in ordered):
         return [(ordered[0][0], Answer(plain=" ".join(a.plain for _, a in ordered)))]
     return ordered

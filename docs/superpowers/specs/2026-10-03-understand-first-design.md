@@ -284,8 +284,13 @@ The reply to an instruction is built only from the sentences the actions returne
 
 - The understanding call's `action` decides what happens to an open item; the item-picking
   call (`loop_update` shape) returns only item numbers, plus a date if the understanding
-  call gave no `until`. A snooze with no valid date asks "Until when?" and changes nothing.
-  Reopen picks from the last 10 closed items, the others from open ones.
+  call gave no `until`, and it's told the understanding call's `target`. A snooze with no
+  valid future date asks "Until when?" and changes nothing. Reopen picks from the last 10
+  closed items; the others from open and snoozed ones.
+- An `action` the model invents is read as no action (`none`), so it gets the can't-do
+  reply instead of a failed parse.
+- Names Archie knows, "I" and acronyms keep their capitals when code puts the user's or
+  the model's words mid-sentence ("I saved that Workpersonthree picked up the pizza.").
 - Loop confirmations read `<Verb>: <who>, <summary>.` and snooze dates are a weekday name
   within six days ("Monday"), "today" or "tomorrow", otherwise "Tue, Oct 20".
 - Gaps are a list (`"gaps": [...]`) holding each send, can't-do and `other` telling. Any

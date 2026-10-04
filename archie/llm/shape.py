@@ -51,6 +51,7 @@ class F:
     choices: tuple[str, ...] = ()
     keys: tuple[str, str] = ("ref", "quote")
     hint: str = ""
+    lenient: bool = False  # a choice not on the list becomes empty instead of a problem
 
     def describe(self) -> str:
         what = f"one of {', '.join(self.choices)}" if self.kind == "choice" else KIND_TEXT[self.kind]
@@ -144,9 +145,9 @@ def _put(out: dict, f: F, raw: str | None, problems: list[str], where: str) -> N
             out[f.name] = flag
         elif f.kind == "choice":
             norm = re.sub(r"[\s-]+", "_", value.lower())
-            if norm not in f.choices:
+            if norm not in f.choices and not f.lenient:
                 raise ValueError(norm)
-            out[f.name] = norm
+            out[f.name] = norm if norm in f.choices else None
         elif f.kind == "cite":
             m = re.match(r"\[?(\d+)\]?\s*(.*)$", value)
             out[f.keys[0]], out[f.keys[1]] = int(m.group(1)), _unquote(m.group(2))

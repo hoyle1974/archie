@@ -119,7 +119,7 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     if gaps:
         entry["gaps"] = gaps
     resolved = next((p.resolved for p in parts if p.kind == "question" and p.resolved), None)
-    answer = combine(compose_cant([(p, label, a) for p, (label, a) in zip(parts, handled)]))
+    answer = combine(compose_cant(ctx, [(p, label, a) for p, (label, a) in zip(parts, handled)]))
     if all(label == "show_citation" for label, _ in handled):
         return Reply(answer, _question_of(last), kept)
     return Reply(answer, resolved, None)
