@@ -41,6 +41,7 @@ class Budget:
     def __init__(self, home: Home, limit: float, clock: Callable[[], datetime] = _now):
         self.home, self.limit, self.clock = home, float(limit), clock
         self.lock = threading.Lock()
+        self._cache: tuple = (None, 0.0)
 
     @property
     def path(self):
@@ -48,8 +49,13 @@ class Budget:
 
     def spent(self) -> float:
         now = self.clock().astimezone(timezone.utc)
-        if not self.path.exists():
+        try:
+            st = self.path.stat()
+        except FileNotFoundError:
             return 0.0
+        key = (st.st_mtime_ns, st.st_size, now.year, now.month)
+        if self._cache[0] == key:
+            return self._cache[1]
         total = 0.0
         for line in self.path.read_text(encoding="utf-8").splitlines():
             try:
@@ -59,7 +65,14 @@ class Budget:
                 continue
             if (ts.year, ts.month) == (now.year, now.month):
                 total += float(entry.get("usd") or 0)
+        self._cache = (key, total)
         return total
+
+    def summary(self) -> str:
+        spent = self.spent()
+        amount = f"${spent:.2f}" if spent >= 1 else f"{spent * 100:.1f}".rstrip("0").rstrip(".") + "¢"
+        line = f"Gemini: {amount} of ${self.limit:g} this month"
+        return line if spent < self.limit else f"{line}: paused until {self.resets()}"
 
     def resets(self) -> str:
         now = self.clock().astimezone(timezone.utc)

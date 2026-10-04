@@ -527,7 +527,7 @@ maps each tier to a model.
 Built with Textual. Three panes:
 1. **Feed:** the current or next briefing, top loops, and notifications.
 2. **Ask:** an input box plus the answer view. Up-arrow recalls history. Citations
-   expand inline.
+   expand inline. The pane's border shows Gemini spend this month against the budget.
 3. **Activity:** sync status per source, the last sync time and recent errors.
 
 The TUI owns the sync loop, morning batch, T-15 refresh and notifications.

@@ -49,6 +49,18 @@ def test_spend_counts_only_this_month(tmp_path):
     assert json.loads(log.read_text().splitlines()[0])["model"] == "gemini-3.7-flash"
 
 
+def test_summary_reads_plainly_at_every_size(tmp_path):
+    home = init_home(tmp_path / "h")
+    b = Budget(home, 15, clock=lambda: OCT)
+    assert b.summary() == "Gemini: 0¢ of $15 this month"
+    b.record("gemini-3.7-flash", "fast", 28_000, 0, 0)  # 2.1¢
+    assert b.summary() == "Gemini: 2.1¢ of $15 this month"
+    b.record("gemini-3.7-flash", "fast", 1_600_000, 0, 0)  # +$1.20
+    assert b.summary() == "Gemini: $1.22 of $15 this month"
+    b.record("gemini-3.7-flash", "fast", 20_000_000, 0, 0)
+    assert b.summary() == "Gemini: $16.22 of $15 this month: paused until Nov 1"
+
+
 def test_gemini_records_each_call_and_refuses_once_the_month_is_used_up(tmp_path):
     home = init_home(tmp_path / "h")
     client = Client()  # each call: 1M in ($0.75) + 200k out incl. thinking ($0.75) = $1.50

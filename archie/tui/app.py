@@ -16,6 +16,7 @@ from archie.ask.render import render
 from archie.llm.backend import LLMError
 
 ASK_TIMEOUT = 180  # seconds before the Ask pane gives up and frees itself
+SPEND_REFRESH_S = 3
 HINT = 'Ask anything, e.g. "prep me for my next meeting" or "what do I owe people?"'
 
 
@@ -102,10 +103,24 @@ class ArchieApp(App):
         self.query_one("#activity").border_title = "Sync"
         self.query_one("#answer-scroll").border_title = "Ask"
         self.query_one("#question").focus()
+        self.refresh_spend()
+        self.set_interval(SPEND_REFRESH_S, self.refresh_spend)
         self.run_worker(self.sync_cycle(), exclusive=False)
         minutes = self.ctx.config["sync"]["interval_minutes"]
         self.set_interval(minutes * 60, lambda: self.run_worker(self.sync_cycle()))
         self.set_interval(60, lambda: self.run_worker(self.briefing_tick()))
+
+    def refresh_spend(self) -> None:
+        """Gemini spend this month in the Ask pane's border. Polled so calls from background
+        sync and from `archie ask` in other terminals show up too; re-reads only on change."""
+        budget = getattr(self.ctx.backend, "budget", None)
+        if budget is None:
+            return
+        try:
+            text = budget.summary()
+        except OSError:
+            return
+        self.query_one("#answer-scroll").border_subtitle = text
 
     def copy_to_clipboard(self, text: str) -> None:
         """Textual copies with OSC 52, which macOS Terminal ignores; also use pbcopy."""

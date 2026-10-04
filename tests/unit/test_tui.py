@@ -156,6 +156,26 @@ def test_slow_answer_times_out_with_a_message(tmp_path, monkeypatch):
     asyncio.run(go())
 
 
+def test_ask_pane_shows_gemini_spend_and_keeps_it_current(tmp_path):
+    from archie.llm.budget import Budget
+
+    ctx = make_ctx(tmp_path)
+    ctx.backend.budget = Budget(ctx.home, 15)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            pane = app.query_one("#answer-scroll")
+            assert pane.border_subtitle == "Gemini: 0¢ of $15 this month"
+            ctx.backend.budget.record("gemini-3.7-flash", "fast", 28_000, 0, 0)
+            app.refresh_spend()
+            await pilot.pause()
+            assert pane.border_subtitle == "Gemini: 2.1¢ of $15 this month"
+
+    asyncio.run(go())
+
+
 def test_today_pane_refreshes_after_an_answer(tmp_path, monkeypatch):
     from archie.ask.answer import Answer
 
