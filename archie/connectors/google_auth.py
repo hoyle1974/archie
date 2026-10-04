@@ -1,5 +1,5 @@
-"""Google OAuth for the read-only Google connectors. Tokens live in the macOS Keychain
-(via keyring), never under ~/.archie or the repo."""
+"""Google OAuth for the read-only Google connectors and the Gemini usage check (monitoring).
+Tokens live in the macOS Keychain (via keyring), never under ~/.archie or the repo."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ SCOPES = {
     "gmail": "https://www.googleapis.com/auth/gmail.readonly",
     "calendar": "https://www.googleapis.com/auth/calendar.readonly",
     "drive": "https://www.googleapis.com/auth/drive.readonly",
+    "monitoring": "https://www.googleapis.com/auth/monitoring.read",
 }
 
 

@@ -116,11 +116,30 @@ class ArchieApp(App):
         budget = getattr(self.ctx.backend, "budget", None)
         if budget is None:
             return
+        from archie.llm import google_usage
+
         try:
-            text = budget.summary()
-        except OSError:
+            text = budget.summary() + google_usage.subtitle(self.ctx.home)
+        except (OSError, ValueError):
             return
         self.query_one("#answer-scroll").border_subtitle = text
+
+    def google_usage_line(self) -> str | None:
+        """After a sync: Google's own Gemini token count against Archie's log, with a toast if they disagree."""
+        from archie.llm import google_usage
+
+        if not self.ctx.config["llm"].get("google_project"):
+            return None
+        try:
+            entry = google_usage.load(self.ctx.home)
+        except (OSError, ValueError):
+            return None
+        if not entry:
+            return None
+        warn = google_usage.warning(entry)
+        if warn:
+            self.notify(warn, severity="warning", timeout=30)
+        return google_usage.status_line(entry)
 
     def copy_to_clipboard(self, text: str) -> None:
         """Textual copies with OSC 52, which macOS Terminal ignores; also use pbcopy."""
@@ -160,7 +179,11 @@ class ArchieApp(App):
                           for n, r in report.items()]
                 if not report:
                     lines.append("No sources switched on (see config.yaml).")
+                google = self.google_usage_line()
+                if google:
+                    lines.append(google)
                 activity.update("\n".join(lines))
+                self.refresh_spend()
             except Exception as exc:  # the loop must survive anything
                 log_error(self.ctx, "sync")
                 activity.update(f"Sync failed: {exc} (details in logs/errors.log)")

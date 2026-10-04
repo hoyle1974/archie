@@ -550,6 +550,10 @@ maps each tier to a model.
   - **Monthly budget** (`llm.monthly_budget_usd`, default $15): each call's token counts
     and cost are logged to `logs/llm_usage.jsonl`. At the limit, calls are refused until
     the 1st (UTC). Asks say so, and background work waits.
+  - **Google's own count** (`llm.google_project`): each sync reads this month's Gemini
+    token counts from Cloud Monitoring on that project (what the AI Studio usage page
+    shows), prices them like the log, and warns when the two differ by more than $1.
+    Read-only, through the `monitoring.read` scope.
   - `fake`: replays canned responses, for tests.
 - **Citations by reference number.** The model sees a numbered *context packet* of
   excerpts and cites `{ref, quote}`. Code maps `ref` back to `(file, chunk)` and checks the
@@ -563,7 +567,8 @@ maps each tier to a model.
 Built with Textual. Three panes:
 1. **Feed:** the current or next briefing, top loops, and notifications.
 2. **Ask:** an input box plus the answer view. Up-arrow recalls history. Citations
-   expand inline. The pane's border shows Gemini spend this month against the budget.
+   expand inline. The pane's border shows Gemini spend this month against the budget,
+   and Google's count of it when `llm.google_project` is set.
 3. **Activity:** sync status per source, the last sync time and recent errors.
 
 The TUI owns the sync loop, morning batch, T-15 refresh and notifications.

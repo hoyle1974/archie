@@ -20,6 +20,7 @@ DEFAULTS: dict[str, Any] = {
         "max_output_tokens": {"fast": 2048, "strong": 8192},
         "thinking": {"fast": "low", "strong": "medium"},
         "monthly_budget_usd": 15,
+        "google_project": None,  # Google Cloud project of the Gemini key, to compare Google's token count
     },
     "index": {"embed_model": "BAAI/bge-small-en-v1.5", "embed_device": "cpu"},  # "mps" for the Apple GPU
     "briefings": {"lead_minutes": 15, "all_hands_min_attendees": 25},

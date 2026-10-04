@@ -94,6 +94,39 @@ def test_sync_reports_each_connector(tmp_path, monkeypatch, capsys):
     assert code == 0 and "gmail: ok" in out
 
 
+def test_sync_prints_googles_token_count_when_a_project_is_set(tmp_path, monkeypatch, capsys):
+    from archie.connectors.base import SyncResult
+    from archie.llm import google_usage
+
+    class Ok:
+        name = "gmail"
+
+        async def sync(self, sctx, cursor):
+            return SyncResult(cursor={})
+
+    setup_home(tmp_path, monkeypatch)
+    (tmp_path / "h" / "config.yaml").write_text("index:\n  embed_model: hash\nllm:\n  google_project: archie-email\n")
+    real_check = google_usage.check
+    monkeypatch.setattr(google_usage, "check", lambda home, project, now=None, get=None: real_check(
+        home, project, now, lambda path, params: {}))
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend([]))
+    monkeypatch.setattr(cli, "enabled_connectors", lambda cfg: [Ok()])
+    code, out = run(capsys, "admin", "sync")
+    assert code == 0 and "Google's count this month: 0¢ (Archie logged 0¢)" in out
+
+
+def test_connect_google_asks_for_monitoring_only_with_a_project(tmp_path, monkeypatch, capsys):
+    from archie.connectors import google_auth
+
+    asked = []
+    monkeypatch.setattr(google_auth, "connect", lambda client, sources: asked.append(sources) or set())
+    setup_home(tmp_path, monkeypatch)
+    cli.main(["admin", "connect", "google"])
+    (tmp_path / "h" / "config.yaml").write_text("llm:\n  google_project: archie-email\n")
+    cli.main(["admin", "connect", "google"])
+    assert asked == [("gmail", "calendar", "drive"), ("gmail", "calendar", "drive", "monitoring")]
+
+
 def test_rederive_builds_people_from_existing_mail(tmp_path, monkeypatch, capsys):
     from archie.store.home import Home
     from tests.support.raw import addr, msg, write_thread

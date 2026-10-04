@@ -5,7 +5,9 @@ description: Chronological history of design decisions and structural changes, n
 ---
 
 ## 2026-10-04
+- Each sync now compares Google's own count of this month's Gemini tokens with Archie's log (`archie/llm/google_usage.py`, `llm.google_project`) and warns when they're more than $1 apart. A probe first showed Cloud Monitoring on `archie-email` matching `logs/llm_usage.jsonl` to the token for every call from the real home; the only gaps were live checks run in scratch homes, plus Oct 1–3 usage from before Archie's log began.
 - People facts now respect what the user said about everyone the sources mention, not only the dossier's own person. Goodspouse's dossier had facts calling Childone "your son" although Childone's dossier says never to. Enrichment now gets `people_context`, code drops facts using any mentioned person's `avoid` words (`PeopleDirectory.mentioned_in` and `avoided_words` in `archie/derive/people.py`), and a dossier already holding such a fact is redone on the next run.
+- Added a usage review process: `docs/REVIEW.md` tells an agent how to read the real logs in `~/.archie` against the vignettes and write a report with suggested fixes and new vignettes to `~/.archie/reviews/YYYY-MM-DD.md` (never committed: it quotes the user's mail). `.claude/skills/archie-review/` points Claude and Cursor sessions at it.
 - Fixed a TUI segfault: a startup sync and a question embedded at the same time from two worker threads, both on the Apple GPU (MPS), and PyTorch's MPS kernel cache crashed (`exec_unary_kernel`, reproduced outside the TUI as a crash or a hang). Every model load and encode now takes one process-wide lock (`archie/index/embed.py`), and the embedding model runs on the CPU by default (`index.embed_device`), which is also about twice as fast as MPS for bge-small.
 
 ## 2026-10-03

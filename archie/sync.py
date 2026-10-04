@@ -119,4 +119,10 @@ async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Derive
             await asyncio.to_thread(step, ctx)
         if post_index:
             await asyncio.to_thread(ctx.index.sync)
+    project = (ctx.config.get("llm") or {}).get("google_project")
+    if project:  # Google's own Gemini token count vs Archie's log
+        from archie.llm import google_usage
+
+        say("Checking Google's token count…")
+        await asyncio.to_thread(google_usage.check, ctx.home, project)
     return report

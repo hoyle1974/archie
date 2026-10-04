@@ -175,6 +175,38 @@ def test_ask_pane_shows_gemini_spend_and_keeps_it_current(tmp_path):
     asyncio.run(go())
 
 
+def test_sync_shows_googles_token_count_and_warns_when_out_of_step(tmp_path, monkeypatch):
+    from archie.llm import google_usage
+    from archie.llm.budget import Budget
+
+    ctx = make_ctx(tmp_path)
+    ctx.backend.budget = Budget(ctx.home, 15)
+    ctx.config["llm"]["google_project"] = "archie-email"
+    real_check = google_usage.check
+
+    def check(home, project, now=None, get=None):
+        def google(path, params):
+            if path.endswith("/metricDescriptors"):
+                return {"metricDescriptors": []}
+            return {"timeSeries": [{"metric": {"labels": {"model": "gemini-3.7-flash"}},
+                                    "points": [{"value": {"int64Value": "400000"}}]}]}  # $1.50 of output
+        return real_check(home, project, now, google)
+
+    monkeypatch.setattr(google_usage, "check", check)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.pause()
+            assert ("Warning: Google counts $1.50 more Gemini use this month than Archie logged ($1.50 vs 0¢)"
+                    in text_of(app, "#activity"))
+            assert app.query_one("#answer-scroll").border_subtitle == \
+                "Gemini: 0¢ of $15 this month · Google: $1.50, out of step"
+
+    asyncio.run(go())
+
+
 def test_today_pane_refreshes_after_an_answer(tmp_path, monkeypatch):
     from archie.ask.answer import Answer
 

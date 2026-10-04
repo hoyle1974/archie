@@ -33,6 +33,10 @@ def cost_usd(model: str, prompt_tokens: int, output_tokens: int, when: datetime)
     return (prompt_tokens * rate_in + output_tokens * rate_out) / 1_000_000
 
 
+def money(usd: float) -> str:
+    return f"${usd:.2f}" if usd >= 1 else f"{usd * 100:.1f}".rstrip("0").rstrip(".") + "¢"
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -56,23 +60,28 @@ class Budget:
         key = (st.st_mtime_ns, st.st_size, now.year, now.month)
         if self._cache[0] == key:
             return self._cache[1]
-        total = 0.0
-        for line in self.path.read_text(encoding="utf-8").splitlines():
-            try:
-                entry = json.loads(line)
-                ts = datetime.fromisoformat(entry["ts"]).astimezone(timezone.utc)
-            except (ValueError, KeyError, TypeError):
-                continue
-            if (ts.year, ts.month) == (now.year, now.month):
-                total += float(entry.get("usd") or 0)
+        total = sum(usd for ts, usd in self._entries() if (ts.year, ts.month) == (now.year, now.month))
         self._cache = (key, total)
         return total
 
+    def spent_between(self, start: datetime, end: datetime) -> float:
+        return sum(usd for ts, usd in self._entries() if start <= ts < end)
+
+    def _entries(self):
+        try:
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            return
+        for line in lines:
+            try:
+                entry = json.loads(line)
+                yield datetime.fromisoformat(entry["ts"]).astimezone(timezone.utc), float(entry.get("usd") or 0)
+            except (ValueError, KeyError, TypeError):
+                continue
+
     def summary(self) -> str:
-        spent = self.spent()
-        amount = f"${spent:.2f}" if spent >= 1 else f"{spent * 100:.1f}".rstrip("0").rstrip(".") + "¢"
-        line = f"Gemini: {amount} of ${self.limit:g} this month"
-        return line if spent < self.limit else f"{line}: paused until {self.resets()}"
+        line = f"Gemini: {money(self.spent())} of ${self.limit:g} this month"
+        return line if self.spent() < self.limit else f"{line}: paused until {self.resets()}"
 
     def resets(self) -> str:
         now = self.clock().astimezone(timezone.utc)

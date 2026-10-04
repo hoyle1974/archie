@@ -89,12 +89,29 @@ def check_budget(home: Home, cfg: dict, clock: Callable | None = None) -> Check 
                    "(raise llm.monthly_budget_usd in config.yaml to continue sooner)")
 
 
+def check_google_usage(home: Home, cfg: dict, clock: Callable | None = None) -> Check | None:
+    from archie.llm import google_usage
+
+    if not cfg["llm"].get("google_project"):
+        return None
+    entry = google_usage.load(home, clock() if clock else None)
+    if not entry:
+        return True, "Google's token count: not checked yet this month; the next sync checks it"
+    warn = google_usage.warning(entry)
+    if warn:
+        return False, warn
+    return "error" not in entry, google_usage.status_line(entry)
+
+
 def run_checks(home: Home) -> list[Check]:
     cfg = load_config(home)
     results = [check_me(home), check_gemini()]
     spend = check_budget(home, cfg)
     if spend:
         results.append(spend)
+    if cfg["llm"].get("google_project"):
+        results.append(check_google("monitoring"))
+        results.append(check_google_usage(home, cfg))
     skipped = check_failures(home)
     if skipped:
         results.append(skipped)

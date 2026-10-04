@@ -11,6 +11,7 @@ What it checks:
 - `me.yaml` has a name and at least one email.
 - A Gemini API key is in the Keychain (`gemini-api-key`).
 - Gemini spend this month against `llm.monthly_budget_usd`; reaching it is a failure that says when calls resume.
+- With `llm.google_project` set: the Google `monitoring` scope was granted, and the last sync's comparison of Google's token count with Archie's log. More than $1 apart, or a failed check, is a failure.
 - Items the [derivers](derivers.md) stopped retrying after 3 unreadable model replies, if any, with the file to delete to retry them.
 - No sources enabled is reported as a failure.
 - Each enabled source:

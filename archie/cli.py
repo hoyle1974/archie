@@ -70,6 +70,12 @@ def cmd_sync(home: Home) -> int:
                                    on_progress=lambda text: print(text, file=sys.stderr, flush=True)))
     for name, rep in report.items():
         print(f"{name}: ok, {rep.written} updated" if rep.ok else f"{name}: failed: {rep.error}")
+    if ctx.config["llm"].get("google_project"):
+        from archie.llm import google_usage
+
+        entry = google_usage.load(home)
+        if entry:
+            print(google_usage.status_line(entry))
     return 0 if all(r.ok for r in report.values()) else 1
 
 
@@ -87,8 +93,11 @@ def cmd_connect(argv: list[str]) -> int:
         return connect_gemini()
     if args.service == "jira":
         return connect_jira(args.site, args.email)
+    sources = ("gmail", "calendar", "drive")
+    if load_config(Home.default())["llm"].get("google_project"):
+        sources += ("monitoring",)
     scopes = (google_auth.import_token(args.import_token) if args.import_token
-              else google_auth.connect(args.client))
+              else google_auth.connect(args.client, sources))
     names = sorted(n for n, s in google_auth.SCOPES.items() if s in scopes)
     print(f"Google connected (read-only): {', '.join(names) or 'no Archie scopes'}.")
     return 0
