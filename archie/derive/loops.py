@@ -88,16 +88,24 @@ def _relevant(m: dict, mute: list[str] | None = None) -> bool:
     return bool(m.get("from_me")) or ((m.get("to_me") or m.get("cc_me")) and looks_personal(m))
 
 
-def _counterpart(m: dict, me, directory: PeopleDirectory) -> tuple[str, str]:
+def _name_in_thread(data: dict | None, email: str) -> str:
+    """The display name this address signs with elsewhere in the thread ("HeadphonesRUs")."""
+    for m in (data or {}).get("messages") or []:
+        if str(m.get("from_email", "")).lower() == email.lower() and m.get("from_name"):
+            return m["from_name"]
+    return ""
+
+
+def _counterpart(m: dict, me, directory: PeopleDirectory, data: dict | None = None) -> tuple[str, str]:
     if m.get("from_me"):
         others = [a for a in m.get("to", []) + m.get("cc", []) if not me.is_me(a["email"])]
         if not others:
             return "", ""
-        email, name = others[0]["email"], others[0].get("name") or others[0]["email"]
+        email, name = others[0]["email"], others[0].get("name") or ""
     else:
-        email, name = m.get("from_email", ""), m.get("from_name") or m.get("from_email", "")
+        email, name = m.get("from_email", ""), m.get("from_name") or ""
     eid = directory.by_email(email)
-    return (eid, directory.name(eid)) if eid else (email, name)
+    return (eid, directory.name(eid)) if eid else (email, name or _name_in_thread(data, email) or email)
 
 
 def _local(ts: str) -> datetime:
@@ -163,7 +171,7 @@ def _extract(ctx: Ctx, packet: Packet, data: dict, rel: str, tid: str, new_refs:
         if c.get("resolved") and c.get("resolved_ref") and check_quote(packet, int(c["resolved_ref"]),
                                                                         c.get("resolved_quote") or ""):
             continue  # already settled later in the thread
-        cp_id, cp_name = _counterpart(m, ctx.me, directory)
+        cp_id, cp_name = _counterpart(m, ctx.me, directory, data)
         if not cp_id:
             continue
         h = hashlib.sha1(f"{tid}|{m['id']}|{kind}|{normalize(cite.quote)}".encode()).hexdigest()[:6]
@@ -202,6 +210,56 @@ def _duplicate(source: dict, kind: str, existing: list[Loop]) -> bool:
                 if q and other and len(q & other) / min(len(q), len(other)) >= 0.5:
                     return True
     return False
+
+
+def their_reply(home: Home, meta: dict, directory: PeopleDirectory | None = None) -> str | None:
+    """When the other person last wrote in a `waiting_on` item's thread after it opened
+    (from their address or their domain), or None. Read from the thread file, no model."""
+    path = home / f"sources/gmail/{meta.get('thread')}.json"
+    if not meta.get("thread") or not path.exists():
+        return None
+    try:
+        created = datetime.fromisoformat(str(meta.get("created_at")))
+    except ValueError:
+        return None
+    cp = str(meta.get("counterpart") or "")
+    emails = {cp.lower()} if "@" in cp else \
+        {a for a in (directory or PeopleDirectory.load(home)).identifiers(cp) if "@" in a}
+    domains = {e.split("@", 1)[1] for e in emails}
+    latest = None
+    for msg in read_raw(path).get("messages") or []:
+        sender = str(msg.get("from_email") or "").lower()
+        try:
+            later = datetime.fromisoformat(str(msg.get("date"))) > created
+        except ValueError:
+            later = False
+        if later and not msg.get("from_me") and (not emails or sender in emails or sender.split("@")[-1] in domains):
+            latest = max(latest or "", str(msg["date"]))
+    return latest
+
+
+def refresh_waiting(ctx: Ctx) -> None:
+    """Mark open waiting items whose other person has replied (`replied:`), so answers say
+    "HeadphonesRUs replied Oct 4" instead of "waiting". Closing stays the user's call. Also
+    replaces an address used as the name with the name they sign with in the thread."""
+    directory = PeopleDirectory.load(ctx.home)
+    for lp in load_loops(ctx.home):
+        m = lp.meta
+        if m.get("kind") != "waiting_on" or m.get("status") not in (*OPEN, "snoozed"):
+            continue
+        changed = False
+        name = str(m.get("counterpart_name") or "")
+        thread_file = ctx.home / f"sources/gmail/{m.get('thread')}.json"
+        if "@" in name and thread_file.exists():
+            better = _name_in_thread(read_raw(thread_file), name)
+            if better:
+                m["counterpart_name"], changed = better, True
+        replied = their_reply(ctx.home, m, directory)
+        if replied and replied != m.get("replied"):
+            m["replied"], changed = replied, True
+            _history(lp, f"{_local(replied):%Y-%m-%d %H:%M} {m.get('counterpart_name')} replied in the thread")
+        if changed:
+            save_loop(ctx.home, lp)
 
 
 def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
@@ -270,6 +328,7 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
     if finished:
         atomic_write(_seen_file(ctx.home), yaml.safe_dump(seen, sort_keys=True))
     failures.save()
+    refresh_waiting(ctx)
 
 
 STALE_AFTER_DAYS = 7  # this far past due, it's more likely done than urgent
@@ -322,6 +381,9 @@ def rank(loops: list[Loop], now: datetime, config: dict, upcoming_people: set[st
             why.append(f"{int(age)} days old")
         if m.get("addressed") == "to":
             score += w["to_not_cc"]
+        if m.get("kind") == "waiting_on" and m.get("replied"):
+            score += w.get("asked_of_me", 0.0)  # the ball is back in your court
+            why.insert(0, f"{m.get('counterpart_name') or 'they'} replied {_local(m['replied']):%b %-d}")
         if m.get("status") == "maybe_done":
             score -= 2.0
             why.insert(0, 'probably done? say "done with …"')

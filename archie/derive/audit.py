@@ -23,9 +23,8 @@ from datetime import datetime
 from archie.ask.context import Ctx
 from archie.derive.dedupe import _who, find_duplicates, load_questions, save_questions
 from archie.derive.ignore import ignored_person
-from archie.derive.loops import Loop, _history, load_loops, rank, save_loop
+from archie.derive.loops import Loop, _history, load_loops, rank, save_loop, their_reply
 from archie.derive.people import EMAIL, PeopleDirectory
-from archie.store.files import read_raw
 
 MAX_OPEN = 5
 PRIORITY = {"same_person": 0, "loop_done": 1, "loop_stale": 2, "waiting_nudge": 3, "who_is": 4}
@@ -58,22 +57,9 @@ def _waiting_days(ctx: Ctx, lp: Loop) -> int | None:
     days = (today - created.astimezone().date()).days
     if days < int(ctx.config.get("nudges", {}).get("after_days", 3)):
         return None
-    path = ctx.home / f"sources/gmail/{m.get('thread')}.json"
-    if not m.get("thread") or not path.exists():
+    if not m.get("thread") or not (ctx.home / f"sources/gmail/{m.get('thread')}.json").exists():
         return None  # no thread to check for a reply
-    cp = str(m.get("counterpart") or "")
-    emails = {cp.lower()} if EMAIL.match(cp) else \
-        {a.lower() for a in PeopleDirectory.load(ctx.home).identifiers(cp) if EMAIL.match(a)}
-    domains = {e.split("@", 1)[1] for e in emails}
-    for msg in read_raw(path).get("messages") or []:
-        sender = str(msg.get("from_email") or "").lower()
-        try:
-            later = datetime.fromisoformat(str(msg.get("date"))) > created
-        except ValueError:
-            later = False
-        if later and not msg.get("from_me") and (not emails or sender in emails or sender.split("@")[-1] in domains):
-            return None
-    return days
+    return None if their_reply(ctx.home, m) else days
 
 
 def _about(m: dict) -> str:

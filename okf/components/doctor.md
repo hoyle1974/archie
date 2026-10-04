@@ -8,6 +8,7 @@ tags: [component]
 ---
 
 What it checks:
+- Every package in `pyproject.toml` is installed. An editable install picks up code but not new packages; the fix is `uv tool install -e <repo> --reinstall` (or `uv sync` outside a uv tool).
 - `me.yaml` has a name and at least one email.
 - A Gemini API key is in the Keychain (`gemini-api-key`).
 - Gemini spend this month against `llm.monthly_budget_usd`; reaching it is a failure that says when calls resume.

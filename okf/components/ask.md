@@ -22,12 +22,12 @@ tags: [component]
 - `answer.py`: `Answer` holds the summary claims, sections (cited items plus lines computed by code), the packet, the count of dropped claims, plain text, notes, and a `nothing_found` flag.
 - `render.py`: puts the summary first and numbers `[n]` markers in the order they appear. The source list is shown only with `--sources`. It says plainly when nothing was found, when claims were dropped because they couldn't be verified, and when the material found answers nothing.
 - `intents/`: each one registers with `@intent(name)`.
-  - `search`: hybrid search plus synthesis. Ignored senders' mail is left out unless the question names them. A question about something the user sent (`mine`) searches the user's own mail first.
+  - `search`: hybrid search plus synthesis. Ignored senders' mail is left out unless the question names them. A question about something the user sent (`mine`) searches the user's own mail first. A question about a conversation ("did they reply?", "what did they say?") gets the newest thread among the hits with its latest 3 messages first, the rest newest first, and instructions to lead with the newest message and whose turn it is (`mine` keeps only the user's own mail).
   - `help`: fixed text, no LLM.
-  - `who`: resolves a person through `PeopleDirectory`, asks back if the name is ambiguous, and says so if the person is unknown. Code computes the "At a glance" facts (org, role, last talked, thread count) and the "Recent" list from `Index.chunks_with_people`. On top of that, the LLM writes a cited summary drawn from the dossier and recent mail.
+  - `who`: resolves a person through `PeopleDirectory`, asks back if the name is ambiguous, and says so if the person is unknown. Code computes the "At a glance" facts (org, role, last talked, thread count) and the "Recent" list from `Index.chunks_with_people`. On top of that, the LLM writes a cited summary drawn from the dossier and recent mail. A relationship the user stated leads ("Goodspouse is your wife.") when the summary doesn't say it, and with no summary code writes one from what the user said ("Sam is your neighbor. That's all I know so far.").
 - `context.py`: `Ctx` bundles home, config, me, index, backend and now, so tests can swap any part.
 
-  - `agenda`: lists what's on the calendar for a day or range, read from the calendar mirror with no model: all-day events first, then timed ones, with meetings showing who's in them. Declined and cancelled events are left out, and an event on two calendars is shown once. "today", "tomorrow", "this weekend" and weekday names are parsed by code and quick-routed; anything else uses the understood since/until.
+  - `agenda`: lists what's on the calendar for a day or range, read from the calendar mirror with no model: all-day events first, then timed ones, with meetings showing who's in them. Declined and cancelled events are left out, and an event on two calendars is shown once. "today", "tomorrow", "this weekend" and weekday names are parsed by code and quick-routed; anything else uses the understood since/until. Today's timed events that have ended say "(over)", and from 10 PM a "today" with no timed events left also shows tomorrow.
   - `brief`: see [briefings](briefings.md). Personal events (no attendees) are never briefed.
   - `loops`: see [loops](loops.md).
   - `notes`:
@@ -36,7 +36,7 @@ tags: [component]
     - Extracts action items (fast model, `notes_actions`) and keeps only those whose quotes verify against the note. The user's own items become `i_promised` loops and other people's become `waiting_on` loops, each citing the meeting file. Due dates ("by next Wed") are parsed by code from the quote, relative to when the notes were given, and shown as "due Wed, Oct 7".
     - Writes the list into the meeting's Action items fence.
 
-  - `next`: computed entirely in code. It works out the free time before the next meeting today, ranks loops (boosting anyone you meet today) under "Do next", and lists `waiting_on` items 3 or more days old under "Nudge". No LLM call.
+  - `next`: computed entirely in code. It works out the free time before the next meeting today, ranks loops (boosting anyone you meet today) under "Do next", and lists `waiting_on` items 3 or more days old under "Nudge" and replied-to ones under "They replied" ("your turn"). With nothing to do but younger waiting items it says who you're waiting on, never "nothing open". No LLM call.
 
   - `ledger`: the window comes from the understood since/until and defaults to this week (Monday until now).
     - The summary line counts each kind of activity.

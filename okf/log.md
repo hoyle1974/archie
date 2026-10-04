@@ -5,6 +5,14 @@ description: Chronological history of design decisions and structural changes, n
 ---
 
 ## 2026-10-04
+- Fixes from the second usage review (`~/.archie/reviews/2026-10-04-2.md`, not committed):
+  - Waiting items say when the other person replied. `refresh_waiting` (end of `derive_loops`, no model) sets `replied:` on an open `waiting_on` item once its counterpart writes in the thread, and fixes an address used as the name ("contact@headphonesrus.example" is now "HeadphonesRUs"). `loops` and `next` show "HeadphonesRUs replied Oct 4"; closing stays the user's call. The audit's reply check is the same `their_reply`.
+  - "What's next" no longer says "You have nothing open" while you wait on someone: it names who and what, and lists replied items under "They replied".
+  - `who` opens with a sentence when the model has none ("Sam is your neighbor. That's all I know so far.") and leads with a stated relationship the summary leaves out.
+  - People facts: the prompt asks for plain quotes (Goodspouse's "mother of your child" cited a passage about a false CPS report), not to repeat what the user said, and the past tense for contacts over a year old (the 2023 Status support dossier read as current).
+  - Conversation questions ("did Status reply?", "what did they tell me?") show the newest thread's latest messages first and ask the model to lead with the newest message and whose turn it is.
+  - `agenda`: today's ended events say "(over)", and from 10 PM a "today" with nothing left also shows tomorrow.
+  - Doctor checks that every package in `pyproject.toml` is installed and says how to reinstall.
 - Each sync now compares Google's own count of this month's Gemini tokens with Archie's log (`archie/llm/google_usage.py`, `llm.google_project`) and warns when they're more than $1 apart. A probe first showed Cloud Monitoring on `archie-email` matching `logs/llm_usage.jsonl` to the token for every call from the real home; the only gaps were live checks run in scratch homes, plus Oct 1–3 usage from before Archie's log began.
 - People facts now respect what the user said about everyone the sources mention, not only the dossier's own person. Goodspouse's dossier had facts calling Childone "your son" although Childone's dossier says never to. Enrichment now gets `people_context`, code drops facts using any mentioned person's `avoid` words (`PeopleDirectory.mentioned_in` and `avoided_words` in `archie/derive/people.py`), and a dossier already holding such a fact is redone on the next run.
 - Added a usage review process: `docs/REVIEW.md` tells an agent how to read the real logs in `~/.archie` against the vignettes and write a report with suggested fixes and new vignettes to `~/.archie/reviews/YYYY-MM-DD.md` (never committed: it quotes the user's mail). `.claude/skills/archie-review/` points Claude and Cursor sessions at it.

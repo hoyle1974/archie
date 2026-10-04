@@ -38,6 +38,16 @@ def window_from_words(question: str, today: date) -> tuple[date, date] | None:
     return None
 
 
+LATE_HOUR = 22  # from 10 PM, "today" with nothing left also shows tomorrow
+
+
+def _over(e: dict, now: datetime) -> bool:
+    """A timed event that has already ended (all-day events last the whole day)."""
+    if e.get("all_day"):
+        return e["_day"] < now.astimezone().date()
+    return datetime.fromisoformat(e.get("end") or e["start"]) <= now
+
+
 def _parse(s: str | None) -> date | None:
     try:
         return date.fromisoformat((s or "")[:10])
@@ -78,6 +88,10 @@ def agenda_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         window = (start, _parse(params.get("until")) or start)
     start, end = window or (today, today)
     events = events_between(ctx, start, end)
+    if (start, end) == (today, today) and ctx.now.astimezone().hour >= LATE_HOUR \
+            and not any(not e.get("all_day") and not _over(e, ctx.now) for e in events):
+        end = today + timedelta(days=1)  # late with nothing left today: you mean tomorrow too
+        events = events_between(ctx, start, end)
     directory = PeopleDirectory.load(ctx.home)
     lines = []
     for i in range((end - start).days + 1):
@@ -92,7 +106,8 @@ def agenda_intent(ctx: Ctx, question: str, params: dict) -> Answer:
                      else (a.get("name") or a["email"]) for a in others]
             who = f" · with {', '.join(names[:4])}" + (f" +{len(names) - 4}" if len(names) > 4 else "") if names else ""
             when = "All day" if e.get("all_day") else f"{datetime.fromisoformat(e['start']).astimezone():%-I:%M %p}"
-            lines.append(f"  {when}  {e.get('title')}{who}")
+            over = " (over)" if day == today and not e.get("all_day") and _over(e, ctx.now) else ""
+            lines.append(f"  {when}  {e.get('title')}{who}{over}")
         if i < (end - start).days:
             lines.append("")
     return Answer(plain="\n".join(lines))

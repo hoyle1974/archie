@@ -70,3 +70,32 @@ def test_brief_does_not_prep_personal_events(tmp_path):
     from archie.ask.intents.brief import brief_intent
 
     assert "no upcoming meetings" in render(brief_intent(ctx, "prep me", {"meeting": None})).lower()
+
+
+LATE = datetime(2026, 10, 3, 6, 57, tzinfo=timezone.utc)  # Fri Oct 2, 11:57 PM PDT
+
+
+def test_late_at_night_today_marks_what_is_over_and_shows_tomorrow(tmp_path):
+    route = understood(question("agenda"))
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=route)), now=LATE)
+    seed(ctx)
+    put(ctx, cal_event("f", "Pick up Acorn", "2026-10-02T23:00:00Z", "2026-10-02T23:30:00Z"), "Strohm's Calendar")
+    out = render(ask(ctx, "Really, nothing on the calendar today? Earlier I saw a cake pickup"))
+    assert "Friday, Oct 2\n  4:00 PM  Pick up Acorn (over)" in out
+    assert "Saturday, Oct 3" in out and "10:30 AM  Goodspouse - greenhouse cake pick up" in out
+
+
+def test_earlier_in_the_evening_today_stays_today(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("agenda")))),
+                   now=datetime(2026, 10, 3, 3, 0, tzinfo=timezone.utc))  # Fri 8 PM PDT
+    seed(ctx)
+    out = render(ask(ctx, "what's on today?"))
+    assert "Saturday" not in out
+
+
+def test_what_is_tomorrow_is_answered_by_code(tmp_path):
+    fb = FakeBackend([])
+    ctx = make_ctx(tmp_path, fb, now=NOW)
+    seed(ctx)
+    out = render(ask(ctx, "What is tomorrow?"))
+    assert out.startswith("Saturday, Oct 3") and fb.calls == []

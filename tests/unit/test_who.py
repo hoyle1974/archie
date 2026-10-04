@@ -56,3 +56,37 @@ def test_unknown_person_says_so(tmp_path):
     ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["Zed"])))))
     seed(ctx)
     assert "don't know anyone called Zed" in render(ask(ctx, "who is Zed?"))
+
+
+EMPTY = {"summary": [], "sections": []}
+
+
+def test_someone_known_only_from_a_telling_gets_a_sentence(tmp_path):
+    from archie.ask.remember import apply_facts
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["Sam"])),
+                                                   answer=EMPTY)))
+    seed(ctx)
+    apply_facts(ctx, "Sam is my neighbor.", [{"name": "Sam", "relationship": "neighbor",
+                                               "statement": "Sam is my neighbor."}])
+    ctx.index.sync()
+    out = render(ask(ctx, "who is Sam?"))
+    assert out.startswith("Sam is your neighbor. That's all I know so far.")
+
+
+def test_a_stated_relationship_leads_even_when_the_mail_never_says_it(tmp_path):
+    from archie.ask.remember import apply_facts
+
+    def answer(system, user, schema, tier):
+        ref = next(line for line in user.splitlines() if line.startswith("[") and "SSO dates" in line)[1]
+        return {"summary": [{"text": "Priya asked to ship SSO before the Redis migration.",
+                             "citations": [{"ref": int(ref), "quote": "ship SSO before the Redis migration"}]}],
+                "sections": []}
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["Priya"])),
+                                                   answer=answer)))
+    seed(ctx)
+    apply_facts(ctx, "Priya is my manager.", [{"name": "Priya", "relationship": "manager",
+                                                "statement": "Priya is my manager."}])
+    out = render(ask(ctx, "who is Priya?"))
+    assert out.startswith("Priya Sharma is your manager. Priya asked to ship SSO")

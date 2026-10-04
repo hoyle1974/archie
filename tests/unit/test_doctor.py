@@ -39,3 +39,24 @@ def test_no_sources_is_reported(tmp_path):
     home.me_file.write_text("name: Test\nemails: [j@x.example]\n")
     msgs = [m for ok, m in doctor.run_checks(home) if not ok]
     assert any("no sources" in m for m in msgs)
+
+
+def test_install_check_names_a_missing_package_and_the_fix(tmp_path):
+    from importlib import metadata
+
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text('[project]\nname = "archie"\ndependencies = ["pyyaml>=6", "google-genai>=2.28"]\n')
+
+    def installed(name):
+        if name == "google-genai":
+            raise metadata.PackageNotFoundError(name)
+        return "6.0"
+
+    ok, msg = doctor.check_install(pyproject, installed, prefix="/Users/x/.local/share/uv/tools/archie")
+    assert not ok and "missing google-genai" in msg and "uv tool install -e" in msg and "--reinstall" in msg
+    assert doctor.check_install(pyproject, lambda n: "1.0")[0]
+
+
+def test_install_check_passes_in_this_checkout():
+    ok, msg = doctor.check_install()
+    assert ok, msg

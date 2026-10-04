@@ -14,7 +14,7 @@ from archie.ask.intents import intent
 from archie.ask.synthesize import synthesize
 from archie.derive.people import PeopleDirectory
 from archie.index.chunk import short_date
-from archie.llm.verify import Packet
+from archie.llm.verify import Claim, Packet
 
 INSTRUCTIONS = """- Start with who this person is (role, how {me_name} knows them) if the sources say.
 - Then the most recent thing they discussed or anything still open between them.
@@ -50,6 +50,17 @@ def person_lines(directory: PeopleDirectory, eid: str, history: list[dict], fact
     if threads:
         lines.append(f"{len(threads)} email thread{'s' if len(threads) != 1 else ''} together")
     return lines
+
+
+def told_sentence(directory: PeopleDirectory, eid: str) -> str | None:
+    """One plain sentence from what the user told Archie: "Sam is your neighbor." """
+    meta = directory.meta[eid]
+    name = directory.name(eid)
+    if meta.get("relationship"):
+        return f"{name} is your {meta['relationship']}."
+    if meta.get("role"):
+        return f"{name}: {meta['role']}."
+    return None
 
 
 FAMILY = re.compile(r"\b(wife|husband|partner|spouse|son|daughter|child|kid|oldest|youngest|middle|mother|"
@@ -100,6 +111,14 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         about += f" Never call them: {', '.join(meta['avoid'])}."
     answer = synthesize(ctx, question, packet, INSTRUCTIONS.replace("{me_name}", ctx.me.name or "the user"),
                         extra_context=about)
+    told = told_sentence(directory, eid)
+    said = " ".join(c.text for c in answer.summary).lower()
+    if not answer.summary:  # the model had nothing to cite: open with what you told me
+        only = " That's all I know so far." if not history else ""
+        answer.summary = [Claim((told or f"I have {directory.name(eid)} on file, but nothing that says who they are.")
+                                + only, [])]
+    elif told and meta.get("relationship") and str(meta["relationship"]).lower() not in said:
+        answer.summary.insert(0, Claim(told, []))  # what you said leads, even if the mail never says it
     recent, seen = [], set()
     for h in history:
         if h["path"] not in seen:

@@ -8,6 +8,7 @@ each with a verified quote. They live inside the fence; the user's notes are unt
 from __future__ import annotations
 
 import re
+from datetime import datetime
 
 import yaml
 
@@ -22,6 +23,7 @@ from archie.store.fence import get_fence, set_fence
 from archie.store.files import atomic_write, read_note, write_note
 
 MAX_FACTS = 8
+OLD_DAYS = 365  # sources older than this are written about in the past tense
 SHAPE = Shape("people_facts", records=(Record("FACT", "facts", F("text", hint="short phrase"),
                                               (F("cite", "cite"),)),),
               example='FACT Product manager for auth\ncite: [2] "I\'m the PM for auth"')
@@ -57,8 +59,12 @@ def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str, fail
     mine = read_note(path).body.split("<!-- archie:auto -->")[0].replace("## My notes", "").strip()
     if told or mine:
         system += ("\n\nWhat the user has told you about them is ground truth. Never state a fact that "
-                   "contradicts it (e.g. if they say 'my child', never write 'son').\n"
+                   "contradicts it (e.g. if they say 'my child', never write 'son'). Don't restate it "
+                   "either: Archie already shows it in the user's own words.\n"
                    + (f"Stated: {told}\n" if told else "") + (f"Their notes:\n{mine}" if mine else ""))
+    if newest and (ctx.now - datetime.fromisoformat(newest).replace(tzinfo=ctx.now.tzinfo)).days > OLD_DAYS:
+        system += (f"\n\nThe newest source is from {newest[:4]}, over a year ago. Write each fact in the past "
+                   f"tense with its year (\"In {newest[:4]}, handled your app issue\"), never as if it's current.")
     user = f"{people_context(ctx, packet)}\n\nSources about {name}:\n\n{packet.render()}".lstrip()
     try:
         out = ctx.backend.complete(system, user, SHAPE, tier="fast")

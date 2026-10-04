@@ -4,6 +4,7 @@ working. Each check returns (ok, message)."""
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 from typing import Callable
 
 from archie.config import load_config, load_me
@@ -103,9 +104,42 @@ def check_google_usage(home: Home, cfg: dict, clock: Callable | None = None) -> 
     return "error" not in entry, google_usage.status_line(entry)
 
 
+def _requirement_name(req: str) -> str:
+    import re
+
+    return re.split(r"[\s<>=!~;\[]", req.strip(), maxsplit=1)[0]
+
+
+def check_install(pyproject: Path | None = None, installed: Callable | None = None,
+                  prefix: str | None = None) -> Check:
+    """Every package pyproject.toml lists is installed. An editable install picks up code
+    changes but not new packages (Oct 4: "No module named 'google.genai'" stopped every ask)."""
+    import sys
+    import tomllib
+    from importlib import metadata
+
+    repo = Path(__file__).resolve().parent.parent
+    pyproject = pyproject or repo / "pyproject.toml"
+    if not pyproject.exists():
+        return True, "install: not a source checkout; nothing to compare"
+    wanted = [_requirement_name(r) for r in tomllib.loads(pyproject.read_text())["project"].get("dependencies", [])]
+    version = installed or metadata.version
+    missing = []
+    for name in wanted:
+        try:
+            version(name)
+        except metadata.PackageNotFoundError:
+            missing.append(name)
+    if not missing:
+        return True, f"install: all {len(wanted)} packages present"
+    tool = "/uv/tools/" in (prefix if prefix is not None else sys.prefix)
+    fix = f"uv tool install -e {repo} --reinstall" if tool else f"uv sync (in {repo})"
+    return False, f"install is out of date, missing {', '.join(missing)}: run `{fix}`"
+
+
 def run_checks(home: Home) -> list[Check]:
     cfg = load_config(home)
-    results = [check_me(home), check_gemini()]
+    results = [check_install(), check_me(home), check_gemini()]
     spend = check_budget(home, cfg)
     if spend:
         results.append(spend)

@@ -386,6 +386,7 @@ snoozed_until: null
 sources:
   - {file: sources/gmail/18c2f.json, chunk: c0, quote: "can you review the Redis fallback patch before Friday?"}
 closed_by: null           # {file, chunk, quote} or {user: "said done 2026-10-02"}
+replied: null             # waiting_on only: when they last wrote in the thread after it opened (code, no model)
 ---
 
 <!-- archie:auto -->

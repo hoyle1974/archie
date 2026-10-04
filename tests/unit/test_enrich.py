@@ -149,3 +149,24 @@ def test_a_person_whose_reply_keeps_failing_stops_costing_calls(tmp_path):
     for _ in range(MAX_TRIES + 2):
         enrich_people(ctx)
     assert len(fb.calls) == MAX_TRIES
+
+
+def test_old_contacts_are_written_in_the_past_tense_and_quotes_kept_plain(tmp_path):
+    systems = []
+
+    def reply(s, u, sc, t):
+        systems.append(s)
+        return {"facts": []}
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(people_facts=reply)))
+    p = write_thread(ctx.home, "t9", [msg("m9", "nick@support.example", "Nick", [addr(TEST)],
+                                          "2023-07-17T14:47:09+00:00", "We are actively working on resolving it.",
+                                          to_me=True)])
+    derive_people(ctx, [p])
+    ctx.index.sync()
+    enrich_people(ctx)
+    assert "from 2023, over a year ago" in systems[0] and "past tense" in systems[0]
+    assert "Never cite a passage about an accusation" in systems[0]
+    seed(ctx)  # Workperson wrote this week: no past-tense rule
+    enrich_people(ctx)
+    assert "past tense" not in systems[-1]
