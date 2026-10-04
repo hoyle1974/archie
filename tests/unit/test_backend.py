@@ -111,7 +111,10 @@ def test_errors_are_explained(exc, words):
 def test_empty_reply_is_explained():
     for resp, words in [(reply(None, finish=None, block="SAFETY"), "blocked the request \\(SAFETY\\)"),
                         (reply(None, finish="MAX_TOKENS"), "cut off at the output limit"),
-                        (reply("  "), "empty reply")]:
+                        (reply("  "), "empty reply"),
+                        (reply("a: ok\nLOOP asked_of_me", finish="MAX_TOKENS"), "cut off at the output limit"),
+                        (SimpleNamespace(text=None, candidates=[SimpleNamespace(finish_reason=None)],
+                                         prompt_feedback=None), "empty reply")]:
         with pytest.raises(LLMError, match=words) as err:
             GeminiBackend(LLM, client=Client(resp)).generate("s", "u")
         assert err.value.about_input

@@ -119,16 +119,16 @@ class GeminiBackend(TextBackend):
             raise LLMError(f"Gemini didn't answer within {TIMEOUT_S.get(tier, 60)} seconds") from exc
         except httpx.TransportError as exc:
             raise LLMError("couldn't reach Gemini; check the network connection") from exc
+        finish = getattr(resp.candidates[0].finish_reason, "name", "") if resp.candidates else ""
+        if finish == "MAX_TOKENS":  # even with some text: a cut-off reply can parse as complete
+            raise LLMError("Gemini's reply was cut off at the output limit (llm.max_output_tokens in config.yaml)",
+                           about_input=True)
         text = resp.text
         if text and text.strip():
             return text
         block = getattr(getattr(resp, "prompt_feedback", None), "block_reason", None)
         if block:
             raise LLMError(f"Gemini blocked the request ({block.name})", about_input=True)
-        finish = resp.candidates[0].finish_reason.name if resp.candidates else ""
-        if finish == "MAX_TOKENS":
-            raise LLMError("Gemini's reply was cut off at the output limit (llm.max_output_tokens in config.yaml)",
-                           about_input=True)
         raise LLMError("Gemini returned an empty reply", about_input=True)
 
 

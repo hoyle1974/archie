@@ -19,7 +19,7 @@ from archie.store.files import Note, read_note, write_note
 SHAPE = Shape("remember", records=(Record("PERSON", "people", F("name"), (
     F("relationship", required=False), F("role", required=False), F("pronouns", required=False),
     F("identity", required=False), F("avoid", "list", required=False), F("other_names", "list", required=False),
-    F("statement", hint="their sentence(s) copied exactly from the message"))),),
+    F("statement", "quote", hint="their sentence(s) from the message"))),),
     example="PERSON Goodspouse\nrelationship: wife\nrole: -\npronouns: she/her\nidentity: -\navoid: -\n"
             "other_names: Belle; Goodspouse Mae Testerson\nstatement: Goodspouse is my wife.")
 

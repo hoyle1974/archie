@@ -43,7 +43,9 @@ Two reply shapes cover every call.
   by one inline value (the record's main field). Field lines below it belong to it until
   the next header.
 - A citation value is `[n] "quote"` and parses into `ref` (int) and `quote` (str).
-- No records means an empty list. The model may write `NONE` to say so explicitly.
+- The model writes `NONE` when there are no records. For a shape that has only records, a
+  reply with neither a record nor `NONE` is a problem (it's unreadable, not "nothing found"),
+  so it is retried and never marks the item as processed.
 
 ```
 intent: loop_update

@@ -42,6 +42,37 @@ def test_records_with_head_cites_and_optional_fields():
 
 def test_none_means_no_records():
     assert LOOPS.parse("NONE") == ({"loops": []}, [])
+    assert LOOPS.parse("- **NONE**") == ({"loops": []}, [])
+
+
+def test_a_records_only_reply_with_no_blocks_and_no_none_is_unreadable():
+    for reply in ('{"loops": [{"kind": "asked_of_me"}]}', "Here are the loops I found:\n1. Alex asked me [3]"):
+        out, problems = LOOPS.parse(reply)
+        assert out == {"loops": []} and problems == ["no LOOP blocks and no NONE"]
+
+
+def test_first_top_level_value_wins():
+    out, problems = ROUTE.parse("intent: search\ntext: my notes\nIntent: remember")
+    assert problems == [] and out["intent"] == "search"
+
+
+def test_quote_fields_drop_wrapping_quote_marks_only():
+    shape = Shape("q", fields=(F("quote", "quote"), F("other", "quote")))
+    out, _ = shape.parse('quote: "I need to update the runbook by next Wed".\nother: Goodspouse is my wife.')
+    assert out == {"quote": "I need to update the runbook by next Wed", "other": "Goodspouse is my wife."}
+
+
+def test_number_lists_take_the_leading_number_of_each_item():
+    shape = Shape("n", fields=(F("loops", "int_list"),))
+    assert shape.parse("loops: 2 (until 2026-10-05)")[0] == {"loops": [2]}
+    assert shape.parse("loops: 2; [3]; item 4")[0] == {"loops": [2, 3]}
+    assert shape.parse("loops: 2, 5")[0] == {"loops": [2, 5]}
+
+
+def test_lists_split_on_commas_when_there_is_no_semicolon():
+    shape = Shape("l", fields=(F("people", "list"),))
+    assert shape.parse("people: Alex, Priya")[0] == {"people": ["Alex", "Priya"]}
+    assert shape.parse("people: Rivera, Alex; Priya")[0] == {"people": ["Rivera, Alex", "Priya"]}
 
 
 def test_records_come_after_top_level_fields():
@@ -80,6 +111,12 @@ def test_claims_summary_sections_and_several_citations():
     assert out["sections"] == [{"heading": "How it unfolded", "items": [
         {"text": "It shipped Sep 29.", "citations": [{"ref": 5, "quote": "has shipped"},
                                                      {"ref": 4, "quote": "Order #507509S"}]}]}]
+
+
+def test_a_claim_starting_with_hash_is_not_a_heading():
+    out, _ = ANSWER.parse('SUMMARY\n#4521 merged Oct 2. [2] "PR #4521 merged"')
+    assert out["sections"] == []
+    assert out["summary"] == [{"text": "#4521 merged Oct 2.", "citations": [{"ref": 2, "quote": "PR #4521 merged"}]}]
 
 
 def test_quote_may_contain_double_quotes_and_bare_markers_get_empty_quotes():

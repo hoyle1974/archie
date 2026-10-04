@@ -14,10 +14,11 @@ from dataclasses import dataclass
 
 NULLS = {"", "-", "none", "null", "n/a"}
 OPEN_QUOTES, CLOSE_QUOTES = "\"“'‘", "\"”'’"
-KIND_TEXT = {"text": "text", "list": "list, separated by ;", "int": "a number",
+KIND_TEXT = {"text": "text", "quote": "words copied exactly", "list": "list, separated by ;", "int": "a number",
              "int_list": "numbers, separated by ;", "bool": "yes or no",
              "cite": '[n] "words copied exactly from source n"'}
 _BULLET = re.compile(r"^(?:[-*•]|\d+[.)])\s+")
+_HEADING = re.compile(r"^#{1,6}\s")
 _HEAD = re.compile(r"^([A-Za-z_]+)\b[:\s]*(.*)$")
 _KV = re.compile(r"^([A-Za-z][\w ]*?)\s*:\s*(.*)$")
 _CITE = re.compile(r"\[(\d+)\]\s*(?=[\"“'‘])")
@@ -109,6 +110,14 @@ def _unquote(text: str) -> str:
     return text.strip()
 
 
+def _unwrap(text: str) -> str:
+    """Drop quote marks around the whole value, keeping everything else as written."""
+    inner = text.rstrip(".,;").strip()
+    if len(inner) >= 2 and inner[0] in OPEN_QUOTES and inner[-1] in CLOSE_QUOTES:
+        return inner[1:-1].strip()
+    return text
+
+
 def _put(out: dict, f: F, raw: str | None, problems: list[str], where: str) -> None:
     value = None if raw is None or raw.strip().lower() in NULLS else raw.strip()
     if value is None:
@@ -120,12 +129,16 @@ def _put(out: dict, f: F, raw: str | None, problems: list[str], where: str) -> N
     try:
         if f.kind == "text":
             out[f.name] = value
+        elif f.kind == "quote":
+            out[f.name] = _unwrap(value)
         elif f.kind == "list":
-            out[f.name] = [x.strip() for x in value.split(";") if x.strip().lower() not in NULLS]
+            items = value.split(";" if ";" in value else ",")
+            out[f.name] = [x.strip() for x in items if x.strip().lower() not in NULLS]
         elif f.kind == "int":
             out[f.name] = int(re.match(r"\[?(-?\d+)", value).group(1))
         elif f.kind == "int_list":
-            out[f.name] = [int(x) for x in re.findall(r"\d+", value)]
+            heads = (re.match(r"\s*\[?(\d+)", x) for x in re.split(r"[;,]", value))
+            out[f.name] = [int(m.group(1)) for m in heads if m]
         elif f.kind == "bool":
             flag = {"yes": True, "y": True, "true": True, "no": False, "n": False, "false": False}[value.lower()]
             out[f.name] = flag
@@ -146,8 +159,12 @@ def _parse_fields(shape: Shape, text: str) -> tuple[dict, list[str]]:
     recs = {r.keyword: r for r in shape.records}
     raw_top: dict[str, str] = {}
     blocks: list[tuple[Record, dict[str, str]]] = []
+    said_none = False
     for line in _lines(text):
         line = _BULLET.sub("", line.replace("**", "")).strip()
+        if line.upper() == "NONE":
+            said_none = True
+            continue
         head = _HEAD.match(line)
         if head and head.group(1).upper() in recs:
             blocks.append((recs[head.group(1).upper()], {"": head.group(2)}))
@@ -161,8 +178,10 @@ def _parse_fields(shape: Shape, text: str) -> tuple[dict, list[str]]:
         elif blocks and key == blocks[-1][0].head.name:
             blocks[-1][1][""] = value
         elif key in top:
-            raw_top[key] = value
+            raw_top.setdefault(key, value)  # a later look-alike line (e.g. inside pasted text) can't override
     problems: list[str] = []
+    if shape.records and not shape.fields and not blocks and not said_none:
+        problems.append(f"no {'/'.join(r.keyword for r in shape.records)} blocks and no NONE")
     out: dict = {}
     for f in shape.fields:
         _put(out, f, raw_top.get(f.name), problems, "")
@@ -208,7 +227,7 @@ def _parse_claims(text: str) -> dict:
             started, current = True, None
         elif not started:
             continue
-        elif line.startswith("#"):
+        elif _HEADING.match(line):
             current = {"heading": line.lstrip("#").strip(), "items": []}
             sections.append(current)
         else:

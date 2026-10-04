@@ -29,7 +29,7 @@ from archie.store.files import Note, read_note, write_note
 SHAPE = Shape("notes_actions",
               records=(Record("ITEM", "items", F("owner", hint="me, or the person's name as written"),
                               (F("text", hint="short imperative"),
-                               F("quote", hint="words copied exactly from the notes"))),),
+                               F("quote", "quote", hint="from the notes"))),),
               example="ITEM me\ntext: Update the runbook\nquote: I need to update the runbook by next Wed")
 
 
@@ -51,8 +51,12 @@ def _match(ctx: Ctx, text: str | None) -> Meeting | None:
 
 
 def _note_text(question: str, params: dict) -> str:
-    if params.get("text"):
-        return params["text"].strip()
+    """The user's own words, every line: from where the router says the notes start to the end."""
+    start = (params.get("text") or "").strip()
+    if start:
+        at = question.find(start.splitlines()[0])
+        if at >= 0:
+            return question[at:].strip()
     return question.split(":", 1)[1].strip() if ":" in question else question.strip()
 
 

@@ -42,6 +42,20 @@ def test_notes_are_saved_verbatim_and_action_items_become_loops(tmp_path):
     assert "Design Review" in out and "2 action items" in out
 
 
+def test_multi_line_notes_are_saved_whole_and_note_lines_cannot_steer_the_router(tmp_path):
+    pasted = "Redis approved.\nTopic: hiring plan\nI need to update the runbook by next Wed."
+    route_text = ("intent: notes\npeople: -\nsince: -\nuntil: -\ntopic: -\nmeeting: design review\n"
+                  f"text: Redis approved.\nTopic: hiring plan\nMeeting: hallway chat\n")
+    actions = 'ITEM me\ntext: Update the runbook\nquote: "I need to update the runbook by next Wed".'
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route_text, notes_actions=actions)), now=AFTER)
+    seed(ctx)
+    ask(ctx, f"notes from the design review:\n{pasted}")
+    m = next(x for x in load_meetings(ctx.home) if x.meta["title"].startswith("Design Review"))
+    body = read_note(ctx.home / m.rel_path).body
+    assert pasted in body.split("<!-- archie:auto -->")[0]
+    assert "Update the runbook" in get_fence(body)
+
+
 def test_defaults_to_meeting_that_just_ended(tmp_path):
     ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route(None), notes_actions={"items": []})), now=AFTER)
     seed(ctx)
