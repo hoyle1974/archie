@@ -11,7 +11,7 @@ tags: [component]
   1. `same_person`: two dossiers that are probably one person.
   2. `loop_done`: "Did you finish …?" for a `maybe_done` loop. Yes closes it; no reopens it and clears `closed_by`.
   3. `loop_stale`: "Do you still need to …?" for a loop more than a week past due. Yes keeps it and clears the due date; no closes it.
-  4. `who_is`: "Who is x@y?" for someone you correspond with who is known only by an address. The user answers through `remember`, and the question resolves itself once a name, relationship or role exists.
+  4. `who_is`: "Who is x@y?" for someone you correspond with who is known only by an address. The user answers by telling Archie about them (the `remember` code) or by saying to ignore them. The question resolves itself once a name, relationship or role exists, or once the sender is ignored; ignored senders are never asked about.
 
   Questions answered some other way, such as a loop closed by hand, resolve themselves right away: `resolve_answered` runs after every answer and before Today is drawn, with no model call.
 - `find_duplicates` (`dedupe.py`) is called by the audit.

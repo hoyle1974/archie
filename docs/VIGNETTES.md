@@ -30,7 +30,7 @@ remove the mark and set the row to ✅.
 | K | Weekly brag doc              | ledger → journal                                                | M4 | ✅ |
 | L | Someone new                  | Calendar, Gmail → stub dossiers, bootstrap                      | M2 | ✅ |
 | M | Conflicting sources          | all → conflict callout in briefings                             | M3 | ✅ (both sides reach the model) |
-| N | Telling Archie something     | Gmail, questions → understand, told record, ignore list         | M5 | ⬜ |
+| N | Telling Archie something     | Gmail, questions → understand, told record, ignore list         | M5 | ✅ |
 | O | Follow-ups                   | ask history → understand, conversation memory, citations        | M5 | ✅ |
 | P | "I can't do that yet"        | ask → understand, actions, gaps                                 | M5 | ⬜ |
 | Q | "Which one did you mean?"    | loops, people → understand, pending questions                   | M5 | ⬜ |
@@ -288,9 +288,14 @@ marketing sender.
 
 **Archie shows:**
 ```
-Got it. I'll ignore Goodcompany (ftbrmktf@sxziiqsov.us) from now on.
-Say "stop ignoring Goodcompany" to undo.
+Got it. I'll ignore ftbrmktf@sxziiqsov.us from now on.
+Say "stop ignoring ftbrmktf@sxziiqsov.us" to undo.
+I also dismissed 1 open item from them.
 ```
+
+Archie only knows this sender by address (that's why it asked), so the reply names the
+address. When a sender has a name, the reply uses it: `Goodcompany
+(ftbrmktf@sxziiqsov.us)`. The last line appears only when open items were dismissed.
 
 **What happens.** The sentence is saved word for word in `journal/told.md`. The address
 goes into the `ignore:` list in `config.yaml`, and the "Who is …?" question resolves.
@@ -298,7 +303,7 @@ From then on the sender creates no open items or questions, doesn't appear in To
 isn't cited in answers unless the user asks about them by name.
 
 **Acceptance:** the user's words are in the file. The next sync's checks ask nothing about
-the sender, answers don't cite them, and "stop ignoring Goodcompany" undoes it. The
+the sender, answers don't cite them, and "stop ignoring ftbrmktf@sxziiqsov.us" undoes it. The
 user's statement is never checked against the archive.
 
 ## O. Follow-ups

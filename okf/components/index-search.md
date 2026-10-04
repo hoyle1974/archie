@@ -10,6 +10,7 @@ tags: [component]
 - `chunk.py`: `chunk_file(rel_path, text)`.
   - Markdown: the frontmatter is one chunk, then one chunk per heading section. Long sections become 280-word windows overlapping by 40 words. Offsets index into the file text.
   - Raw JSON under `sources/<source>/`: goes to the chunker that connector registered with `register_raw_chunker`. Tombstoned files produce no chunks.
+  - `Chunk.sender`: the sender's address on email excerpts (set by the Gmail chunker), empty otherwise.
 - `embed.py`:
   - `SentenceTransformerEmbedder` adds bge's query prefix and normalizes vectors. A vector hit counts only if its cosine similarity is at least 0.5; real bge scores showed related text at 0.50–0.61 and unrelated text around 0.42.
   - `HashEmbedder` is a deterministic embedder for tests.
@@ -20,7 +21,9 @@ tags: [component]
   - `sync()` re-indexes changed files and drops deleted ones. It embeds each file outside the lock and writes that file's rows in one short locked transaction, so questions never wait behind a long sync.
   - Worker threads share one SQLite connection, so every read goes through `query()` under an `RLock`, and `sync()` holds the same lock.
   - Only `sources/` and the folders of derived notes are indexed; config, state and logs never are.
-- `search.py`: `search(idx, q, k, source, since, until, people)`.
+- `search.py`: `search(idx, q, k, source, since, until, people, skip_senders, senders)`.
   - Takes the top 50 FTS hits (each token quoted and OR'ed) and the top 50 vector hits, then merges them with RRF (k=60) before filtering.
+  - `skip_senders` drops hits from those senders (addresses or `@domain`s); `senders`, when not empty, keeps only hits from them. Each `Hit` carries its `sender`.
+  - Schema version 3 added the `sender` column, so an older index rebuilds itself.
 
 The database is disposable ([principle](../principles/disposable-index.md)), and a test proves a rebuild returns the same results. Design: [DESIGN §5.3–5.4](../../docs/DESIGN.md#53-chunking).

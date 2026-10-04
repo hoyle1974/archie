@@ -7,7 +7,8 @@ status: active
 tags: [component]
 ---
 
-- `load_config(home)`: deep-merges the user's `config.yaml` over `DEFAULTS`, which cover sync, llm, index, briefings, loops and connectors.
+- `load_config(home)`: deep-merges the user's `config.yaml` over `DEFAULTS`, which cover sync, llm, index, briefings, loops, ignore and connectors.
+- `ignore`: addresses or `@domain`s the user told Archie to ignore. Written by [`set_ignored`](derivers.md); read together with `loops.mute`.
 - `Me`:
   - `is_me(identifier)` matches an email address or handle exactly, ignoring case.
   - `mentioned_in(text)` matches a name alias as a whole word, so "Test" does not match "Jackson".

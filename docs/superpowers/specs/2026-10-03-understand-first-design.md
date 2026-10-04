@@ -222,6 +222,17 @@ was). The file is the user's to read and edit; Archie only appends.
 - Reply (written by code): "Got it. I'll ignore Goodcompany (ftbrmktf@sxziiqsov.us)
   from now on. Say 'stop ignoring Goodcompany' to undo."
 
+### 3.4 Added while building step 2
+
+- The told line is written after applying (so the arrow can say what happened), in a
+  `finally`, so the words are saved even if applying fails.
+- Yes/no answers are saved too, with the first line of Archie's reply after the arrow.
+- A question about something the user sent ("the message I sent them") sets `mine: yes`;
+  the search tries the user's own mail first. Found in step 1's live check.
+- An answer with no claims, where none were dropped, says "I found related material, but
+  none of it answers that." instead of "couldn't verify".
+- When Archie knows a sender only by address, the reply names the address (vignette N).
+
 ## 4. Instructions
 
 ### 4.1 Actions

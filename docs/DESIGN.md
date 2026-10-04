@@ -93,7 +93,7 @@ from a shell.
 ```
 ~/.archie/
 ├── .gitignore               # archie.db*, logs/, .lock
-├── config.yaml              # enabled sources, intervals, LLM backend, thresholds
+├── config.yaml              # enabled sources, intervals, LLM backend, thresholds, ignore list
 ├── me.yaml                  # the user's identities (see §4.1)
 ├── state/
 │   ├── cursors.yaml         # per-source sync cursors (tracked in git)
@@ -110,6 +110,7 @@ from a shell.
 ├── briefings/<YYYY-MM-DD>/<HHMM>-<slug>.md  # generated briefings (kept as history)
 ├── loops/<YYYY>/<loop_id>.md
 ├── journal/weekly/<YYYY>-W<ww>.md           # weekly accomplishments
+├── journal/told.md                         # what you told Archie, word for word (Archie appends)
 ├── config/meeting_types.yaml               # user overrides: series → type
 ├── archie.db                # disposable index (ignored)
 └── logs/                    # ignored
@@ -287,13 +288,14 @@ Derivers are idempotent: running one twice on the same input gives the same file
 | Jira issue        | description, then each comment as its own chunk         |
 | GitHub            | PR body, each review comment, each commit message       |
 
-Each chunk records `(file_path, chunk_id, char_start, char_end, source, ts, people[])`.
+Each chunk records `(file_path, chunk_id, char_start, char_end, source, ts, people[], sender)`.
+`sender` is the sender's address on email excerpts and empty otherwise.
 `chunk_id` is stable for a given file version (index-based plus a content hash).
 
 ### 5.4 Index (`archie.db`)
 
 - `files(path PRIMARY KEY, sha256, indexed_at)`: the hash list that decides what to re-index.
-- `chunks(chunk_id, path, char_start, char_end, source, ts, people_json)`
+- `chunks(chunk_id, path, char_start, char_end, source, ts, people_json, label, sender)`
 - `chunks_fts`: an FTS5 table over chunk text
 - `chunks_vec`: a `vec0` table, `embedding FLOAT[384]`
 - `meta(key, value)`: `embed_model`, `chunker_version`, `schema_version`. A mismatch
@@ -321,8 +323,9 @@ A loop is something that needs closing and involves the user.
 ### 6.2 Detection
 
 1. **Code pre-filter:** keep only messages that involve the user (per `me.yaml`).
-   Skip automated mail (a `List-Unsubscribe` header, noreply senders, `loops.mute` in
-   `config.yaml`, and inbound mail Gmail didn't file as Personal). Only NEW messages are
+   Skip automated mail (a `List-Unsubscribe` header, noreply senders, ignored senders
+   (the `ignore` list plus `loops.mute` in `config.yaml`), and inbound mail Gmail didn't
+   file as Personal). Only NEW messages are
    read (`state/loops_seen.yaml`). Being in To ranks above being in Cc.
 2. **LLM extraction:** a cheap model reads each new message and returns candidate loops
    `{kind, summary, quote}`. The model gives no due date and no counterpart.
@@ -486,11 +489,15 @@ What changed
 | `help`        | "what can you do?", "how do I …?"                         | (all) |
 | fallback      | anything else: hybrid search plus a cited answer          | — |
 
-Tellings, instructions and answers are not intents. Until build steps 2–3 of the
-understand-first spec land, tellings and answers to "Who is …?" use the `remember` code,
-yes/no answers use `clarify`, and instructions use `loop_update` (done, snooze, dismiss,
-reopen), `correct` (meeting type, merging names) and `notes`. Sending anything gets "I
-can't send anything; I only read."
+Tellings, instructions and answers are not intents. Every telling, and every answer to
+one of Archie's questions, is saved word for word in `journal/told.md`, then applied:
+facts about a person (the `remember` code), ignoring or un-ignoring a sender (the
+`ignore:` list in `config.yaml`; their mail makes no open items or questions, and answers
+leave it out unless the question names them), or nothing yet ("Saved. I don't use that for
+anything yet."). Yes/no answers use `clarify`. Until build step 3 of the understand-first
+spec lands, instructions use `loop_update` (done, snooze, dismiss, reopen), `correct`
+(meeting type, merging names) and `notes`. Sending anything gets "I can't send anything;
+I only read."
 
 `archie admin` (not for daily use): `init`, `sync`, `rederive`, `reindex`, `status`,
 `connect google|jira`.
