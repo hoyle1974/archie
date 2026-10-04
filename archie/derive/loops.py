@@ -24,6 +24,7 @@ from archie.ask.context import Ctx
 from archie.connectors.gmail import chunk_thread
 from archie.derive.dates import due_in
 from archie.derive.failures import Failures
+from archie.derive.ignore import on_list
 from archie.derive.people import PeopleDirectory, looks_personal, slug
 from archie.llm.backend import LLMError
 from archie.llm.prompts import load_prompt
@@ -81,13 +82,8 @@ def _seen_file(home: Home) -> Path:
     return home / "state/loops_seen.yaml"
 
 
-def _muted(email: str, mute: list[str]) -> bool:
-    e = (email or "").lower()
-    return any(e == x.lower() or (x.startswith("@") and e.endswith(x.lower())) for x in mute or [])
-
-
 def _relevant(m: dict, mute: list[str] | None = None) -> bool:
-    if m.get("bulk") or (not m.get("from_me") and _muted(m.get("from_email", ""), mute or [])):
+    if m.get("bulk") or (not m.get("from_me") and on_list(m.get("from_email", ""), mute or [])):
         return False
     return bool(m.get("from_me")) or ((m.get("to_me") or m.get("cc_me")) and looks_personal(m))
 

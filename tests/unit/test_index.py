@@ -149,3 +149,25 @@ def test_questions_are_not_blocked_while_a_sync_is_embedding(tmp_path):
     search(idx, "anything")
     assert time.monotonic() - started < 0.4
     t.join()
+
+
+def _sender_chunker(path, data):
+    return [Chunk("c0", path, 0, 0, data["body"], source="sendertest", ts=data["ts"], sender=data["from"])]
+
+
+register_raw_chunker("sendertest", _sender_chunker)
+
+
+def test_search_can_leave_out_or_keep_only_some_senders(tmp_path):
+    home = init_home(tmp_path / "home")
+    for name, frm in (("a", "deals@spam.example"), ("b", "ken@acme.example"), ("c", "test@acme.example")):
+        write_raw(home / f"sources/sendertest/{name}.json",
+                  {"body": f"Yeti cooler offer, note {name}", "ts": "2026-10-01T09:00:00Z", "from": frm})
+    idx = open_index(home)
+    idx.sync()
+    q = "Yeti cooler offer"
+    everyone = {"deals@spam.example", "ken@acme.example", "test@acme.example"}
+    assert {h.sender for h in search(idx, q)} == everyone
+    assert {h.sender for h in search(idx, q, skip_senders=["@spam.example"])} == everyone - {"deals@spam.example"}
+    assert {h.sender for h in search(idx, q, senders=["TEST@acme.example"])} == {"test@acme.example"}
+    assert {h.sender for h in search(idx, q, senders=[])} == everyone

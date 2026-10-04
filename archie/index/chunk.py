@@ -33,6 +33,7 @@ class Chunk:
     ts: str | None = None
     people: list[str] = field(default_factory=list)
     label: str = ""  # human-readable source name shown to the user, e.g. "Priya Sharma (dossier)"
+    sender: str = ""  # the sender's address, lower case (email excerpts only)
 
 
 RawChunker = Callable[[str, dict], list[Chunk]]

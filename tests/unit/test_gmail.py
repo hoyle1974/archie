@@ -116,3 +116,15 @@ def test_rate_limit_gives_up_eventually():
             google_retry.execute(Flaky(None, fails=99))
     finally:
         google_retry.SLEEP = __import__("time").sleep
+
+
+def test_each_email_excerpt_records_its_sender():
+    from archie.connectors.gmail import chunk_thread
+    from tests.support.raw import addr, msg
+
+    data = {"id": "t1", "subject": "Hi", "messages": [
+        msg("m1", "Sarah.J@Acme.example", "Sarah", [addr("test@acme.example")], "2026-10-01T09:00:00+00:00", "hi"),
+        msg("m2", "test@acme.example", "Test", [addr("sarah.j@acme.example")], "2026-10-01T10:00:00+00:00", "hey",
+            from_me=True)]}
+    assert [c.sender for c in chunk_thread("sources/gmail/t1.json", data)] == ["sarah.j@acme.example",
+                                                                             "test@acme.example"]

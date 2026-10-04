@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 import sqlite_vec
 
+from archie.derive.ignore import on_list
 from archie.index.db import Index
 
 POOL = 50  # candidates taken from each side before filtering and fusing
@@ -24,6 +25,7 @@ class Hit:
     char_end: int
     people: list[str] = field(default_factory=list)
     label: str = ""
+    sender: str = ""
     score: float = 0.0
 
 
@@ -59,17 +61,18 @@ def _vec_ids(idx: Index, q: str) -> list[int]:
 
 
 def search(idx: Index, query: str, k: int = 10, source: str | None = None, since: str | None = None,
-           until: str | None = None, people: list[str] | None = None) -> list[Hit]:
+           until: str | None = None, people: list[str] | None = None, skip_senders: list[str] | None = None,
+           senders: list[str] | None = None) -> list[Hit]:
     fused = rrf([_fts_ids(idx, query), _vec_ids(idx, query)])
     hits = []
     for rowid in fused:
         rows = idx.query(
-            "SELECT path, chunk_id, text, source, ts, char_start, char_end, people, label FROM chunks WHERE id = ?",
-            (rowid,))
+            "SELECT path, chunk_id, text, source, ts, char_start, char_end, people, label, sender"
+            " FROM chunks WHERE id = ?", (rowid,))
         if not rows:
             continue
         row = rows[0]
-        hit = Hit(*row[:7], people=json.loads(row[7] or "[]"), label=row[8])
+        hit = Hit(*row[:7], people=json.loads(row[7] or "[]"), label=row[8], sender=row[9] or "")
         if source and hit.source != source:
             continue
         if since and (hit.ts or "") < since:
@@ -77,6 +80,10 @@ def search(idx: Index, query: str, k: int = 10, source: str | None = None, since
         if until and (hit.ts or "9999") > until:
             continue
         if people and not set(people) & set(hit.people):
+            continue
+        if skip_senders and on_list(hit.sender, skip_senders):
+            continue
+        if senders and not on_list(hit.sender, senders):
             continue
         hits.append(hit)
         if len(hits) == k:

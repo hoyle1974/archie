@@ -169,7 +169,8 @@ def chunk_thread(path: str, data: dict) -> list[Chunk]:
         people = sorted({m.get("from_email", "")} | {a["email"] for a in m.get("to", []) + m.get("cc", [])} - {""})
         verb = "Email you sent" if m.get("from_me") else f"Email from {who}"
         label = f"{verb}: {m.get('subject') or '(no subject)'} ({short_date(m.get('date'))})"
-        chunks.append(Chunk(f"c{i}", path, 0, 0, text, source=NAME, ts=m.get("date"), people=people, label=label))
+        chunks.append(Chunk(f"c{i}", path, 0, 0, text, source=NAME, ts=m.get("date"), people=people, label=label,
+                            sender=(m.get("from_email") or "").lower()))
     return chunks
 
 
