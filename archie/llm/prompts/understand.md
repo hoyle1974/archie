@@ -45,4 +45,7 @@ Rules:
   Never copy the rest of the notes into your reply.
 - What the user says about people, senders or their own life is a telling. Never treat
   it as a question to check.
+- When the user asks Archie to send someone news ("email Workpersonthree that the pizza's picked
+  up"), the news is also a telling: one tell part (`fact: other`, `text`: "the pizza's
+  picked up") and one instruct part (`action: send`, `text`: "email Workpersonthree").
 - Never answer and never state facts.
