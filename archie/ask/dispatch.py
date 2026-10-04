@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 
-from archie.ask.actions import ACTIONS, CANT_SEND, EMPTY, cant_do
+from archie.ask.actions import ACTIONS, CANT_SEND, EMPTY, answer_nudge, cant_do
 from archie.ask.answer import Answer
 from archie.ask.context import Ctx
 from archie.ask.intents import HANDLERS
@@ -47,6 +47,8 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
         return "unclear", Answer(plain=UNCLEAR)
     if part.kind == "answer":
         q = open_qs[part.question - 1]
+        if q.get("kind") == "waiting_nudge":
+            return "answer:nudge", answer_nudge(ctx, q, part)
         if q.get("kind") in YES_NO:
             return "clarify", answer_yes_no(ctx, part.text)
         fact, subject = _fact(part), _who_is_subject(q) or None
@@ -70,4 +72,5 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
 def _question_label(q: dict) -> str:
     """An open question as an option: who it asks about, or its first sentence."""
     text = q.get("text", "")
-    return _who_is_subject(q) or f"“{text.split('?')[0].strip()}”"
+    nudge = re.match(r"Still waiting on (.+?) \(\d+ days?\)", text)
+    return _who_is_subject(q) or (nudge.group(1) if nudge else f"“{text.split('?')[0].strip()}”")

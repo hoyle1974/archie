@@ -20,7 +20,10 @@ Each part is one of:
   gave. `target`: which item, in the user's words.
 - answer: a reply to one of Archie's open questions. `question`: its number. For a reply
   to a "Who is …?" question, also set `fact` as for a telling: "it's spam, ignore it" is
-  ignore, "my plumber" is person. If Archie just asked "Which one: …?" and the message
+  ignore, "my plumber" is person. For a reply to a "Still waiting on …" question, also set
+  `action`: loop_snooze with `until` ("I'll give them till Monday"), loop_done ("they
+  replied", "done"), loop_dismiss ("drop it"), or nudge_snooze ("yes, I'll follow up").
+  If Archie just asked "Which one: …?" and the message
   picks one of its numbered options, write `options:` with that one number instead of
   `question`.
 - unclear: you can't tell what the user means, or more than one thing fits. `ask`: one

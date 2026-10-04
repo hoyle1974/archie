@@ -116,3 +116,101 @@ def test_nudges_rank_after_stale_items_and_before_who_is(tmp_path):
     from archie.derive.audit import PRIORITY
 
     assert PRIORITY["loop_stale"] < PRIORITY["waiting_nudge"] < PRIORITY["who_is"]
+
+
+def nudged(tmp_path, reply):
+    from archie.llm.backend import FakeBackend
+    from tests.support.fixtures import by_schema, understood
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(reply))))
+    waiting(ctx)
+    thread(ctx)
+    audit(ctx)
+    return ctx
+
+
+def answered(ctx):
+    from archie.derive.dedupe import load_questions
+
+    return [q["status"] for q in load_questions(ctx.home) if q["kind"] == "waiting_nudge"]
+
+
+def test_giving_them_till_monday_snoozes_the_item(tmp_path):
+    from archie.ask.pipeline import ask
+    from archie.ask.render import render
+    from tests.support.fixtures import part
+
+    said = "I'll give them till Monday"
+    ctx = nudged(tmp_path, part("answer", text=said, question=1, action="loop_snooze", until="2026-10-05"))
+    assert render(ask(ctx, said)) == "Snoozed until Monday: HeadphonesRUs, earbud pairing."
+    assert load_loops(ctx.home)[0].meta["snoozed_until"] == "2026-10-05" and answered(ctx) == ["answered"]
+    assert f'"{said}" → Snoozed until Monday: HeadphonesRUs, earbud pairing.' in (ctx.home / "journal/told.md").read_text()
+
+
+def test_done_and_drop_it_close_the_item(tmp_path):
+    from archie.ask.pipeline import ask
+    from archie.ask.render import render
+    from tests.support.fixtures import part
+
+    for action, want, status in (("loop_done", "Marked done", "done"), ("loop_dismiss", "Dismissed", "dismissed")):
+        ctx = nudged(tmp_path / action, part("answer", text="they replied", question=1, action=action))
+        assert render(ask(ctx, "they replied")) == f"{want}: HeadphonesRUs, earbud pairing."
+        assert load_loops(ctx.home)[0].meta["status"] == status and nudges(ctx) == []
+
+
+def test_yes_ill_follow_up_waits_another_three_days(tmp_path):
+    from archie.ask.pipeline import ask
+    from archie.ask.render import render
+    from tests.support.fixtures import part
+
+    for i, action in enumerate(("nudge_snooze", None)):
+        ctx = nudged(tmp_path / str(i), part("answer", text="yes, I'll follow up", question=1, action=action))
+        assert render(ask(ctx, "yes, I'll follow up")) == "Snoozed until Sunday: HeadphonesRUs, earbud pairing."
+        assert load_loops(ctx.home)[0].meta["snoozed_until"] == "2026-10-04"
+
+
+def test_a_snooze_answer_with_no_future_date_asks_and_changes_nothing(tmp_path):
+    from archie.ask.pipeline import ask
+    from archie.ask.render import render
+    from tests.support.fixtures import part
+
+    for i, until in enumerate((None, "2026-09-28")):
+        ctx = nudged(tmp_path / str(i), part("answer", text="give them a while", question=1, action="loop_snooze",
+                                             until=until))
+        assert render(ask(ctx, "give them a while")).startswith("Until when?")
+        assert load_loops(ctx.home)[0].meta["status"] == "open" and answered(ctx) == ["open"]
+
+
+def test_a_plain_yes_to_a_nudge_goes_to_the_understanding_call(tmp_path):
+    from archie.ask.pipeline import ask
+    from tests.support.fixtures import part
+
+    ctx = nudged(tmp_path, part("answer", text="yes", question=1))
+    ask(ctx, "yes")
+    assert [c["shape"].name for c in ctx.backend.calls] == ["understand"]
+    assert load_loops(ctx.home)[0].meta["snoozed_until"] == "2026-10-04"
+
+
+def test_follow_up_as_an_instruction_uses_the_one_open_nudge(tmp_path):
+    from archie.ask.pipeline import ask
+    from archie.ask.render import render
+    from tests.support.fixtures import part
+
+    ctx = nudged(tmp_path / "one", part("instruct", text="I'll follow up with them", action="nudge_snooze"))
+    assert render(ask(ctx, "I'll follow up with them")) == "Snoozed until Sunday: HeadphonesRUs, earbud pairing."
+    ctx = make_ctx(tmp_path / "none", ctx.backend)
+    assert render(ask(ctx, "I'll follow up with them")) == "There's nothing to follow up on right now."
+
+
+def test_follow_up_with_two_open_nudges_asks_which(tmp_path):
+    from archie.ask.pipeline import ask
+    from archie.ask.render import render
+    from tests.support.fixtures import part
+
+    ctx = nudged(tmp_path, part("instruct", text="I'll follow up with them", action="nudge_snooze"))
+    waiting(ctx, lid="l2", summary="Refund", thread="t2")
+    thread(ctx, tid="t2")
+    audit(ctx)
+    assert render(ask(ctx, "I'll follow up with them")) == \
+        "Which one: HeadphonesRUs about the earbud pairing or HeadphonesRUs about the refund?"
+    assert render(ask(ctx, "the refund one")) == "Snoozed until Sunday: HeadphonesRUs, refund."

@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from datetime import date
+from datetime import date, timedelta
 
 from archie.ask.answer import Answer
 from archie.ask.context import Ctx
 from archie.ask.correct import correct
 from archie.ask.followup import citation_number, show
 from archie.ask.intents import HANDLERS
-from archie.ask.tell import save_told, tell
+from archie.ask.tell import SAVED_ONLY, save_told, tell
 from archie.ask.understand import Part
 from archie.ask.which import ask_which
 from archie.derive.loops import Loop, _history, load_loops, rank, save_loop
@@ -202,6 +202,57 @@ def _ignore(on: bool) -> Callable[[Ctx, Part, str, dict | None], Answer]:
     return lambda ctx, part, message, last: tell(ctx, name, part.text, about=part.target or part.about)
 
 
+NUDGE_ACTIONS = {"loop_done": "done", "loop_dismiss": "dismiss", "loop_snooze": "snooze"}
+NOTHING_TO_NUDGE = "There's nothing to follow up on right now."
+
+
+def answer_nudge(ctx: Ctx, q: dict, part: Part) -> Answer:
+    """A reply to "Still waiting on …. Want to follow up?": snooze until a date, close or
+    dismiss the item, or (anything else, e.g. "yes, I'll follow up") wait `after_days` more."""
+    from archie.derive.dedupe import load_questions, save_questions
+
+    result = SAVED_ONLY
+    try:
+        lp = next((x for x in load_loops(ctx.home) if x.loop_id == q.get("loop")), None)
+        if lp is None or lp.meta.get("status") in ("done", "dismissed"):
+            answer = Answer(plain="That item is already closed.")
+        else:
+            today = ctx.now.astimezone().date()
+            action = NUDGE_ACTIONS.get(part.action or "")
+            until = None
+            if action == "snooze":
+                until = next((d for d in [_iso(part.params.get("until"))] if d and d > today.isoformat()), None)
+            elif action is None:
+                after = int(ctx.config.get("nudges", {}).get("after_days", 3))
+                action, until = "snooze", (today + timedelta(days=after)).isoformat()
+            answer = finish_loops(ctx, action, [lp], until, None)
+            if answer.plain != UNTIL_WHEN:
+                qs = load_questions(ctx.home)
+                for x in qs:
+                    if x["id"] == q["id"]:
+                        x.update(status="answered", answer=action, answered_at=ctx.now.isoformat())
+                save_questions(ctx.home, qs)
+        result = (answer.plain or "").splitlines()[0] or SAVED_ONLY
+        return answer
+    finally:
+        save_told(ctx, part.text, result)
+
+
+def _nudge_snooze(ctx: Ctx, part: Part, message: str, last: dict | None) -> Answer:
+    from archie.derive.dedupe import open_questions
+
+    nudges = [q for q in open_questions(ctx.home) if q.get("kind") == "waiting_nudge"]
+    if not nudges:
+        return Answer(plain=NOTHING_TO_NUDGE)
+    if len(nudges) == 1:
+        return answer_nudge(ctx, nudges[0], Part(kind="answer", text=part.text))
+    from archie.ask.dispatch import _question_label
+
+    options = [{"label": _question_label(q), "id": q.get("id")} for q in nudges]
+    return Answer(plain=ask_which([o["label"] for o in options]),
+                  pending={"kind": "question", "text": part.text, "fact": None, "options": options})
+
+
 def cant_do(ctx: Ctx, part: Part) -> Answer:
     """Something Archie can't do yet: say so in the user's terms and save it as a wish."""
     wanted = (part.wanted or "").strip().rstrip(".")
@@ -235,5 +286,5 @@ ACTIONS: dict[str, Callable[[Ctx, Part, str, dict | None], Answer]] = {
     # the notes handler finds the note's start in the whole message
     "notes": lambda ctx, part, message, last: HANDLERS["notes"](ctx, message, {**EMPTY, **part.params}),
     "ignore": _ignore(True), "unignore": _ignore(False),
-    "show_citation": _show,
+    "show_citation": _show, "nudge_snooze": _nudge_snooze,
 }
