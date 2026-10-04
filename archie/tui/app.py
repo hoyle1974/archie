@@ -7,8 +7,11 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Callable
 
+from textual import events
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.widget import Widget
 from textual.widgets import Footer, Input, Static
 
 from archie.ask.context import Ctx
@@ -17,7 +20,15 @@ from archie.llm.backend import LLMError
 
 ASK_TIMEOUT = 180  # seconds before the Ask pane gives up and frees itself
 SPEND_REFRESH_S = 3
+KEEP_ANSWERS = 50
+KEEP_SYNC_REPORTS = 20
 HINT = 'Ask anything, e.g. "prep me for my next meeting" or "what do I owe people?"'
+
+
+class Pane(VerticalScroll):
+    """Scrolls with the mouse wheel but never takes focus, so the cursor stays in the question box."""
+
+    can_focus = False
 
 
 def _pbcopy(text: str) -> None:
@@ -58,14 +69,19 @@ class ArchieApp(App):
     TITLE = "Archie"
     CSS = """
     #left { width: 45%; }
-    #feed { height: 1fr; border: round $accent; padding: 0 1; }
+    #feed-scroll { height: 1fr; border: round $accent; padding: 0 1; }
     #activity-scroll { height: 8; border: round $panel; padding: 0 1; }
-    #activity { color: $text-muted; }
+    #activity, .earlier-sync { color: $text-muted; }
+    .earlier-sync { border-bottom: hkey $panel; }
     #right { width: 55%; }
     #answer-scroll { height: 1fr; border: round $accent; padding: 0 1; }
+    .answer { border-top: hkey $panel; }
+    .answer:first-child { border-top: none; }
     #question { dock: bottom; }
     """
     BINDINGS = [("ctrl+y", "copy_answer", "Copy answer"), ("ctrl+r", "sync_now", "Sync now"),
+                Binding("pageup", "scroll_answers(-1)", "Earlier", priority=True),
+                Binding("pagedown", "scroll_answers(1)", "Later", priority=True),
                 ("ctrl+q", "quit", "Quit")]
 
     def __init__(self, ctx: Ctx, connectors: list, derivers: list, feed: Callable[[Ctx], str] = default_feed,
@@ -80,16 +96,18 @@ class ArchieApp(App):
         self.sync_done = asyncio.Event()
         self.ask_done = asyncio.Event()
         self._syncing = asyncio.Lock()
+        self._last_report: str | None = None  # the finished sync report #activity shows, if any
 
     def compose(self) -> ComposeResult:
         with Horizontal():
             with Vertical(id="left"):
-                yield Static("Loading…", id="feed", markup=False)
-                with VerticalScroll(id="activity-scroll"):
+                with Pane(id="feed-scroll"):
+                    yield Static("Loading…", id="feed", markup=False)
+                with Pane(id="activity-scroll"):
                     yield Static("Starting up…", id="activity", markup=False)
             with Vertical(id="right"):
-                with VerticalScroll(id="answer-scroll"):
-                    yield Static(HINT, id="answer", markup=False)
+                with Pane(id="answer-scroll"):
+                    yield Static(HINT, id="hint", markup=False)
                 yield Input(placeholder="Ask Archie…", id="question")
         yield Footer()
 
@@ -101,7 +119,7 @@ class ArchieApp(App):
 
         self.writer = WriterLock(self.ctx.home.root)
         self.is_writer = self.writer.acquire()
-        self.query_one("#feed").border_title = "Today"
+        self.query_one("#feed-scroll").border_title = "Today"
         self.query_one("#activity-scroll").border_title = "Sync"
         self.query_one("#answer-scroll").border_title = "Ask"
         self.query_one("#question").focus()
@@ -148,13 +166,47 @@ class ArchieApp(App):
         super().copy_to_clipboard(text)
         _pbcopy(text)
 
+    def on_text_selected(self, event: events.TextSelected) -> None:
+        """Copy as soon as a mouse drag ends: iTerm2 and Terminal keep Cmd+C for their own selection."""
+        text = self.screen.get_selected_text()
+        if text:
+            self.copy_to_clipboard(text)
+            self.notify("Copied. Paste with Cmd+V.", timeout=2)
+
     def action_copy_answer(self) -> None:
-        text = str(self.query_one("#answer", Static).render())
+        entries = self.query(".answer")
+        text = str(entries.last().render()) if entries else HINT
         self.copy_to_clipboard(text)
         self.notify("Copied the answer.", timeout=2)
 
+    def action_scroll_answers(self, direction: int) -> None:
+        pane = self.query_one("#answer-scroll", Pane)
+        pane.scroll_page_down() if direction > 0 else pane.scroll_page_up()
+
+    def show_top_of(self, widget: Widget) -> None:
+        widget.parent.call_after_refresh(widget.parent.scroll_to_widget, widget, top=True, animate=False)
+
     async def action_sync_now(self) -> None:
         self.run_worker(self.sync_cycle())
+
+    async def start_sync_report(self, text: str) -> None:
+        """Move the last finished report up into the Sync pane's history, then show `text` below it."""
+        activity = self.query_one("#activity", Static)
+        if self._last_report:
+            pane = self.query_one("#activity-scroll", Pane)
+            await pane.mount(Static(self._last_report, classes="earlier-sync", markup=False), before=activity)
+            earlier = pane.query(".earlier-sync")
+            for old in list(earlier)[:-KEEP_SYNC_REPORTS]:
+                await old.remove()
+            self._last_report = None
+        activity.update(text)
+        self.show_top_of(activity)
+
+    def finish_sync_report(self, text: str) -> None:
+        activity = self.query_one("#activity", Static)
+        activity.update(text)
+        self._last_report = text
+        self.show_top_of(activity)
 
     async def sync_cycle(self) -> None:
         from archie.sync import run_cycle
@@ -170,7 +222,7 @@ class ArchieApp(App):
                 return
         async with self._syncing:
             activity = self.query_one("#activity", Static)
-            activity.update("Syncing…")
+            await self.start_sync_report("Syncing…")
             self.ctx.now = datetime.now(timezone.utc)
             try:
                 report = await run_cycle(self.ctx, self.connectors, self.derivers, post_index=self.post_index,
@@ -184,11 +236,12 @@ class ArchieApp(App):
                           for n, r in report.items()]
                 if not report:
                     lines.append("No sources switched on (see config.yaml).")
-                activity.update("\n".join(lines))
+                self.finish_sync_report("\n".join(lines))
                 self.refresh_spend()
             except Exception as exc:  # the loop must survive anything
                 log_error(self.ctx, "sync")
-                activity.update(f"Sync failed: {exc} (details in logs/errors.log)")
+                stamp = datetime.now().strftime("%-I:%M %p")
+                self.finish_sync_report(f"Sync failed at {stamp}: {exc} (details in logs/errors.log)")
             await self.briefing_tick(refresh=False)
             await self.refresh_feed()
             self.sync_done.set()
@@ -217,15 +270,19 @@ class ArchieApp(App):
         if not question:
             return
         event.input.value = ""
-        out = self.query_one("#answer", Static)
-        out.update(f"> {question}\n\nThinking…")
+        pane = self.query_one("#answer-scroll", Pane)
+        await pane.query("#hint").remove()
+        out = Static(f"> {question}\n\nThinking…", classes="answer", markup=False)
+        await pane.mount(out)
+        for old in list(pane.query(".answer"))[:-KEEP_ANSWERS]:
+            await old.remove()
+        self.show_top_of(out)
         self.ask_done.clear()
-        self.run_worker(self._answer(question))
+        self.run_worker(self._answer(question, out))
 
-    async def _answer(self, question: str) -> None:
+    async def _answer(self, question: str, out: Static) -> None:
         from archie.ask.pipeline import ask
 
-        out = self.query_one("#answer", Static)
         self.ctx.now = datetime.now(timezone.utc)
         started = asyncio.get_running_loop().time()
 
@@ -247,6 +304,7 @@ class ArchieApp(App):
             out.update(f"> {question}\n\nSomething went wrong: {exc} (details in logs/errors.log)")
         finally:
             timer.stop()
+        self.show_top_of(out)
         await self.refresh_feed()  # answers can close loops, add notes or fix meetings
         self.ask_done.set()
 

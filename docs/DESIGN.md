@@ -577,9 +577,14 @@ maps each tier to a model.
 Built with Textual. Three panes:
 1. **Feed:** the current or next briefing, top loops, and notifications.
 2. **Ask:** an input box plus the answer view. Up-arrow recalls history. Citations
-   expand inline. The pane's border shows Gemini spend this month against the budget,
+   expand inline. Earlier answers from this session stay above the newest one, to
+   scroll back to. The pane's border shows Gemini spend this month against the budget,
    and Google's count of it when `llm.google_project` is set.
-3. **Activity:** sync status per source, the last sync time and recent errors.
+3. **Activity:** sync status per source, the last sync time and recent errors, with
+   earlier sync reports above.
+
+Every pane scrolls with the mouse wheel. Dragging over text copies it to the clipboard
+when the drag ends, because terminals keep Cmd+C for their own selection.
 
 The TUI owns the sync loop, morning batch, T-15 refresh and notifications.
 

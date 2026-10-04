@@ -5,6 +5,7 @@ description: Chronological history of design decisions and structural changes, n
 ---
 
 ## 2026-10-04
+- TUI scrollback and mouse copying: earlier answers and sync reports stay in their panes to scroll back to, Today scrolls, and the panes no longer take focus from the question box (PageUp/PageDown scroll answers). Dragging over text copies it on release, since iTerm2 keeps Cmd+C for its own selection.
 - Spend is always shown in dollars (`budget.money`): "Gemini: $0.02 of $15 this month", "Google: $0.07", instead of switching to cents under $1.
 - Prompt optimization, measured with a new evaluation script (`scripts/prompt_eval.py`: 14 real questions graded by code against a throwaway copy of the real home). Baseline 28.0¢, 262k input tokens, 7 claims dropped; after: 14/14 graded checks pass, 22.4¢, 193k input tokens, 1 dropped.
   - Sources are tidied for the model (`verify.tidy`): no YAML frontmatter, HTML comments, tracking links, images or unsubscribe footers; email times local. Each sits in a `<source>` block. Repeating calendar events collapse into one source; data-only excerpts are dropped. Quotes are still checked against the original text, and hollow quotes (a name and address, a greeting, a subject line) support nothing.

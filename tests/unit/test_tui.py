@@ -21,7 +21,7 @@ class Counting:
 
 
 def text_of(app, selector):
-    return str(app.query_one(selector).render())
+    return str(app.query(selector).last().render())
 
 
 def test_launch_runs_catch_up_sync_and_shows_status(tmp_path):
@@ -78,7 +78,7 @@ def test_question_in_ask_pane_shows_answer(tmp_path):
             await pilot.press(*"who is priya", "enter")
             await app.ask_done.wait()
             await pilot.pause()
-            assert "Priya is the PM for auth. [1]" in text_of(app, "#answer")
+            assert "Priya is the PM for auth. [1]" in text_of(app, ".answer")
 
     asyncio.run(go())
 
@@ -152,7 +152,7 @@ def test_slow_answer_times_out_with_a_message(tmp_path, monkeypatch):
             await pilot.press(*"slow", "enter")
             await app.ask_done.wait()
             await pilot.pause()
-            assert "took too long" in text_of(app, "#answer")
+            assert "took too long" in text_of(app, ".answer")
 
     asyncio.run(go())
 
@@ -224,6 +224,110 @@ def test_a_long_sync_report_scrolls_instead_of_being_cut_off(tmp_path):
             pane.scroll_end(animate=False)
             await pilot.pause()
             assert pane.scroll_y == pane.max_scroll_y
+
+    asyncio.run(go())
+
+
+def test_earlier_answers_stay_in_the_ask_pane_to_scroll_back_to(tmp_path, monkeypatch):
+    from archie.ask.answer import Answer
+
+    monkeypatch.setattr("archie.ask.pipeline.ask", lambda ctx, q: Answer(plain=f"Answer to {q}. " + "More. " * 200))
+    ctx = make_ctx(tmp_path)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            for q in ("first", "second"):
+                await pilot.click("#question")
+                await pilot.press(*q, "enter")
+                await app.ask_done.wait()
+                await pilot.pause()
+            entries = [str(e.render()) for e in app.query(".answer")]
+            assert len(entries) == 2 and "Answer to first" in entries[0] and "Answer to second" in entries[1]
+            assert not app.query("#hint")
+            pane = app.query_one("#answer-scroll")
+            assert pane.max_scroll_y > 0 and pane.scroll_y > 0  # scrolled down to the newest answer
+            assert app.focused is app.query_one("#question")
+            before = pane.scroll_y
+            await pilot.press("pageup")
+            await pilot.pause(0.5)
+            assert pane.scroll_y < before
+            app.action_copy_answer()
+            assert "Answer to second" in app.clipboard
+
+    asyncio.run(go())
+
+
+def test_earlier_sync_reports_stay_in_the_sync_pane(tmp_path):
+    ctx = make_ctx(tmp_path)
+    conn = Counting()
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[conn], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            app.sync_done.clear()
+            await app.sync_cycle()
+            await pilot.pause()
+            earlier = [str(e.render()) for e in app.query(".earlier-sync")]
+            assert len(earlier) == 1 and "gmail: ok" in earlier[0]
+            assert "gmail: ok" in text_of(app, "#activity")
+
+    asyncio.run(go())
+
+
+def test_today_pane_scrolls(tmp_path):
+    ctx = make_ctx(tmp_path)
+    long = "\n".join(f"item {i}" for i in range(100))
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], feed=lambda c: long, ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.pause()
+            pane = app.query_one("#feed-scroll")
+            assert pane.border_title == "Today" and pane.max_scroll_y > 0
+
+    asyncio.run(go())
+
+
+def test_selecting_text_with_the_mouse_copies_it(tmp_path, monkeypatch):
+    from textual import events
+    from textual.selection import Selection
+
+    import archie.tui.app as tui
+
+    copied = []
+    monkeypatch.setattr(tui, "_pbcopy", lambda text: copied.append(text))
+    ctx = make_ctx(tmp_path)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], feed=lambda c: "Standup at 10 AM", ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.pause()
+            app.screen.selections = {app.query_one("#feed"): Selection(None, None)}
+            app.screen.post_message(events.TextSelected())
+            await pilot.pause()
+
+    asyncio.run(go())
+    assert copied == ["Standup at 10 AM"]
+
+
+def test_pasting_goes_into_the_question_box(tmp_path):
+    from textual import events
+
+    ctx = make_ctx(tmp_path)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.click("#feed")
+            app.post_message(events.Paste("who is priya"))
+            await pilot.pause()
+            assert app.query_one("#question").value == "who is priya"
 
     asyncio.run(go())
 
