@@ -24,7 +24,7 @@ from archie.ask.context import Ctx
 from archie.connectors.gmail import chunk_thread
 from archie.derive.dates import due_in
 from archie.derive.failures import Failures
-from archie.derive.ignore import on_list
+from archie.derive.ignore import ignored, on_list
 from archie.derive.people import PeopleDirectory, looks_personal, slug
 from archie.llm.backend import LLMError
 from archie.llm.prompts import load_prompt
@@ -241,7 +241,7 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
         if not new:
             return None
         latest = max(m["date"] for m in msgs)
-        relevant_new = {i + 1 for i in new if _relevant(msgs[i], ctx.config["loops"].get("mute"))}
+        relevant_new = {i + 1 for i in new if _relevant(msgs[i], ignored(ctx.config))}
         if relevant_new:
             if failures.gave_up(f"gmail:{tid}", latest):
                 return None

@@ -29,6 +29,7 @@ DEFAULTS: dict[str, Any] = {
         "weights": {"overdue": 5.0, "due_soon": 3.0, "age_per_day": 0.25, "asked_of_me": 2.0,
                     "i_promised": 1.5, "waiting_on": 0.5, "to_not_cc": 1.0, "in_upcoming_meeting": 2.0},
     },
+    "ignore": [],  # emails or @domains you told Archie to ignore ("… is spam, ignore it")
     "connectors": {},
 }
 

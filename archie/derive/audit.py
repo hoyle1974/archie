@@ -6,7 +6,8 @@ Kinds:
 - loop_done:   Archie thinks an item is finished but isn't sure ("Did you finish …?")
 - loop_stale:  an item more than a week past due ("Do you still need to …?")
 - who_is:      someone you correspond with known only by an address ("Who is …?");
-               answered by telling Archie about them; it clears itself once it knows
+               answered by telling Archie about them; it clears itself once it knows.
+               Never asked about ignored senders
 At most MAX_OPEN questions are open at once, most important first, so it never floods.
 """
 
@@ -16,6 +17,7 @@ import hashlib
 
 from archie.ask.context import Ctx
 from archie.derive.dedupe import _who, find_duplicates, load_questions, save_questions
+from archie.derive.ignore import ignored_person
 from archie.derive.loops import _history, load_loops, rank, save_loop
 from archie.derive.people import EMAIL, PeopleDirectory
 
@@ -49,7 +51,7 @@ def _candidates(ctx: Ctx) -> list[dict]:
     for e, m in d.meta.items():
         name = str(m.get("name") or "")
         unnamed = "@" in name or (" " not in name.strip() and not m.get("relationship") and not m.get("role"))
-        if unnamed and m.get("last_interaction") and m.get("status") != "merged":
+        if unnamed and m.get("last_interaction") and m.get("status") != "merged" and not ignored_person(d, e, ctx.config):
             email = next((a for a in d.identifiers(e) if EMAIL.match(a)), name)
             out.append({"id": _qid("who_is", e), "kind": "who_is", "person": e,
                         "text": f"Who is {email}? Tell me, e.g. \"{email} is my plumber\".", "status": "open",
@@ -66,9 +68,11 @@ def _still_relevant(ctx: Ctx, q: dict) -> bool:
             return lp.meta.get("status") == "maybe_done"
         return any(r.stale and r.loop.loop_id == lp.loop_id for r in rank([lp], ctx.now, ctx.config))
     if q["kind"] == "who_is":
-        m = PeopleDirectory.load(ctx.home).meta.get(q.get("person"), {})
+        d = PeopleDirectory.load(ctx.home)
+        m = d.meta.get(q.get("person"), {})
         name = str(m.get("name") or "")
-        return bool(m) and not m.get("relationship") and not m.get("role") and ("@" in name or " " not in name.strip())
+        return (bool(m) and not ignored_person(d, q["person"], ctx.config) and not m.get("relationship")
+                and not m.get("role") and ("@" in name or " " not in name.strip()))
     return True
 
 
