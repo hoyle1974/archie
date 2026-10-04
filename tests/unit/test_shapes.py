@@ -5,18 +5,18 @@ from archie.ask.intents.correct import SHAPE as CORRECT
 from archie.ask.intents.loops import UPDATE_SHAPE as UPDATE
 from archie.ask.intents.notes import SHAPE as NOTES
 from archie.ask.intents.remember import SHAPE as REMEMBER
-from archie.ask.router import SHAPE as ROUTE
 from archie.ask.synthesize import SHAPE as ANSWER
+from archie.ask.understand import SHAPE as UNDERSTAND
 from archie.derive.cross_close import SHAPE as CROSS
 from archie.derive.enrich import SHAPE as FACTS
 from archie.derive.loops import CLOSE_SHAPE as CLOSE
 from archie.derive.loops import EXTRACT_SHAPE as EXTRACT
 
-ALL = [ROUTE, ANSWER, CLARIFY, CORRECT, UPDATE, NOTES, REMEMBER, EXTRACT, CLOSE, CROSS, FACTS]
+ALL = [UNDERSTAND, ANSWER, CLARIFY, CORRECT, UPDATE, NOTES, REMEMBER, EXTRACT, CLOSE, CROSS, FACTS]
 
 
 def test_eleven_shapes_named_like_the_old_schemas():
-    assert sorted(s.name for s in ALL) == sorted(["route", "answer", "clarify", "correct", "loop_update",
+    assert sorted(s.name for s in ALL) == sorted(["understand", "answer", "clarify", "correct", "loop_update",
                                                   "notes_actions", "remember", "loops_extract", "loops_close",
                                                   "loops_cross", "people_facts"])
 
@@ -27,13 +27,12 @@ def test_each_example_parses_cleanly(shape):
     assert problems == [] and out
 
 
-def test_route():
-    out, problems = ROUTE.parse("intent: loop_update\npeople: Ken\nsince: -\nuntil: -\ntopic: -\nmeeting: -\n"
-                                "text: -\nALSO remember\ntext: Sam is my neighbor.")
+def test_understand():
+    out, problems = UNDERSTAND.parse("PART question\ntext: who is Ken?\nintent: who\npeople: Ken\n"
+                                     "PART tell\ntext: Sam is my neighbor.\nfact: person\nabout: Sam")
     assert problems == []
-    assert out == {"intent": "loop_update", "also": [{"intent": "remember", "text": "Sam is my neighbor."}],
-                   "params": {"people": ["Ken"], "since": None, "until": None, "topic": None, "meeting": None,
-                              "text": None}}
+    assert [(p["kind"], p["text"], p["intent"], p["people"], p["fact"]) for p in out["parts"]] == [
+        ("question", "who is Ken?", "who", ["Ken"], None), ("tell", "Sam is my neighbor.", None, [], "person")]
 
 
 def test_clarify():

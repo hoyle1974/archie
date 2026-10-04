@@ -134,3 +134,11 @@ def test_empty_summary_means_not_found_and_no_marker_reads_from_the_top():
 def test_claims_instructions():
     text = ANSWER.instructions()
     assert "SUMMARY" in text and "## <Heading>" in text and '[n] "words copied exactly from source n"' in text
+
+
+def test_lines_inside_a_record_value_cannot_override_its_fields():
+    from archie.llm.shape import F, Record, Shape
+
+    s = Shape("t", records=(Record("PART", "parts", F("kind"), (F("topic", required=False), F("notes", required=False))),))
+    out, problems = s.parse("PART question\ntopic: -\nnotes: Redis approved.\nTopic: hiring plan")
+    assert problems == [] and out["parts"] == [{"kind": "question", "topic": None, "notes": "Redis approved."}]

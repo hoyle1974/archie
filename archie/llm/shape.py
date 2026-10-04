@@ -174,7 +174,7 @@ def _parse_fields(shape: Shape, text: str) -> tuple[dict, list[str]]:
             continue
         key, value = kv.group(1).strip().lower().replace(" ", "_"), kv.group(2)
         if blocks and key in {f.name for f in blocks[-1][0].fields}:
-            blocks[-1][1][key] = value
+            blocks[-1][1].setdefault(key, value)  # a later look-alike line (pasted text) can't override
         elif blocks and key == blocks[-1][0].head.name:
             blocks[-1][1][""] = value
         elif key in top:
