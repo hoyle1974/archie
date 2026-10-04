@@ -183,6 +183,13 @@ confirms through `ask`. Archie never silently merges two people.
   merged automatically and Archie says so; a matching name alone is only a question)
 - "did you finish …?" when the evidence that an item is done is weak
 - "still needed?" for an item more than a week past due
+- "Still waiting on HeadphonesRUs about the earbud pairing (3 days). Want to follow up?"
+  for a `waiting_on` item at least `nudges.after_days` (default 3, in `config.yaml`) days
+  old with no reply in its thread. Code checks the age and the thread. A reply from them
+  or closing the item clears it. "I'll give them till Monday" snoozes the item, "they
+  replied" marks it done, "drop it" dismisses it, and "yes, I'll follow up" snoozes it
+  for another `nudges.after_days` days. Archie never sends the follow-up itself. If a
+  snooze ends with still no reply, it asks again.
 - "who is x@y?" for a correspondent known only by an address
 
 A "no" is remembered. The user can also tell Archie about people directly ("Goodspouse is my

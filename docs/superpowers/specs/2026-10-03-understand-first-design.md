@@ -362,6 +362,23 @@ The reply to an instruction is built only from the sentences the actions returne
 - It resolves on its own when the counterpart replies or the item closes. It comes back
   only if a snooze ends and there's still no reply.
 
+### 5.4 Added while building step 5
+
+- A snoozed item whose snooze has ended counts as open for nudges. The question's id
+  includes the snooze date, so a nudge answered before a snooze can come back after it.
+- "A reply" is any message in the thread after `created_at` that isn't from the user and
+  is from the counterpart's address or domain (support@headphonesrus.example counts for
+  contact@headphonesrus.example). No thread file means no nudge.
+- The topic is "the earbud pairing" for a summary of four words or fewer, otherwise the
+  summary in quote marks.
+- A nudge reply's `action` (loop_snooze, loop_done, loop_dismiss or nudge_snooze) comes
+  from the understanding call; an answer with no action, such as a plain "yes", follows
+  up. A snooze with no date, or a date that isn't in the future, asks "Until when?" and
+  leaves both the item and the question open.
+- "I'll follow up with them" outside a reply is the `nudge_snooze` instruction: it
+  applies to the one open nudge, says "There's nothing to follow up on right now." with
+  none, and asks which with several ("HeadphonesRUs about the earbud pairing or …").
+
 ## 6. Build order
 
 Five steps. Each ends with its vignette test passing and vignette tests A–M still passing.
