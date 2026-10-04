@@ -10,6 +10,7 @@ tags: [component]
 What it checks:
 - `me.yaml` has a name and at least one email.
 - A Gemini API key is in the Keychain (`gemini-api-key`).
+- Gemini spend this month against `llm.monthly_budget_usd`; reaching it is a failure that says when calls resume.
 - Items the [derivers](derivers.md) stopped retrying after 3 unreadable model replies, if any, with the file to delete to retry them.
 - No sources enabled is reported as a failure.
 - Each enabled source:

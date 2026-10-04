@@ -30,7 +30,7 @@ usage: archie                 open Archie (the TUI)
 def build_ctx(home: Home) -> Ctx:
     cfg = load_config(home)
     return Ctx(home=home, config=cfg, me=load_me(home), index=Index(home, make_embedder(cfg)),
-               backend=make_backend(cfg), now=datetime.now(timezone.utc))
+               backend=make_backend(cfg, home), now=datetime.now(timezone.utc))
 
 
 def cmd_ask(argv: list[str]) -> int:
@@ -48,7 +48,7 @@ def cmd_ask(argv: list[str]) -> int:
     try:
         print(render(ask(ctx, question), sources=sources, paths=paths))
     except LLMError as exc:
-        print(f"Archie couldn't reach its language model: {exc}")
+        print(f"Archie couldn't write an answer: {exc}")
         return 1
     return 0
 

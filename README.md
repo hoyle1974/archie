@@ -59,7 +59,9 @@ connectors:
 "google-token" or "gemini-api-key"). Choose **Always Allow**. Until you answer, syncing waits silently,
 because only the program that saved the token is trusted automatically.
 
-Check your setup any time with `archie admin doctor`.
+Check your setup any time with `archie admin doctor`. It also shows what Gemini has cost this
+month. Archie stops calling Gemini once that reaches `llm.monthly_budget_usd` (default $15) and
+resumes on the 1st.
 
 Maintenance (rarely needed): `archie admin sync | rederive | reindex | status`.
 

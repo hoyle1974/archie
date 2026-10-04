@@ -75,7 +75,8 @@ TIMEOUT_S = {"fast": 60, "strong": 300}
 class GeminiBackend(TextBackend):
     """The Gemini API through google-genai: plain text in and out, no tools."""
 
-    def __init__(self, llm: dict, client=None):
+    def __init__(self, llm: dict, client=None, budget=None):
+        self.budget = budget
         self.models = llm.get("models") or {}
         self.caps = llm.get("max_output_tokens") or {}
         self.thinking = llm.get("thinking") or {}
@@ -111,6 +112,8 @@ class GeminiBackend(TextBackend):
             http_options=types.HttpOptions(timeout=TIMEOUT_S.get(tier, 60) * 1000),
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )
+        if self.budget:
+            self.budget.check()
         try:
             resp = self.client().models.generate_content(model=model, contents=user, config=config)
         except errors.APIError as exc:
@@ -119,6 +122,10 @@ class GeminiBackend(TextBackend):
             raise LLMError(f"Gemini didn't answer within {TIMEOUT_S.get(tier, 60)} seconds") from exc
         except httpx.TransportError as exc:
             raise LLMError("couldn't reach Gemini; check the network connection") from exc
+        meta = getattr(resp, "usage_metadata", None)
+        if self.budget and meta:
+            self.budget.record(model, tier, meta.prompt_token_count or 0, meta.candidates_token_count or 0,
+                               meta.thoughts_token_count or 0)
         finish = getattr(resp.candidates[0].finish_reason, "name", "") if resp.candidates else ""
         if finish == "MAX_TOKENS":  # even with some text: a cut-off reply can parse as complete
             raise LLMError("Gemini's reply was cut off at the output limit (llm.max_output_tokens in config.yaml)",
@@ -149,8 +156,11 @@ def _explain(exc, model: str) -> str:
     return f"Gemini reported an error: {exc.code} {message}".strip()
 
 
-def make_backend(config: dict) -> Backend:
+def make_backend(config: dict, home=None) -> Backend:
     llm = config["llm"]
     if llm.get("backend") == "gemini":
-        return GeminiBackend(llm)
+        from archie.llm.budget import Budget
+
+        limit = llm.get("monthly_budget_usd")
+        return GeminiBackend(llm, budget=Budget(home, limit) if home and limit is not None else None)
     raise LLMError(f"unknown llm.backend {llm.get('backend')!r} in config.yaml (only 'gemini' is supported)")

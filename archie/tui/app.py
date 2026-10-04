@@ -13,6 +13,7 @@ from textual.widgets import Footer, Input, Static
 
 from archie.ask.context import Ctx
 from archie.ask.render import render
+from archie.llm.backend import LLMError
 
 ASK_TIMEOUT = 180  # seconds before the Ask pane gives up and frees itself
 HINT = 'Ask anything, e.g. "prep me for my next meeting" or "what do I owe people?"'
@@ -199,6 +200,8 @@ class ArchieApp(App):
             out.update(f"> {question}\n\n{render(answer, sources=True)}")
         except asyncio.TimeoutError:
             out.update(f"> {question}\n\nThat took too long, so I stopped waiting. Try asking again.")
+        except LLMError as exc:
+            out.update(f"> {question}\n\nArchie couldn't write an answer: {exc}")
         except Exception as exc:
             log_error(self.ctx, f"ask: {question}")
             out.update(f"> {question}\n\nSomething went wrong: {exc} (details in logs/errors.log)")

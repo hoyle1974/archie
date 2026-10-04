@@ -511,6 +511,9 @@ maps each tier to a model.
   - `gemini` (default): the Gemini API through `google-genai`. The key is in the Keychain
     (`gemini-api-key`, set with `archie admin connect gemini`). Output tokens are capped
     per tier and thinking is kept low for `fast`.
+  - **Monthly budget** (`llm.monthly_budget_usd`, default $15): each call's token counts
+    and cost are logged to `logs/llm_usage.jsonl`. At the limit, calls are refused until
+    the 1st (UTC). Asks say so, and background work waits.
   - `fake`: replays canned responses, for tests.
 - **Citations by reference number.** The model sees a numbered *context packet* of
   excerpts and cites `{ref, quote}`. Code maps `ref` back to `(file, chunk)` and checks the

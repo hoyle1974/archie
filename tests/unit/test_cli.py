@@ -61,7 +61,7 @@ def test_ask_prints_answer(tmp_path, monkeypatch, capsys):
                                             "meeting": None, "text": None}}
     answer = {"summary": [{"text": "Priya is the PM for auth.",
                            "citations": [{"ref": 1, "quote": "Priya is the PM for auth"}]}], "sections": []}
-    monkeypatch.setattr(cli, "make_backend", lambda cfg: FakeBackend(by_schema(route=route, answer=answer)))
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend(by_schema(route=route, answer=answer)))
     code, out = run(capsys, "ask", "who", "is", "priya?")
     assert code == 0 and out.startswith("Priya is the PM for auth. [1]")
 
@@ -74,7 +74,7 @@ def test_no_args_without_tui_shows_help(tmp_path, monkeypatch, capsys):
 
 def test_sync_with_nothing_enabled_says_how_to_enable(tmp_path, monkeypatch, capsys):
     setup_home(tmp_path, monkeypatch)
-    monkeypatch.setattr(cli, "make_backend", lambda cfg: FakeBackend([]))
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend([]))
     code, out = run(capsys, "admin", "sync")
     assert code == 0 and "No sources are switched on" in out
 
@@ -89,7 +89,7 @@ def test_sync_reports_each_connector(tmp_path, monkeypatch, capsys):
             return SyncResult(cursor={"x": 1})
 
     setup_home(tmp_path, monkeypatch)
-    monkeypatch.setattr(cli, "make_backend", lambda cfg: FakeBackend([]))
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend([]))
     monkeypatch.setattr(cli, "enabled_connectors", lambda cfg: [Ok()])
     code, out = run(capsys, "admin", "sync")
     assert code == 0 and "gmail: ok" in out
@@ -103,7 +103,7 @@ def test_rederive_builds_people_from_existing_mail(tmp_path, monkeypatch, capsys
     (tmp_path / "h" / "me.yaml").write_text("name: Test\nemails: [test@acme.example]\n")
     write_thread(Home.default(), "t1", [msg("m", "sam@x.example", "Sam Lee", [addr("test@acme.example")],
                                             "2026-10-01T00:00:00+00:00", "hi", to_me=True)])
-    monkeypatch.setattr(cli, "make_backend", lambda cfg: FakeBackend([]))
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend([]))
     code, out = run(capsys, "admin", "rederive")
     assert code == 0 and (tmp_path / "h" / "people" / "sam_lee.md").exists()
 

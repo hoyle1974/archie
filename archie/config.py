@@ -19,6 +19,7 @@ DEFAULTS: dict[str, Any] = {
         "models": {"fast": "gemini-3.7-flash", "strong": "gemini-3.7-flash"},
         "max_output_tokens": {"fast": 2048, "strong": 8192},
         "thinking": {"fast": "low", "strong": "medium"},
+        "monthly_budget_usd": 15,
     },
     "index": {"embed_model": "BAAI/bge-small-en-v1.5"},
     "briefings": {"lead_minutes": 15, "all_hands_min_attendees": 25},

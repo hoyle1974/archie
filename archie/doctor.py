@@ -74,9 +74,27 @@ def check_failures(home: Home) -> Check | None:
                    f"({', '.join(skipped[:3])}{', …' if n > 3 else ''}): delete {home.root / FILE} to retry")
 
 
+def check_budget(home: Home, cfg: dict, clock: Callable | None = None) -> Check | None:
+    from archie.llm.budget import Budget
+
+    limit = cfg["llm"].get("monthly_budget_usd")
+    if limit is None:
+        return None
+    budget = Budget(home, limit, **({"clock": clock} if clock else {}))
+    spent = budget.spent()
+    msg = f"gemini spend this month: ${spent:.2f} of ${budget.limit:g}"
+    if spent < budget.limit:
+        return True, msg
+    return False, (f"{msg}: model calls are paused until {budget.resets()} "
+                   "(raise llm.monthly_budget_usd in config.yaml to continue sooner)")
+
+
 def run_checks(home: Home) -> list[Check]:
     cfg = load_config(home)
     results = [check_me(home), check_gemini()]
+    spend = check_budget(home, cfg)
+    if spend:
+        results.append(spend)
     skipped = check_failures(home)
     if skipped:
         results.append(skipped)
