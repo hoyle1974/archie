@@ -275,3 +275,33 @@ def test_show_without_a_clear_number_asks_which_and_keeps_the_sources(tmp_path):
     assert render(ask(ctx, "show me the Oct 2 one")) == 'Which source? Say, for example, "show 2".'
     entries = [json.loads(x) for x in (ctx.home / "state/conversation.jsonl").read_text().splitlines()]
     assert entries[-1]["citations"] == entries[0]["citations"] and entries[0]["citations"]
+
+
+def test_questions_about_mail_you_sent_search_your_own_mail_first(tmp_path):
+    from tests.support.raw import addr, msg, write_thread
+
+    seen = []
+
+    def model(system, user, shape, tier):
+        if shape.name == "understand":
+            return understood(question("search", topic="earbud pairing", mine=True))
+        seen.append(user)
+        return {"summary": [], "sections": []}
+
+    ctx = make_ctx(tmp_path, FakeBackend(model))
+    write_thread(ctx.home, "t1", [
+        msg("m1", "contact@headphonesrus.example", "HeadphonesRUs", [addr("test@acme.example")], "2026-10-01T09:00:00+00:00",
+            "HeadphonesRUs here about your earbud pairing question.", to_me=True),
+        msg("m2", "test@acme.example", "Test", [addr("contact@headphonesrus.example")], "2026-10-02T09:00:00+00:00",
+            "The new earbud stays red when pairing.", from_me=True)])
+    ctx.index.sync()
+    ask(ctx, "do you see the message I sent them?")
+    assert "stays red" in seen[-1] and "HeadphonesRUs here" not in seen[-1]
+
+
+def test_an_empty_answer_says_nothing_answered_it_unless_claims_were_dropped():
+    from archie.ask.answer import Answer
+    from archie.ask.render import EMPTY_ANSWER, UNVERIFIED
+
+    assert render(Answer()) == EMPTY_ANSWER
+    assert render(Answer(dropped=2)) == UNVERIFIED

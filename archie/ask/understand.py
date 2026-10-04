@@ -43,6 +43,7 @@ SHAPE = Shape(
         F("people", "list", required=False, hint="names or emails mentioned"),
         F("since", required=False, hint="ISO date"), F("until", required=False, hint="ISO date"),
         F("topic", required=False), F("meeting", required=False),
+        F("mine", "bool", required=False, hint="questions only: yes if it's about something the user sent or wrote"),
         F("fact", "choice", required=False, choices=FACTS),
         F("about", required=False, hint="who or what a telling is about"),
         F("question", "int", required=False, hint="the open question's number"),
@@ -126,6 +127,7 @@ def _params(raw: dict, heard: set[str]) -> dict:
     out = {"people": [p for p in raw.get("people") or [] if _said(p, heard)]}
     out.update({k: raw.get(k) for k in PARAMS})
     out["text"] = raw.get("notes")
+    out["mine"] = bool(raw.get("mine"))
     return out
 
 

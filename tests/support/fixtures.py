@@ -39,7 +39,7 @@ def by_schema(**handlers):
 
 PART_FIELDS = {"text": "", "resolved": None, "intent": None, "people": [], "since": None, "until": None,
                "topic": None, "meeting": None, "fact": None, "about": None, "question": None, "action": None,
-               "target": None, "wanted": None, "options": [], "ask": None, "notes": None}
+               "target": None, "wanted": None, "options": [], "ask": None, "notes": None, "mine": None}
 
 
 def part(kind: str, **fields) -> dict:

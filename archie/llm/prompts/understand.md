@@ -37,7 +37,9 @@ Rules:
 - Parameters come from the message and, for follow-ups, the conversation: people (names
   or email addresses, not {me_name} themself), since and until (ISO dates; resolve "last
   week", "yesterday"; weeks run Monday to Sunday; quarters are calendar quarters), topic
-  (a few words), meeting (words identifying a meeting).
+  (a few words), meeting (words identifying a meeting). `mine`: yes when the question is
+  about something the user sent or wrote ("the message I sent them", "my reply");
+  otherwise -.
 - For notes, put only the first line of the pasted notes in `notes`, copied exactly.
   Never copy the rest of the notes into your reply.
 - What the user says about people, senders or their own life is a telling. Never treat

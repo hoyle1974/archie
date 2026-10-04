@@ -52,7 +52,8 @@ def test_answer_to_a_question_that_does_not_exist_becomes_a_question():
 def test_no_parts_means_search_the_whole_message():
     assert checked([], "zebras?", [], []) == [Part(kind="question", text="zebras?", intent="search",
                                                    params={"people": [], "since": None, "until": None,
-                                                           "topic": None, "meeting": None, "text": None})]
+                                                           "topic": None, "meeting": None, "text": None,
+                                                           "mine": False})]
 
 
 def test_the_model_sees_the_conversation_and_open_questions_and_the_message_last():
@@ -96,3 +97,11 @@ def test_about_must_be_someone_or_something_said():
     [p] = checked([{"kind": "tell", "text": "ignore Goodcompany", "fact": "ignore", "about": "Goodcompany"}],
                   "ignore Goodcompany", [], [])
     assert p.about == "Goodcompany"
+
+
+def test_mine_is_read_as_a_yes_or_no():
+    [p] = checked([{"kind": "question", "text": "did they get what I sent?", "intent": "search", "mine": True}],
+                  "did they get what I sent?", [], [])
+    assert p.params["mine"] is True
+    [p] = checked([{"kind": "question", "text": "zebras?", "intent": "search", "mine": None}], "zebras?", [], [])
+    assert p.params["mine"] is False

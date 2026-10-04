@@ -8,6 +8,7 @@ from archie.llm.verify import Claim
 NOTHING = "I couldn't find anything about that in your archive."
 UNVERIFIED = ("I found related material but couldn't verify any answer against it, "
               "so I'm not showing one. Try asking more specifically.")
+EMPTY_ANSWER = "I found related material, but none of it answers that."
 
 
 class _Numberer:
@@ -32,7 +33,8 @@ def render(answer: Answer, sources: bool = False, paths: bool = False) -> str:
     if answer.nothing_found:
         return NOTHING
     if not answer.summary and not answer.sections:
-        return f"{answer.title}\n{UNVERIFIED}" if answer.title else UNVERIFIED
+        text = UNVERIFIED if answer.dropped else EMPTY_ANSWER
+        return f"{answer.title}\n{text}" if answer.title else text
     num = _Numberer()
     out = [answer.title] if answer.title else []
     if answer.summary:
