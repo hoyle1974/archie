@@ -49,3 +49,17 @@ def render(answer: Answer, sources: bool = False, paths: bool = False) -> str:
         out += [f"  [{i}] {label}" + (f"  · {path}" if paths else "") for i, (path, chunk, label) in
                 enumerate(num.order, 1)]
     return "\n".join(out)
+
+
+def citations_of(answer: Answer) -> list[dict]:
+    """The answer's sources, numbered exactly as render() numbers its [n] markers."""
+    if answer.plain is not None or answer.nothing_found:
+        return []
+    num = _Numberer()
+    quotes: dict[tuple[str, str, str], str] = {}
+    for claim in [*answer.summary, *(c for sec in answer.sections for c in sec.items)]:
+        num.mark(claim)
+        for c in claim.citations:
+            quotes.setdefault((c.path, c.chunk_id, c.label), c.quote)
+    return [{"n": i, "file": path, "chunk": chunk, "label": label, "quote": quotes[(path, chunk, label)]}
+            for i, (path, chunk, label) in enumerate(num.order, 1)]
