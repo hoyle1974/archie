@@ -11,7 +11,7 @@ tags: [component]
   - `GeminiBackend` calls the Gemini API through `google-genai` with plain text in and out (no tools). It reads the key from the Keychain item `gemini-api-key` once per process, caps output tokens per tier (`llm.max_output_tokens`), sets a thinking level per tier (`llm.thinking`, `off` to omit), switches off the SDK's automatic function calling, and turns prepaid-credit, quota, key, model, server, network, timeout, safety and empty-reply failures into one-sentence `LLMError`s.
   - `FakeBackend` replays canned replies for tests.
   - `make_backend(config)` picks one from the config.
-  - Tiers: `fast` maps to `gemini-3.7-flash` and `strong` to `gemini-3.1-pro-preview` by default (`llm.models`).
+  - Tiers: both `fast` and `strong` map to `gemini-3.7-flash` by default (`llm.models`); `strong` gets a larger output cap and medium thinking.
 - `shape.py`: each model call declares a `Shape` (fields, records, or cited claims). It writes the format instructions appended to the system prompt, parses the plain-text reply into the dict the caller uses, and reports problems; `TextBackend.complete` retries once on a problem. No JSON or schema is sent.
 - `verify.py`:
   - A `Packet` holds numbered excerpts, and the model cites `{ref, quote}`.

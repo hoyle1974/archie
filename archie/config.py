@@ -16,7 +16,7 @@ DEFAULTS: dict[str, Any] = {
     "llm": {
         "backend": "gemini",
         "parallel": 4,
-        "models": {"fast": "gemini-3.7-flash", "strong": "gemini-3.1-pro-preview"},
+        "models": {"fast": "gemini-3.7-flash", "strong": "gemini-3.7-flash"},
         "max_output_tokens": {"fast": 2048, "strong": 8192},
         "thinking": {"fast": "low", "strong": "medium"},
     },
