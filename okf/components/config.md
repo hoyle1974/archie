@@ -8,6 +8,7 @@ tags: [component]
 ---
 
 - `load_config(home)`: deep-merges the user's `config.yaml` over `DEFAULTS`, which cover sync, llm, index, briefings, loops, ignore and connectors.
+- `nudges.after_days` (default 3): how long to wait on someone with no reply before Today asks "Want to follow up?" (see [questions](questions.md)).
 - `ignore`: addresses or `@domain`s the user told Archie to ignore. Written by [`set_ignored`](derivers.md); read together with `loops.mute`.
 - `Me`:
   - `is_me(identifier)` matches an email address or handle exactly, ignoring case.

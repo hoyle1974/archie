@@ -23,6 +23,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "index": {"embed_model": "BAAI/bge-small-en-v1.5"},
     "briefings": {"lead_minutes": 15, "all_hands_min_attendees": 25},
+    "nudges": {"after_days": 3},  # ask "want to follow up?" after waiting this long with no reply
     "loops": {
         "skip_senders": ["noreply", "no-reply", "donotreply", "notifications@"],
         "mute": [],  # emails or @domains whose mail never becomes a loop (added when you dismiss twice)

@@ -11,7 +11,8 @@ tags: [component]
   1. `same_person`: two dossiers that are probably one person.
   2. `loop_done`: "Did you finish …?" for a `maybe_done` loop. Yes closes it; no reopens it and clears `closed_by`.
   3. `loop_stale`: "Do you still need to …?" for a loop more than a week past due. Yes keeps it and clears the due date; no closes it.
-  4. `who_is`: "Who is x@y?" for someone you correspond with who is known only by an address. The user answers by telling Archie about them (the `remember` code) or by saying to ignore them. The question resolves itself once a name, relationship or role exists, or once the sender is ignored; ignored senders are never asked about.
+  4. `waiting_nudge`: "Still waiting on HeadphonesRUs about the earbud pairing (3 days). Want to follow up?" for an open `waiting_on` loop (or one whose snooze has ended) at least `nudges.after_days` (default 3) whole days old, from a Gmail thread with no message from the counterpart (their address, or their domain) after `created_at`. Checked in code against the thread's raw file. It resolves itself when they reply or the item closes. Its id includes the item's `snoozed_until`, so a nudge answered with a snooze can come back once the snooze ends with still no reply. Replies are handled by [ask](ask.md) (`actions.answer_nudge`).
+  5. `who_is`: "Who is x@y?" for someone you correspond with who is known only by an address. The user answers by telling Archie about them (the `remember` code) or by saying to ignore them. The question resolves itself once a name, relationship or role exists, or once the sender is ignored; ignored senders are never asked about.
 
   Questions answered some other way, such as a loop closed by hand, resolve themselves right away: `resolve_answered` runs after every answer and before Today is drawn, with no model call.
 - `find_duplicates` (`dedupe.py`) is called by the audit.
