@@ -5,12 +5,11 @@ from archie.ask.render import render
 from archie.derive.loops import Loop, save_loop
 from archie.llm.backend import FakeBackend
 from archie.store.files import Note
-from tests.support.fixtures import by_schema, make_ctx
+from tests.support.fixtures import by_schema, make_ctx, question, understood
 from tests.unit.test_briefings import seed
 
 AT = datetime(2026, 10, 1, 20, 10, tzinfo=timezone.utc)  # 1:10 PM PDT, review at 2:00
-ROUTE = {"intent": "next", "params": {"people": [], "since": None, "until": None, "topic": None, "meeting": None,
-                                      "text": None}}
+ROUTE = understood(question("next"))
 
 
 def add_loop(ctx, i, kind, who, cid, summary, created, due=None):
@@ -21,7 +20,7 @@ def add_loop(ctx, i, kind, who, cid, summary, created, due=None):
 
 
 def test_next_uses_free_time_and_ranked_loops_without_llm(tmp_path):
-    fb = FakeBackend(by_schema(route=ROUTE))
+    fb = FakeBackend(by_schema(understand=ROUTE))
     ctx = make_ctx(tmp_path, fb, now=AT)
     seed(ctx)  # includes "Review Alex's Redis fallback logic", due today, Alex is in the 2pm
     add_loop(ctx, 2, "i_promised", "Ken Ito", "ken_ito", "Send Ken the Q4 numbers", "2026-09-26T17:00:00+00:00")
@@ -37,6 +36,6 @@ def test_next_uses_free_time_and_ranked_loops_without_llm(tmp_path):
 
 
 def test_clear_calendar_and_nothing_open(tmp_path):
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=ROUTE)), now=AT)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=ROUTE)), now=AT)
     out = render(ask(ctx, "what next?"))
     assert "calendar is clear" in out and "nothing open" in out.lower()

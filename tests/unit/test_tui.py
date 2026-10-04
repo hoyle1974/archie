@@ -4,7 +4,7 @@ from archie.connectors.base import SyncResult
 from archie.llm.backend import FakeBackend
 from archie.store.files import atomic_write
 from archie.tui.app import ArchieApp
-from tests.support.fixtures import by_schema, make_ctx
+from tests.support.fixtures import by_schema, make_ctx, question, understood
 
 
 class Counting:
@@ -62,11 +62,10 @@ def test_sync_pane_shows_what_sync_is_waiting_on(tmp_path):
 
 
 def test_question_in_ask_pane_shows_answer(tmp_path):
-    route = {"intent": "search", "params": {"people": [], "since": None, "until": None, "topic": "Priya",
-                                            "meeting": None, "text": None}}
+    route = understood(question("search", topic="Priya"))
     answer = {"summary": [{"text": "Priya is the PM for auth.",
                            "citations": [{"ref": 1, "quote": "Priya is the PM for auth"}]}], "sections": []}
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route, answer=answer)))
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=route, answer=answer)))
     atomic_write(ctx.home / "people/priya.md", "## Priya\nPriya is the PM for auth.\n")
     ctx.index.sync()
 

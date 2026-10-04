@@ -6,19 +6,14 @@ from archie.ask.render import render
 from archie.llm.backend import FakeBackend
 from archie.store.fence import get_fence
 from archie.store.files import read_note, write_note
-from tests.support.fixtures import by_schema, make_ctx
+from tests.support.fixtures import by_schema, make_ctx, question, understood
 from tests.unit.test_activity import seed
 
 NOW = datetime(2026, 10, 2, 22, 30, tzinfo=timezone.utc)  # Fri Oct 2, 3:30 PM PDT
 
 
-def route(since=None, until=None):
-    return {"intent": "ledger", "params": {"people": [], "since": since, "until": until, "topic": None,
-                                           "meeting": None, "text": None}}
-
-
 def test_ledger_counts_and_lists_with_citations(tmp_path):
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("2026-09-28", None))), now=NOW)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("ledger", since="2026-09-28")))), now=NOW)
     seed(ctx)
     ctx.index.sync()
     out = render(ask(ctx, "what did I get done this week?"), sources=True)
@@ -30,14 +25,14 @@ def test_ledger_counts_and_lists_with_citations(tmp_path):
 
 
 def test_default_window_is_this_week(tmp_path):
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route())), now=NOW)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("ledger")))), now=NOW)
     seed(ctx)
     ctx.index.sync()
     assert render(ask(ctx, "what did I do?")).startswith("Sep 28 – Oct 2:")
 
 
 def test_long_window_groups_by_project(tmp_path):
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("2026-07-01", "2026-10-02"))), now=NOW)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("ledger", since="2026-07-01", until="2026-10-02")))), now=NOW)
     seed(ctx)
     ctx.index.sync()
     out = render(ask(ctx, "what did I accomplish this quarter?"))
@@ -61,7 +56,7 @@ def test_weekly_journal_written_and_user_text_kept(tmp_path):
 def test_long_lists_are_capped_and_commits_counted_per_repo(tmp_path):
     from archie.store.files import write_raw as wr
 
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("2026-09-28", None))), now=NOW)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("ledger", since="2026-09-28")))), now=NOW)
     for i in range(20):
         wr(ctx.home / f"sources/github/me__app/commit-{i:07d}.json", {
             "sha": f"{i:07d}", "repo": "me/app", "message": f"Change {i}", "date": f"2026-09-30T{i:02d}:00:00Z",

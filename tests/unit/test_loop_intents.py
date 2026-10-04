@@ -5,15 +5,10 @@ from archie.ask.render import render
 from archie.derive.loops import Loop, load_loops, save_loop
 from archie.llm.backend import FakeBackend
 from archie.store.files import Note
-from tests.support.fixtures import by_schema, make_ctx
+from tests.support.fixtures import by_schema, make_ctx, part, question, understood
 from tests.support.raw import addr, msg, write_thread
 
 NOW = datetime(2026, 10, 1, 16, tzinfo=timezone.utc)
-
-
-def route(intent):
-    return {"intent": intent, "params": {"people": [], "since": None, "until": None, "topic": None,
-                                         "meeting": None, "text": None}}
 
 
 def seed(ctx):
@@ -32,7 +27,7 @@ def seed(ctx):
 
 
 def test_loops_listing_needs_no_synthesis_and_leads_with_most_urgent(tmp_path):
-    fb = FakeBackend(by_schema(route=route("loops")))
+    fb = FakeBackend(by_schema(understand=understood(question("loops"))))
     ctx = make_ctx(tmp_path, fb, now=NOW)
     seed(ctx)
     out = render(ask(ctx, "what do I owe people?"))
@@ -44,26 +39,26 @@ def test_loops_listing_needs_no_synthesis_and_leads_with_most_urgent(tmp_path):
 
 
 def test_general_question_lists_everything(tmp_path):
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("loops"))), now=NOW)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("loops")))), now=NOW)
     seed(ctx)
     assert render(ask(ctx, "what's open?")).startswith("You have 2 open items.")
 
 
 def test_waiting_question_filters_to_waiting_on(tmp_path):
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("loops"))), now=NOW)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("loops")))), now=NOW)
     seed(ctx)
     out = render(ask(ctx, "what am I waiting on?"))
     assert "SSO launch date" in out and "Redis" not in out
 
 
 def test_no_loops_is_said_plainly(tmp_path):
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("loops"))), now=NOW)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("loops")))), now=NOW)
     assert "nothing open" in render(ask(ctx, "what do I owe?")).lower()
 
 
 def test_loop_update_marks_done_by_user_word(tmp_path):
     upd = {"action": "done", "loops": [1], "until": None, "reason": None}
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("loop_update"), loop_update=upd)), now=NOW)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(part("instruct", action="loop_done")), loop_update=upd)), now=NOW)
     seed(ctx)
     out = render(ask(ctx, "done with Sarah's review"))
     assert "Marked done" in out and "Review the Redis fallback patch" in out
@@ -73,7 +68,7 @@ def test_loop_update_marks_done_by_user_word(tmp_path):
 
 def test_loop_update_snooze_sets_date(tmp_path):
     upd = {"action": "snooze", "loops": [2], "until": "2026-10-05", "reason": None}
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("loop_update"), loop_update=upd)), now=NOW)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(part("instruct", action="loop_done")), loop_update=upd)), now=NOW)
     seed(ctx)
     render(ask(ctx, "snooze the SSO one till Monday"))
     loop = next(lp for lp in load_loops(ctx.home) if lp.loop_id == "loop-2")
@@ -82,7 +77,7 @@ def test_loop_update_snooze_sets_date(tmp_path):
 
 def test_loop_update_with_no_match_lists_items(tmp_path):
     upd = {"action": "done", "loops": [], "until": None, "reason": None}
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("loop_update"), loop_update=upd)), now=NOW)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(part("instruct", action="loop_done")), loop_update=upd)), now=NOW)
     seed(ctx)
     out = render(ask(ctx, "done with the thing"))
     assert "couldn't tell which" in out and "Review the Redis fallback patch" in out
@@ -102,7 +97,7 @@ def test_second_dismissal_from_same_sender_mutes_them_visibly(tmp_path):
         save_loop(ctx.home, Loop(f"loop-{i}", f"loops/2026/loop-{i}.md", Note(meta=meta, body="")))
     outs = []
     for _ in range(2):
-        ctx.backend = FakeBackend(by_schema(route=route("loop_update"), loop_update=lambda s, u, sc, t: {
+        ctx.backend = FakeBackend(by_schema(understand=understood(part("instruct", action="loop_done")), loop_update=lambda s, u, sc, t: {
             "action": "dismiss", "loops": [next(i for i, line in enumerate(u.split("Items:\n")[1].splitlines(), 1)
                                                 if "recruiter" in line and "[open]" in line)],
             "until": None, "reason": "not a loop"}))
@@ -125,7 +120,7 @@ def test_muted_sender_mail_is_never_sent_to_llm(tmp_path):
 
 
 def test_maybe_done_items_say_why(tmp_path):
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route("loops"))), now=NOW)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("loops")))), now=NOW)
     seed(ctx)
     lp = next(x for x in load_loops(ctx.home) if x.loop_id == "loop-1")
     lp.meta["status"] = "maybe_done"

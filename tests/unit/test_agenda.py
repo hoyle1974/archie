@@ -7,7 +7,7 @@ from archie.derive.meetings import derive_meetings
 from archie.llm.backend import FakeBackend
 from archie.store.files import write_raw
 from tests.support.fake_google import cal_event
-from tests.support.fixtures import TEST, by_schema, make_ctx
+from tests.support.fixtures import by_schema, TEST, make_ctx, question, understood
 
 NOW = datetime(2026, 10, 2, 18, 30, tzinfo=timezone.utc)  # Fri Oct 2, 11:30 AM PDT
 
@@ -53,9 +53,8 @@ def test_tomorrow_lists_all_day_then_timed_without_a_model_call(tmp_path):
 
 
 def test_routed_window_and_meeting_attendees(tmp_path):
-    route = {"intent": "agenda", "params": {"people": [], "since": "2026-10-03", "until": "2026-10-05",
-                                            "topic": None, "meeting": None, "text": None}}
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route)), now=NOW)
+    route = understood(question("agenda", since="2026-10-03", until="2026-10-05"))
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=route)), now=NOW)
     seed(ctx)
     out = render(ask(ctx, "what's my weekend and monday look like"))
     assert "Monday, Oct 5" in out and "2:00 PM  Design Review · with Alex Rivera" in out

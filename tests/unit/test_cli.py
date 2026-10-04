@@ -2,7 +2,7 @@ import pytest
 
 from archie import cli
 from archie.llm.backend import FakeBackend
-from tests.support.fixtures import by_schema
+from tests.support.fixtures import by_schema, question, understood
 
 
 def test_connect_gemini_stores_the_key(monkeypatch, capsys):
@@ -57,11 +57,10 @@ def test_ask_prints_answer(tmp_path, monkeypatch, capsys):
     setup_home(tmp_path, monkeypatch)
     cli.main(["admin", "reindex"])
     capsys.readouterr()
-    route = {"intent": "search", "params": {"people": [], "since": None, "until": None, "topic": "Priya",
-                                            "meeting": None, "text": None}}
+    route = understood(question("search", topic="Priya"))
     answer = {"summary": [{"text": "Priya is the PM for auth.",
                            "citations": [{"ref": 1, "quote": "Priya is the PM for auth"}]}], "sections": []}
-    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend(by_schema(route=route, answer=answer)))
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend(by_schema(understand=route, answer=answer)))
     code, out = run(capsys, "ask", "who", "is", "priya?")
     assert code == 0 and out.startswith("Priya is the PM for auth. [1]")
 

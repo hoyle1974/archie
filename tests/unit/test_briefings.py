@@ -10,7 +10,7 @@ from archie.derive.people import derive_people
 from archie.llm.backend import FakeBackend
 from archie.store.files import Note, write_raw
 from tests.support.fake_google import cal_event
-from tests.support.fixtures import TEST, by_schema, make_ctx
+from tests.support.fixtures import by_schema, TEST, make_ctx, question, understood
 from tests.support.raw import addr, msg, write_thread
 
 NOW = datetime(2026, 10, 1, 20, 45, tzinfo=timezone.utc)  # 1:45 PM PDT
@@ -85,18 +85,16 @@ def test_unchanged_inputs_reuse_saved_briefing(tmp_path):
 
 
 def test_brief_intent_end_to_end(tmp_path):
-    route = {"intent": "brief", "params": {"people": [], "since": None, "until": None, "topic": None,
-                                           "meeting": "next", "text": None}}
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route, answer=synth)), now=NOW)
+    route = understood(question("brief", meeting="next"))
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=route, answer=synth)), now=NOW)
     seed(ctx)
     out = render(ask(ctx, "prep me for my next meeting"))
     assert out.startswith("2:00 PM · Design Review")
 
 
 def test_no_upcoming_meeting(tmp_path):
-    route = {"intent": "brief", "params": {"people": [], "since": None, "until": None, "topic": None,
-                                           "meeting": None, "text": None}}
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route)), now=NOW)
+    route = understood(question("brief"))
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=route)), now=NOW)
     assert "no upcoming meetings" in render(ask(ctx, "prep me")).lower()
 
 

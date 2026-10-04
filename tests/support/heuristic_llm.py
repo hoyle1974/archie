@@ -1,6 +1,6 @@
 """A deterministic stand-in for the LLM, good enough to drive vignette tests end to end.
 
-- route: keyword rules.
+- understand: keyword rules, one part per message.
 - loops_extract: questions/requests in others' NEW messages, "I'll" promises and questions
   in the user's own NEW messages.
 - loops_close: a NEW message from the other side that isn't just thanks closes the loop.
@@ -78,9 +78,25 @@ class HeuristicLLM:
         self.prompts.append((title, user))
         return getattr(self, f"_{title}")(system, user)
 
-    def _route(self, system, user):
+    def _classify(self, system, user):
         intent = next((name for rx, name in ROUTES if re.search(rx, user, re.I)), "search")
         return {"intent": intent, "params": _params(user)}
+
+    TO_PART = {"loop_update": ("instruct", "loop_done"), "correct": ("instruct", "meeting_type"),
+               "notes": ("instruct", "notes")}
+
+    def _understand(self, system, user):
+        msg = user.rsplit("Message:", 1)[-1].strip()
+        r = self._classify(system, msg)
+        p = r["params"]
+        item = {"kind": "question", "text": msg, "resolved": None, "intent": r["intent"], "people": p["people"],
+                "since": p["since"], "until": p["until"], "topic": p["topic"], "meeting": p["meeting"],
+                "notes": p["text"], "fact": None, "about": None, "question": None, "action": None, "target": None,
+                "wanted": None, "options": [], "ask": None}
+        if r["intent"] in self.TO_PART:
+            item["kind"], item["action"] = self.TO_PART[r["intent"]]
+            item["intent"] = None
+        return {"parts": [item]}
 
     def _answer(self, system, user):
         claims = []

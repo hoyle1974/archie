@@ -3,13 +3,12 @@ from archie.ask.render import render
 from archie.derive.people import PeopleDirectory, derive_people
 from archie.llm.backend import FakeBackend
 from archie.store.files import read_note
-from tests.support.fixtures import by_schema, make_ctx
+from tests.support.fixtures import by_schema, make_ctx, part, question, understood
 from tests.support.raw import addr, msg, write_thread
 
 SAID = ("Goodspouse is my wife. Online she goes by Belle. Childone is non-binary and is my oldest. "
         "Acorn is my youngest. He is three and a half.")
-ROUTE = {"intent": "remember", "params": {"people": [], "since": None, "until": None, "topic": None,
-                                          "meeting": None, "text": None}}
+ROUTE = understood(part("tell", fact="person"))
 
 
 def person(name, statement, relationship=None, pronouns=None, role=None, other_names=()):
@@ -18,7 +17,7 @@ def person(name, statement, relationship=None, pronouns=None, role=None, other_n
 
 
 def seeded(tmp_path, people):
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=ROUTE, remember={"people": people})))
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=ROUTE, remember={"people": people})))
     derive_people(ctx, [write_thread(ctx.home, "t1", [
         msg("m1", "belle@x.example", "Goodspouse Testerson", [addr("test@acme.example")], "2026-10-01T00:00:00+00:00", "hi",
             to_me=True),
@@ -69,8 +68,6 @@ def test_my_family_lists_family_members(tmp_path):
         person("Goodspouse", "Goodspouse is my wife.", relationship="wife"),
         person("Acorn", "Acorn is my youngest.", relationship="youngest child")])
     render(ask(ctx, "Goodspouse is my wife. Acorn is my youngest."))
-    ctx.backend = FakeBackend(by_schema(route={"intent": "who", "params": {"people": [], "since": None,
-                                                                           "until": None, "topic": "my family",
-                                                                           "meeting": None, "text": None}}))
+    ctx.backend = FakeBackend(by_schema(understand=understood(question("who", topic="my family"))))
     out = render(ask(ctx, "Tell me about my family"))
     assert "Goodspouse Testerson (your wife)" in out and "Acorn (your youngest child)" in out

@@ -2,15 +2,10 @@ from archie.ask.pipeline import ask
 from archie.ask.render import render
 from archie.derive.people import derive_people
 from archie.llm.backend import FakeBackend
-from tests.support.fixtures import by_schema, make_ctx
+from tests.support.fixtures import by_schema, make_ctx, question, understood
 from tests.support.raw import addr, msg, write_thread
 
 TEST = "test@acme.example"
-
-
-def route_who(name):
-    return {"intent": "who", "params": {"people": [name], "since": None, "until": None, "topic": None,
-                                        "meeting": None, "text": None}}
 
 
 def seed(ctx):
@@ -38,7 +33,7 @@ def test_who_lists_code_computed_facts_and_cited_summary(tmp_path):
                              "citations": [{"ref": int(ref), "quote": "ship SSO before the Redis migration"}]}],
                 "sections": []}
 
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route_who("Priya"), answer=answer)))
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["Priya"])), answer=answer)))
     seed(ctx)
     out = render(ask(ctx, "who is Priya?"))
     assert out.startswith("Priya asked to ship SSO")
@@ -49,15 +44,15 @@ def test_who_lists_code_computed_facts_and_cited_summary(tmp_path):
 
 
 def test_ambiguous_name_asks_back_without_llm_synthesis(tmp_path):
-    fb = FakeBackend(by_schema(route=route_who("Alex")))
+    fb = FakeBackend(by_schema(understand=understood(question("who", people=["Alex"]))))
     ctx = make_ctx(tmp_path, fb)
     seed(ctx)
     out = render(ask(ctx, "who is Alex?"))
     assert "Which Alex" in out and "Alex Rivera" in out and "Alex Kim" in out
-    assert [c["shape"].name for c in fb.calls] == ["route"]
+    assert [c["shape"].name for c in fb.calls] == ["understand"]
 
 
 def test_unknown_person_says_so(tmp_path):
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(route=route_who("Zed"))))
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["Zed"])))))
     seed(ctx)
     assert "don't know anyone called Zed" in render(ask(ctx, "who is Zed?"))

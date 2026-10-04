@@ -35,3 +35,24 @@ def by_schema(**handlers):
         return fn(system, user, shape, tier) if callable(fn) else fn
 
     return reply
+
+
+PART_FIELDS = {"text": "", "resolved": None, "intent": None, "people": [], "since": None, "until": None,
+               "topic": None, "meeting": None, "fact": None, "about": None, "question": None, "action": None,
+               "target": None, "wanted": None, "options": [], "ask": None, "notes": None}
+
+
+def part(kind: str, **fields) -> dict:
+    """One part as the understanding call's parsed reply has it. An empty `text` means the
+    whole message (code puts the message there)."""
+    unknown = set(fields) - set(PART_FIELDS)
+    assert not unknown, f"not a PART field: {unknown}"
+    return {"kind": kind, **PART_FIELDS, **fields}
+
+
+def question(intent: str, **fields) -> dict:
+    return part("question", intent=intent, **fields)
+
+
+def understood(*parts: dict) -> dict:
+    return {"parts": list(parts)}
