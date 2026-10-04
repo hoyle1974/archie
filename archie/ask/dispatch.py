@@ -18,6 +18,9 @@ EMPTY = {"people": [], "since": None, "until": None, "topic": None, "meeting": N
 CANT_SEND = "I can't send anything; I only read."
 CANT_YET = "I can't do that yet."
 UNCLEAR = "I'm not sure what you mean. Could you say it another way?"
+WHICH = 'Which source? Say, for example, "show 2".'
+_SHOW_N = re.compile(r"\[(\d+)\]|\b(?:show|open|source|citation|number)\s+(?:me\s+)?(?:the\s+)?"
+                     r"(?:source\s+|citation\s+)?#?(\d+)\b(?!\s*(?:st|nd|rd|th)\b)", re.I)
 ACTION_INTENT = {"loop_done": "loop_update", "loop_snooze": "loop_update", "loop_dismiss": "loop_update",
                  "loop_reopen": "loop_update", "meeting_type": "correct", "merge_names": "correct", "notes": "notes"}
 
@@ -43,9 +46,9 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
         return "remember", HANDLERS["remember"](ctx, f"{subject}: {part.text}" if subject else part.text, dict(EMPTY))
     if part.kind == "instruct":
         if part.action == "show_citation":
-            m = re.search(r"\d+", part.text)
-            n = citation_number(part.text) or (int(m.group()) if m else 1)
-            return "show_citation", show(ctx, last, n)
+            m = _SHOW_N.search(part.text)
+            n = citation_number(part.text) or (int(m.group(1) or m.group(2)) if m else None)
+            return "show_citation", show(ctx, last, n) if n else Answer(plain=WHICH)
         name = ACTION_INTENT.get(part.action or "")
         if name == "notes":  # the notes handler finds the note's start in the whole message
             return "notes", HANDLERS["notes"](ctx, message, {**EMPTY, **part.params})

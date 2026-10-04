@@ -63,3 +63,28 @@ def test_the_model_sees_the_conversation_and_open_questions_and_the_message_last
     assert "1. Who is a@b.co?" in text
     assert text.endswith("Message: do you see the message I sent them?")
     assert "Recent conversation" not in prompt_input("hi", [], [])
+
+
+def test_names_must_be_whole_words_someone_said():
+    recent = [{**RECENT[0], "summary": "See you tomorrow; the token expired."}]
+    q = {"kind": "question", "text": "did he reply?", "intent": "search",
+         "resolved": "Did Tom reply to Ken about the budget?"}
+    assert checked([q], q["text"], recent, [])[0].resolved is None
+
+
+def test_people_nobody_mentioned_are_dropped():
+    q = {"kind": "question", "text": "who is she?", "intent": "who", "people": ["Bose", "HeadphonesRUs"]}
+    assert checked([q], q["text"], RECENT, [])[0].params["people"] == ["HeadphonesRUs"]
+    q = {"kind": "question", "text": "who is priya?", "intent": "who", "people": ["Priya Sharma"]}
+    assert checked([q], q["text"], [], [])[0].params["people"] == ["Priya Sharma"]
+
+
+def test_an_ask_back_naming_someone_nobody_mentioned_is_dropped():
+    [p] = checked([{"kind": "unclear", "text": "she's done", "ask": "Do you mean your sister Goodspouse?"}],
+                  "she's done", [], [])
+    assert p.ask is None
+
+
+def test_the_model_sees_what_earlier_messages_were_understood_as():
+    entry = {**RECENT[0], "said": "really?", "resolved": "Did Status reply about my earbud?"}
+    assert "You: really? (meaning: Did Status reply about my earbud?)" in prompt_input("and then?", [entry], [])

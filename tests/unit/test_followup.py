@@ -36,3 +36,9 @@ def test_recheck_says_when_the_answer_changed():
     assert render(same) == "I checked again.\nx"
     changed = recheck(LAST, Answer(nothing_found=True), [])
     assert render(changed).startswith("I checked again. This is different from my earlier answer.\n")
+
+
+def test_context_is_empty_when_the_quote_is_not_in_the_chunk():
+    from archie.ask.followup import _around
+
+    assert _around("Some unrelated chunk text.", "a quote that is elsewhere") == ""

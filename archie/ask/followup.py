@@ -30,7 +30,7 @@ def _around(text: str, quote: str, width: int = 200) -> str:
     q = re.sub(r"\s+", " ", quote or "").strip().lower()
     at = flat.lower().find(q[:40]) if q else -1
     if at < 0:
-        return flat[: 2 * width]
+        return ""
     start, end = max(0, at - width), min(len(flat), at + len(q) + width)
     return ("…" if start else "") + flat[start:end] + ("…" if end < len(flat) else "")
 

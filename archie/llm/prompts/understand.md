@@ -24,8 +24,9 @@ Intents for questions:
 {intents}
 
 Rules:
-- `text` is the part's words copied exactly from the message. A message with one thing
-  in it is one part.
+- `text` is the part's words copied exactly from the message, on one line (if the part
+  spans several lines, copy only its first line). A message with one thing in it is one
+  part.
 - `resolved` (questions only): the question rewritten to stand alone, filling in "them",
   "her", "that" and similar from the recent conversation. Use only names and topics from
   the message or the conversation. If the message already stands alone or is about
@@ -34,7 +35,8 @@ Rules:
   or email addresses, not {me_name} themself), since and until (ISO dates; resolve "last
   week", "yesterday"; weeks run Monday to Sunday; quarters are calendar quarters), topic
   (a few words), meeting (words identifying a meeting).
-- For notes, put the pasted note text in `notes`, verbatim, as the part's last field.
+- For notes, put only the first line of the pasted notes in `notes`, copied exactly.
+  Never copy the rest of the notes into your reply.
 - What the user says about people, senders or their own life is a telling. Never treat
   it as a question to check.
 - Never answer and never state facts.

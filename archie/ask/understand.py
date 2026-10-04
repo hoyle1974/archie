@@ -37,7 +37,7 @@ PARAMS = ("since", "until", "topic", "meeting")
 SHAPE = Shape(
     "understand",
     records=(Record("PART", "parts", F("kind", "choice", choices=KINDS), (
-        F("text", hint="the part's words, copied exactly from the message"),
+        F("text", hint="the part's words, copied exactly from the message; first line only"),
         F("resolved", required=False, hint="questions only: the question made to stand alone"),
         F("intent", "choice", required=False, choices=tuple(QUESTION_INTENTS)),
         F("people", "list", required=False, hint="names or emails mentioned"),
@@ -51,7 +51,7 @@ SHAPE = Shape(
         F("wanted", required=False, hint="for action none: a short verb phrase"),
         F("options", "int_list", required=False),
         F("ask", required=False, hint="for unclear: one short question back"),
-        F("notes", required=False, hint="for notes: the pasted note text verbatim, written last"))),),
+        F("notes", required=False, hint="for notes: the first line of the pasted notes, copied exactly"))),),
     example="PART question\ntext: Do you see the message I sent them?\n"
             "resolved: Do you see the message I sent HeadphonesRUs about the earbud pairing?\n"
             "intent: search\npeople: HeadphonesRUs\ntopic: earbud pairing\n"
@@ -59,7 +59,11 @@ SHAPE = Shape(
 )
 
 _NAMEISH = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+|\b[A-Z][\w'-]*")
-_PRONOUN_I = {"i", "i'm", "i've", "i'll", "i'd"}
+_WORD = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+|[\w'-]+")
+_PLAIN = {"i", "i'm", "i've", "i'll", "i'd", "a", "an", "the", "do", "does", "did", "is", "are", "was", "were", "what",
+          "when", "where", "who", "whom", "whose", "which", "why", "how", "can", "could", "should", "would", "will",
+          "have", "has", "had", "my", "your", "you", "me", "it", "that", "this", "and", "or", "in", "on", "at", "for",
+          "to", "of", "about", "from", "with", "any", "anything"}
 
 
 @dataclass
@@ -88,7 +92,8 @@ def prompt_input(message: str, recent: list[dict], open_qs: list[dict]) -> str:
     if recent:
         out.append("Recent conversation (oldest first):")
         for e in recent:
-            out.append(f"You: {e.get('said', '')}")
+            meaning = f" (meaning: {e['resolved']})" if e.get("resolved") else ""
+            out.append(f"You: {e.get('said', '')}{meaning}")
             out.append(f"Archie: {_squash(e.get('summary'))[:400]}")
             cites = "; ".join(f"[{c.get('n')}] {c.get('label', '')}" for c in e.get("citations") or [])
             if cites:
@@ -102,13 +107,23 @@ def prompt_input(message: str, recent: list[dict], open_qs: list[dict]) -> str:
     return "\n".join(out)
 
 
-def _grounded(resolved: str, heard: str) -> bool:
-    """Every name-like word in the rewrite (capitalized, or an email) was said by someone."""
-    return all(w.lower() in heard for w in _NAMEISH.findall(resolved) if w.lower() not in _PRONOUN_I)
+def _words(text: str) -> set[str]:
+    return {w.lower().strip(".'-") for w in _WORD.findall(text or "")}
 
 
-def _params(raw: dict) -> dict:
-    out = {"people": list(raw.get("people") or [])}
+def _grounded(text: str, heard: set[str]) -> bool:
+    """Every name-like word (capitalized, or an email) is a whole word someone said."""
+    return all(w.lower().strip(".'-") in heard for w in _NAMEISH.findall(text)
+               if w.lower().strip(".'-") not in _PLAIN)
+
+
+def _said(name: str, heard: set[str]) -> bool:
+    """Someone said at least one real word of the name (the model may complete "Priya" to "Priya Sharma")."""
+    return bool((_words(name) - _PLAIN) & heard)
+
+
+def _params(raw: dict, heard: set[str]) -> dict:
+    out = {"people": [p for p in raw.get("people") or [] if _said(p, heard)]}
     out.update({k: raw.get(k) for k in PARAMS})
     out["text"] = raw.get("notes")
     return out
@@ -116,9 +131,9 @@ def _params(raw: dict) -> dict:
 
 def checked(raw: list[dict], message: str, recent: list[dict], open_qs: list[dict]) -> list[Part]:
     said = _squash(message).lower()
-    heard = " ".join([said, *(_squash(" ".join([e.get("said", ""), e.get("resolved") or "", e.get("summary", ""),
-                                               *(c.get("label", "") for c in e.get("citations") or [])])).lower()
-                              for e in recent)])
+    heard = _words(" ".join([message, *(" ".join([e.get("said", ""), e.get("resolved") or "", e.get("summary", ""),
+                                                  *(c.get("label", "") for c in e.get("citations") or [])])
+                                        for e in recent), *(q.get("text", "") for q in open_qs)]))
     parts = []
     for r in raw:
         kind = r.get("kind") if r.get("kind") in KINDS else "question"
@@ -131,11 +146,12 @@ def checked(raw: list[dict], message: str, recent: list[dict], open_qs: list[dic
         question = r.get("question")
         if kind == "answer" and not (isinstance(question, int) and 1 <= question <= len(open_qs)):
             kind, question = "question", None
-        parts.append(Part(kind=kind, text=text, resolved=resolved, intent=r.get("intent"), params=_params(r),
+        ask = r.get("ask") if r.get("ask") and _grounded(r["ask"], heard) else None
+        parts.append(Part(kind=kind, text=text, resolved=resolved, intent=r.get("intent"), params=_params(r, heard),
                           fact=r.get("fact"), about=r.get("about"), question=question, action=r.get("action"),
                           target=r.get("target"), wanted=r.get("wanted"), options=list(r.get("options") or []),
-                          ask=r.get("ask")))
-    return parts or [Part(kind="question", text=message.strip(), intent="search", params=_params({}))]
+                          ask=ask))
+    return parts or [Part(kind="question", text=message.strip(), intent="search", params=_params({}, heard))]
 
 
 def understand(ctx: Ctx, message: str, recent: list[dict], open_qs: list[dict]) -> list[Part]:

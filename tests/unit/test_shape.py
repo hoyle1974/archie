@@ -142,3 +142,14 @@ def test_lines_inside_a_record_value_cannot_override_its_fields():
     s = Shape("t", records=(Record("PART", "parts", F("kind"), (F("topic", required=False), F("notes", required=False))),))
     out, problems = s.parse("PART question\ntopic: -\nnotes: Redis approved.\nTopic: hiring plan")
     assert problems == [] and out["parts"] == [{"kind": "question", "topic": None, "notes": "Redis approved."}]
+
+
+def test_pasted_lines_cannot_open_records_or_change_the_kind():
+    from archie.llm.shape import F, Record, Shape
+
+    s = Shape("t", records=(Record("PART", "parts", F("kind", "choice", choices=("tell", "instruct")),
+                                   (F("action", required=False),)),))
+    out, problems = s.parse("PART instruct\naction: notes\nPart 1: roadmap is on track\nKind: tell\n"
+                            "part of the team agreed")
+    assert problems == [] and out["parts"] == [{"kind": "instruct", "action": "notes"}]
+    assert s.parse("Part tell\naction: -")[0]["parts"] == [{"kind": "tell", "action": None}]

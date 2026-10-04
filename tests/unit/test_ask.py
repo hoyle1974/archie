@@ -146,11 +146,12 @@ def test_an_instruction_with_no_action_says_it_cannot_yet(tmp_path):
 
 
 def test_unclear_asks_back_with_a_short_question_only(tmp_path):
-    reply = understood(part("unclear", ask="Which one: Workpersonthree's pizza or Workpersonfour's form?"))
+    reply = understood(part("unclear", ask="Which one do you mean: the pizza or the form?"))
     ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=reply)))
-    assert render(ask(ctx, "she's done with it")) == "Which one: Workpersonthree's pizza or Workpersonfour's form?"
-    ctx.backend = FakeBackend(by_schema(understand=understood(part("unclear", ask="Workpersonthree is done."))))
-    assert render(ask(ctx, "she's done with it")) == "I'm not sure what you mean. Could you say it another way?"
+    assert render(ask(ctx, "she's done with it")) == "Which one do you mean: the pizza or the form?"
+    for made_up in ("The pizza is done.", "Do you mean Workpersonthree's pizza?"):  # not a question; a name nobody said
+        ctx.backend = FakeBackend(by_schema(understand=understood(part("unclear", ask=made_up))))
+        assert render(ask(ctx, "she's done with it")) == "I'm not sure what you mean. Could you say it another way?"
 
 
 def test_answer_to_who_is_reaches_remember_with_the_address(tmp_path):
@@ -188,3 +189,104 @@ def test_each_exchange_is_remembered_with_its_numbered_sources(tmp_path):
     assert entry["summary"].startswith("Priya is the PM for auth. [1]")
     log = [json.loads(x) for x in (ctx.home / "logs/usage.jsonl").read_text().splitlines()]
     assert log[0]["parts"] == [{"kind": "question", "handler": "search"}]
+
+
+def _with_handlers(**fns):
+    from archie.ask.intents import HANDLERS, load_all
+
+    load_all()
+    saved = dict(HANDLERS)
+    HANDLERS.update(fns)
+    return saved
+
+
+def _restore(saved):
+    from archie.ask.intents import HANDLERS
+
+    HANDLERS.clear()
+    HANDLERS.update(saved)
+
+
+def test_two_cited_parts_share_one_numbering(tmp_path):
+    from archie.ask.answer import Answer
+    from archie.ask.render import citations_of
+    from archie.llm.verify import Citation, Claim
+
+    ken = Citation(1, "sources/gmail/k.json", "c0", "budget is flat", "Ken, Oct 1")
+    priya = Citation(1, "people/priya_sharma.md", "c0", "Priya is your manager", "Priya (dossier)")
+    saved = _with_handlers(search=lambda ctx, q, p: Answer(summary=[Claim("Ken said the budget is flat.", [ken])]),
+                           who=lambda ctx, q, p: Answer(summary=[Claim("Priya is your manager.", [priya])]))
+    try:
+        reply = understood(question("search", text="what did Ken say?"), question("who", text="who is Priya?"))
+        ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=reply)))
+        ans = ask(ctx, "what did Ken say? who is Priya?")
+    finally:
+        _restore(saved)
+    out = render(ans, sources=True)
+    assert "Ken said the budget is flat. [1]" in out and "Priya is your manager. [2]" in out
+    assert [c["file"] for c in citations_of(ans)] == ["sources/gmail/k.json", "people/priya_sharma.md"]
+
+
+def test_a_plain_reply_then_a_cited_one_keeps_the_sources(tmp_path):
+    from archie.ask.answer import Answer
+    from archie.ask.render import citations_of
+    from archie.llm.verify import Citation, Claim
+
+    priya = Citation(1, "people/priya_sharma.md", "c0", "Priya is your manager", "Priya (dossier)")
+    saved = _with_handlers(remember=lambda ctx, q, p: Answer(plain="Got it. I'll remember: Sam is your neighbor."),
+                           who=lambda ctx, q, p: Answer(summary=[Claim("Priya is your manager.", [priya])]))
+    try:
+        reply = understood(part("tell", text="Sam is my neighbor."), question("who", text="who is Priya?"))
+        ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=reply)))
+        ans = ask(ctx, "Sam is my neighbor. who is Priya?")
+    finally:
+        _restore(saved)
+    out = render(ans)
+    assert out.startswith("Got it. I'll remember: Sam is your neighbor.") and "Priya is your manager. [1]" in out
+    assert [c["file"] for c in citations_of(ans)] == ["people/priya_sharma.md"]
+
+
+def test_really_after_something_that_was_not_a_question_does_not_redo_it(tmp_path):
+    from archie.ask.answer import Answer
+
+    told = []
+    saved = _with_handlers(remember=lambda ctx, q, p: (told.append(q), Answer(plain="Got it."))[1])
+
+    def model(system, user, shape, tier):
+        msg = user.rsplit("Message:", 1)[-1].strip()
+        return understood(part("unclear", ask="Really what?") if msg == "really?" else part("tell"))
+
+    try:
+        ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=model)))
+        ask(ctx, "Sam is my neighbor.")
+        out = render(ask(ctx, "really?"))
+    finally:
+        _restore(saved)
+    assert told == ["Sam is my neighbor."] and not out.startswith("I checked again.")
+
+
+def test_a_failed_conversation_write_does_not_lose_the_answer(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend([]))
+    (ctx.home / "state/conversation.jsonl").mkdir(parents=True)
+    assert "archie ask" in render(ask(ctx, "help"))
+
+
+def test_show_without_a_clear_number_asks_which_and_keeps_the_sources(tmp_path):
+    import json
+
+    synth = {"summary": [{"text": "Priya is the PM for auth.", "citations": [{"ref": 1, "quote": "Priya is the PM for auth"}]}],
+             "sections": []}
+
+    def model(system, user, shape, tier):
+        if shape.name == "answer":
+            return synth
+        msg = user.rsplit("Message:", 1)[-1].strip()
+        if msg.startswith("show"):
+            return understood(part("instruct", action="show_citation"))
+        return understood(question("search", topic="Priya"))
+
+    ctx = seeded(tmp_path, model)
+    ask(ctx, "who is priya")
+    assert render(ask(ctx, "show me the Oct 2 one")) == 'Which source? Say, for example, "show 2".'
+    entries = [json.loads(x) for x in (ctx.home / "state/conversation.jsonl").read_text().splitlines()]
+    assert entries[-1]["citations"] == entries[0]["citations"] and entries[0]["citations"]

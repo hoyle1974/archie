@@ -166,7 +166,8 @@ def _parse_fields(shape: Shape, text: str) -> tuple[dict, list[str]]:
             said_none = True
             continue
         head = _HEAD.match(line)
-        if head and head.group(1).upper() in recs:
+        if head and head.group(1).upper() in recs and (
+                head.group(1).isupper() or re.fullmatch(r"[A-Za-z_]*", head.group(2).strip())):
             blocks.append((recs[head.group(1).upper()], {"": head.group(2)}))
             continue
         kv = _KV.match(line)
@@ -175,7 +176,7 @@ def _parse_fields(shape: Shape, text: str) -> tuple[dict, list[str]]:
         key, value = kv.group(1).strip().lower().replace(" ", "_"), kv.group(2)
         if blocks and key in {f.name for f in blocks[-1][0].fields}:
             blocks[-1][1].setdefault(key, value)  # a later look-alike line (pasted text) can't override
-        elif blocks and key == blocks[-1][0].head.name:
+        elif blocks and key == blocks[-1][0].head.name and not blocks[-1][1][""].strip():
             blocks[-1][1][""] = value
         elif key in top:
             raw_top.setdefault(key, value)  # a later look-alike line (e.g. inside pasted text) can't override
