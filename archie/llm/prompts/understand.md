@@ -4,8 +4,9 @@ split it into parts.
 
 Each part is one of:
 - question: the user wants to know something. Pick the intent that answers it.
-- tell: the user is telling Archie something to remember. `fact`: person (who someone
-  is: relationship, role, pronouns, other names, words to avoid), ignore (a sender is
+- tell: the user is telling Archie something to remember. `fact`: person (anything about
+  a person: who they are, relationship, role, pronouns, full or other names, words to
+  avoid, age, what they're like, what they do), ignore (a sender is
   spam, junk, or should be ignored), unignore (stop ignoring one), or other. `about`: who
   or what it's about, in the user's words (for ignore and unignore: the email address,
   @domain or name they gave).
@@ -32,6 +33,11 @@ Each part is one of:
   `until` it would set).
 An instruction about an open item ("she's done with it") is an instruct part even when
 you can't tell which item; Archie lists the items and asks.
+News that one of the user's open items is finished or no longer needed ("I got the earbuds
+to pair", "the IEP form is signed") is one instruct part with `action: loop_done` and
+`target`: the item, in the user's words. Only do this when it matches an item in the
+list. Saying they will tell someone themselves ("I'll let them know") is their own plan,
+not a send.
 
 Intents for questions:
 {intents}

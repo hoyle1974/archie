@@ -12,7 +12,7 @@ from archie.ask.answer import Answer, Section
 from archie.ask.context import Ctx
 from archie.ask.intents import intent
 from archie.ask.synthesize import synthesize
-from archie.derive.people import PeopleDirectory
+from archie.derive.people import PeopleDirectory, org
 from archie.index.chunk import short_date
 from archie.llm.verify import Claim, Packet
 from archie.store.times import when
@@ -34,16 +34,17 @@ def resolve(ctx: Ctx, params: dict, question: str) -> tuple[PeopleDirectory, lis
 
 def person_lines(directory: PeopleDirectory, eid: str, history: list[dict], facts: list[dict] | None = None) -> list[str]:
     meta = directory.meta[eid]
-    lines = [directory.name(eid)]
+    lines = [directory.label(eid)]
     personal = [b for b in (f"Your {meta['relationship']}" if meta.get("relationship") else None,
                             meta.get("identity"), meta.get("pronouns")) if b]
     if personal:
         lines.append(" · ".join(personal))
     if facts and not meta.get("role"):
         lines.append("Known for: " + "; ".join(f["text"] for f in facts[:3]))
-    for key, label in (("role", "Role"), ("org", "Org")):
-        if meta.get(key):
-            lines.append(f"{label}: {meta[key]}")
+    if meta.get("role"):
+        lines.append(f"Role: {meta['role']}")
+    if org(meta):
+        lines.append(f"Org: {org(meta)}")
     if meta.get("last_interaction"):
         lines.append(f"Last talked: {when(meta['last_interaction'])}"
                      f" · first seen {short_date(meta.get('first_seen'))}")
@@ -78,7 +79,7 @@ def family_answer(ctx: Ctx) -> Answer:
     for e in sorted(fam, key=lambda e: d.name(e)):
         m = d.meta[e]
         extra = "".join(f" · {m[k]}" for k in ("identity", "pronouns") if m.get(k))
-        lines.append(f"  • {d.name(e)} (your {m['relationship']}){extra}")
+        lines.append(f"  • {d.label(e)}: your {m['relationship']}{extra}")
     return Answer(plain="Your family, as you've told me:\n" + "\n".join(lines))
 
 
@@ -91,7 +92,8 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     if not matches:
         return Answer(plain=f"I don't know anyone called {query or 'that'} yet.")
     if len(matches) > 1:
-        options = "\n".join(f"  • {directory.name(e)} ({directory.meta[e].get('org', '')})" for e in matches)
+        options = "\n".join(f"  • {directory.name(e)}" + (f" ({org(directory.meta[e])})" if org(directory.meta[e]) else "")
+                            for e in matches)
         return Answer(plain=f"Which {query.title()}?\n{options}\nAsk again with their full name.")
     eid = matches[0]
     history = ctx.index.chunks_with_people(directory.identifiers(eid), before=ctx.now.isoformat())
@@ -102,6 +104,8 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
     meta = directory.meta[eid]
     about = f"The person asked about is {directory.name(eid)}."
+    if meta.get("full_name"):
+        about += f" Full name: {meta['full_name']}."
     if meta.get("relationship"):
         about += f" They are your {meta['relationship']}."
     if meta.get("identity"):
@@ -121,8 +125,8 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     elif told and meta.get("relationship") and str(meta["relationship"]).lower() not in said:
         answer.summary.insert(0, Claim(told, []))  # what you said leads, even if the mail never says it
     recent, seen = [], set()
-    for h in history:
-        if h["path"] not in seen:
+    for h in history:  # one meeting on several calendars is several files with one label
+        if h["path"] not in seen and h["label"] not in recent:
             seen.add(h["path"])
             recent.append(h["label"])
         if len(recent) == 5:

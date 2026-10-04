@@ -1,6 +1,7 @@
 """One sync cycle: connectors in parallel → derivers on what changed → index (DESIGN §3.1).
 
-A connector's failure is isolated: its cursor isn't advanced, the error is recorded, and
+A connector's failure is isolated: its cursor isn't advanced, the error is recorded (kept in
+state/sync_status.yaml after a later success, with the traceback in logs/errors.log), and
 every other connector proceeds. Cursors live in state/cursors.yaml (a file, tracked in git).
 """
 
@@ -28,6 +29,7 @@ class ConnectorReport:
     written: int = 0
     error: str = ""
     paths: list[Path] = field(default_factory=list)
+    trace: str = ""
 
 
 def _load_yaml(path: Path) -> dict:
@@ -53,8 +55,22 @@ async def _one(conn: Connector, sctx: SyncCtx, cursor) -> tuple[ConnectorReport,
     try:
         result = await conn.sync(sctx, cursor)
     except Exception as exc:  # isolate every connector
-        return ConnectorReport(ok=False, error=friendly(str(exc) or type(exc).__name__)[:300]), None
+        import traceback
+
+        return (ConnectorReport(ok=False, error=friendly(str(exc) or type(exc).__name__)[:300],
+                                trace=traceback.format_exc()), None)
     return ConnectorReport(ok=True, written=len(result.written), paths=result.written + result.deleted), result
+
+
+def _log_failure(ctx: Ctx, name: str, stamp: str, rep: ConnectorReport) -> None:
+    """Append a failed connector's traceback to logs/errors.log (local, gitignored)."""
+    try:
+        path = ctx.home / "logs/errors.log"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(f"--- {stamp} sync: {name}\n{rep.trace or rep.error}\n")
+    except OSError:
+        pass  # logging must never break a sync
 
 
 def _what(step: Callable) -> str:
@@ -104,7 +120,9 @@ async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Derive
             entry.update(last_success=stamp, last_count=rep.written, last_error=None)
             changed += rep.paths
         else:
-            entry.update(last_failure=stamp, last_error=rep.error)
+            # last_failure_error survives the next success, so a brief failure can still be explained
+            entry.update(last_failure=stamp, last_error=rep.error, last_failure_error=rep.error)
+            _log_failure(ctx, c.name, stamp, rep)
     _dump(ctx.home.cursors_file, cursors)
     _dump(status_file, status)
     for derive in derivers or []:  # in a thread: derivers call the model, and the TUI must stay live

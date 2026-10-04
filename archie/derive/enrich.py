@@ -1,12 +1,14 @@
 """Lasting, cited facts about people for the dossier's "What Archie knows" (DESIGN §4.2).
 
 Runs after indexing, only for people with newer material than last time
-(state/people_enriched.yaml). Facts accumulate (deduplicated, newest kept, at most 8),
+(state/people_enriched.yaml), or whose facts were written by an older version of the
+instructions (`_prompt` in that file), so a fix to the instructions reaches every dossier. Facts accumulate (deduplicated, newest kept, at most 8),
 each with a verified quote. They live inside the fence; the user's notes are untouched.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import datetime
 
@@ -23,20 +25,29 @@ from archie.store.fence import get_fence, set_fence
 from archie.store.files import atomic_write, read_note, write_note
 
 MAX_FACTS = 8
+INSTRUCTIONS_VERSION = 1  # bump when the instructions written below in code change
 OLD_DAYS = 365  # sources older than this are written about in the past tense
 SHAPE = Shape("people_facts", records=(Record("FACT", "facts", F("text", hint="short phrase"),
                                               (F("cite", "cite"),)),),
               example='FACT Product manager for auth\ncite: [2] "I\'m the PM for auth"')
 
 
+def prompt_version() -> str:
+    """Changes whenever people_facts.md, the reply shape or INSTRUCTIONS_VERSION changes."""
+    text = f"{INSTRUCTIONS_VERSION}\n{load_prompt('people_facts')}\n{SHAPE!r}"
+    return hashlib.sha256(text.encode()).hexdigest()[:12]
+
+
 def _uses(text: str, words: set[str]) -> bool:
     return any(re.search(rf"(?<!\w){re.escape(w)}(?!\w)", text, re.IGNORECASE) for w in words)
 
 
-def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str, failures: Failures) -> str | None:
-    """Update one dossier; returns the newest chunk time considered, or None if skipped."""
-    if directory.meta.get(eid, {}).get("facts_stale"):
-        since = ""  # the user told us something: redo facts from scratch against it
+def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str, failures: Failures,
+                fresh: bool = False) -> str | None:
+    """Update one dossier; returns the newest chunk time considered, or None if skipped.
+    `fresh`: the facts were written by older instructions, so redo them from scratch."""
+    if fresh or directory.meta.get(eid, {}).get("facts_stale"):
+        since = ""  # the user told us something, or the instructions changed: redo from scratch
     recent = [c for c in ctx.index.chunks_with_people(directory.identifiers(eid), limit=12, before=ctx.now.isoformat())
               if c["source"] not in ("briefings", "loops", "people")]
     if not recent:
@@ -74,7 +85,7 @@ def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str, fail
     failures.ok(f"people:{eid}")
     note = read_note(path)
     stale = note.meta.pop("facts_stale", None)
-    facts = [] if stale else [f for f in parse_facts(get_fence(note.body)) if not _uses(f["text"], avoid)]
+    facts = [] if stale or fresh else [f for f in parse_facts(get_fence(note.body)) if not _uses(f["text"], avoid)]
     for f in out.get("facts") or []:
         cite = check_quote(packet, int(f.get("ref", 0)), f.get("quote", ""))
         if cite is None or not f.get("text") or _uses(f["text"], avoid):
@@ -92,14 +103,18 @@ def enrich_people(ctx: Ctx, paths=None) -> None:
 
     state_file = ctx.home / "state/people_enriched.yaml"
     done = (yaml.safe_load(state_file.read_text()) or {}) if state_file.exists() else {}
+    versions = done.pop("_prompt", None) or {}  # entity_id -> prompt_version() its facts were written with
+    version = prompt_version()
     directory = PeopleDirectory.load(ctx.home)
     ids = sorted(directory.meta)
     failures = Failures(ctx.home)
     workers = max(1, int(ctx.config["llm"].get("parallel", 1)))
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(lambda e: _enrich_one(ctx, directory, e, done.get(e, ""), failures), ids))
+        results = list(pool.map(lambda e: _enrich_one(ctx, directory, e, done.get(e, ""), failures,
+                                                      fresh=versions.get(e) != version), ids))
     failures.save()
     updated = {e: r for e, r in zip(ids, results) if r}
     if updated:
         done.update(updated)
-        atomic_write(state_file, yaml.safe_dump(done, sort_keys=True))
+        versions.update({e: version for e in updated})
+        atomic_write(state_file, yaml.safe_dump({**done, "_prompt": versions}, sort_keys=True))

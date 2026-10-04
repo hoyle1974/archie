@@ -7,7 +7,7 @@ status: active
 tags: [component]
 ---
 
-- Which people: only those with chunks newer than the last run, tracked in `state/people_enriched.yaml`.
+- Which people: only those with chunks newer than the last run, tracked in `state/people_enriched.yaml`, plus everyone whose facts were written by older instructions. `prompt_version()` hashes `people_facts.md`, the reply shape and `INSTRUCTIONS_VERSION` (bump it when the instructions written in `enrich.py` change); the version each dossier was written with is kept under `_prompt` in that file, and a mismatch rebuilds the dossier's facts from scratch, so a fix to the instructions reaches existing dossiers.
 - How: the fast model (`people_facts`) proposes up to 6 lasting facts (role, company, relationship, work, preferences) from the person's 12 most recent chunks. Code keeps only facts whose quotes verify.
 - Ground truth: the prompt includes what the user has stated (fields and `## My notes`), and facts may not contradict it. When `remember` changes a person, it sets `facts_stale`, and the next run rebuilds their facts from scratch.
 - Quotes: the prompt asks for the plainest supporting words and never a passage about an accusation, abuse, illness, self-harm, a death or a fight for a fact that isn't about that, and not to restate what the user said. When the newest source is over a year old (`OLD_DAYS`), facts are written in the past tense with their year.

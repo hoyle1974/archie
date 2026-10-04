@@ -198,11 +198,13 @@ confirms through `ask`. Archie never silently merges two people.
 - "who is x@y?" for a correspondent known only by an address
 
 A "no" is remembered. The user can also tell Archie about people directly ("Goodspouse is my
-wife", "Acorn is my youngest"). That sets relationship, role, pronouns and aliases, and
-creates dossiers for people who never email.
+wife", "Acorn is my youngest"). That sets relationship, role, pronouns, full name and
+aliases, saves anything else said about them in their notes, and creates dossiers for
+people who never email. News that finishes an open item ("I got the earbuds to pair")
+marks it done.
 
 **Unknown people:** a new email address in a meeting or thread creates a `status: stub`
-dossier with `org` inferred from the email domain. A background job searches the index
+dossier with `org` inferred from the email domain (none for personal mail like gmail.com). A background job searches the index
 for mentions and fills in the fenced section.
 
 ### 4.3 Meeting (`meetings/2026/2026-10-14-alex-1-1.md`)

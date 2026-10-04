@@ -77,3 +77,22 @@ def test_N_telling_archie_to_ignore_a_sender(tmp_path):
 
     assert render(ask(ctx, f"stop ignoring {SPAM}")) == f"OK, I'm no longer ignoring {SPAM}."
     assert yaml.safe_load(ctx.home.config_file.read_text())["ignore"] == []
+
+
+def test_N_a_description_and_full_name_land_in_the_persons_file(tmp_path):
+    from archie.store.files import read_note
+
+    said = "Acorn's full name is Acorn Testerson.  Acorn is full of energy and is 3 and a half years old."
+
+    def people(system, user, shape, tier):
+        if shape.name == "understand":
+            return understood(part("tell", fact="person", about="Acorn"))
+        return {"people": [{"name": "Acorn", "relationship": None, "role": None, "pronouns": None,
+                            "identity": None, "avoid": [], "full_name": "Acorn Testerson",
+                            "other_names": [], "statement": said}]}
+
+    ctx = make_ctx(tmp_path, FakeBackend(people))
+    assert render(ask(ctx, said)) == "Got it. I'll remember:\n  • Acorn (Acorn Testerson), new"
+    acorn = read_note(ctx.home / "people/acorn.md")
+    assert acorn.meta["name"] == "Acorn" and acorn.meta["full_name"] == "Acorn Testerson"
+    assert "Acorn is full of energy and is 3 and a half years old." in acorn.body

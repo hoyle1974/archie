@@ -3,7 +3,7 @@ youngest, he's three"). Works for several people at once and for people who neve
 
 Each person's sentence is saved word for word in their dossier's `## My notes` (the user's
 own words, outside the fence) only if it really appears in the message. Relationship,
-role, pronouns and other names go in frontmatter, where the user can edit them."""
+role, pronouns, full name and other names go in frontmatter, where the user can edit them."""
 
 from __future__ import annotations
 
@@ -16,10 +16,11 @@ from archie.store.files import Note, read_note, write_note
 
 SHAPE = Shape("remember", records=(Record("PERSON", "people", F("name"), (
     F("relationship", required=False), F("role", required=False), F("pronouns", required=False),
-    F("identity", required=False), F("avoid", "list", required=False), F("other_names", "list", required=False),
+    F("identity", required=False), F("avoid", "list", required=False), F("full_name", required=False),
+    F("other_names", "list", required=False),
     F("statement", "quote", hint="their sentence(s) from the message"))),),
     example="PERSON Goodspouse\nrelationship: wife\nrole: -\npronouns: she/her\nidentity: -\navoid: -\n"
-            "other_names: Belle; Goodspouse Mae Testerson\nstatement: Goodspouse is my wife.")
+            "full_name: Goodspouse Mae Testerson\nother_names: Belle\nstatement: Goodspouse is my wife.")
 
 
 def _new_person(ctx: Ctx, directory: PeopleDirectory, name: str) -> str:
@@ -51,13 +52,17 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
         name = (p.get("name") or "").strip()
         if not name:
             continue
+        full = (p.get("full_name") or "").strip()
+        if full and normalize(full) not in normalize(question):  # only a full name the user really gave
+            full = ""
         hits = directory.find(name)
-        for other in p.get("other_names") or []:
+        for other in [*(p.get("other_names") or []), *([full] if full else [])]:
             hits = hits or directory.find(other)
         if len(hits) > 1:
             asks.append(f"Which {name}? " + ", ".join(directory.name(h) for h in hits))
             continue
         eid = hits[0] if hits else _new_person(ctx, directory, best_name({name, *(p.get("other_names") or [])}) or name)
+        # the name the user uses stays the name; a full name is kept beside it and shown in brackets
         path = ctx.home / f"people/{eid}.md"
         note = read_note(path)
         for key in ("relationship", "role", "pronouns", "identity"):
@@ -65,9 +70,11 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
                 note.meta[key] = p[key].strip()
         if p.get("avoid"):
             note.meta["avoid"] = sorted(set(note.meta.get("avoid") or []) | {w.strip().lower() for w in p["avoid"]})
+        if full:
+            note.meta["full_name"] = full
         note.meta["facts_stale"] = True  # Archie's extracted facts get redone against what you said
         aliases = list(note.meta.get("aliases") or [])
-        for a in [name, *(p.get("other_names") or [])]:
+        for a in [name, *(p.get("other_names") or []), *([full] if full else [])]:
             if a and a not in aliases and a != note.meta.get("name"):
                 aliases.append(a)
         note.meta["aliases"] = aliases
@@ -77,7 +84,7 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
         write_note(path, note)
         directory.add(eid, note.meta)
         bits = [b for b in (p.get("relationship"), p.get("identity"), p.get("role"), p.get("pronouns")) if b]
-        done.append(f"{directory.name(eid)}" + (f" ({', '.join(bits)})" if bits else "") + ("" if hits else ", new"))
+        done.append(f"{directory.label(eid)}" + (f": {', '.join(bits)}" if bits else "") + ("" if hits else ", new"))
     return done + asks
 
 

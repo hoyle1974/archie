@@ -238,5 +238,5 @@ def test_a_person_telling_beside_a_wish_keeps_both_replies_telling_first(tmp_pat
                               part("tell", text="Sam is my neighbor.", fact="person")),
         remember=sam)))
     out = render(ask(ctx, "text me a reminder. Sam is my neighbor."))
-    assert out.startswith("Got it. I'll remember:\n  • Sam (neighbor), new")
+    assert out.startswith("Got it. I'll remember:\n  • Sam: neighbor, new")
     assert out.endswith("\n\nI can't send you reminders yet. I've saved that you want it.")

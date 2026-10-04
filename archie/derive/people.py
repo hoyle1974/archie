@@ -31,6 +31,25 @@ ROLE_ACCOUNT = re.compile(
     re.I)
 
 
+# Personal mail providers: the address's domain says nothing about where someone works.
+WEBMAIL = frozenset({"gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "hotmail.com", "outlook.com",
+                     "live.com", "msn.com", "icloud.com", "me.com", "mac.com", "aol.com", "proton.me",
+                     "protonmail.com", "gmx.com", "fastmail.com", "hey.com", "comcast.net", "att.net",
+                     "sbcglobal.net", "verizon.net"})
+
+
+def org_of(email: str) -> str | None:
+    """The org an address suggests: its domain, unless it's a personal mail provider."""
+    domain = email.split("@")[-1].strip().lower()
+    return None if not domain or domain in WEBMAIL else domain
+
+
+def org(meta: dict) -> str | None:
+    """A dossier's org for display. Older dossiers may hold "gmail.com"; that isn't an org."""
+    value = meta.get("org")
+    return None if not value or str(value).lower() in WEBMAIL else str(value)
+
+
 def is_role_account(email: str) -> bool:
     return bool(ROLE_ACCOUNT.match(email.split("@")[0]))
 
@@ -85,6 +104,11 @@ class PeopleDirectory:
 
     def name(self, entity_id: str) -> str:
         return (self.meta.get(entity_id) or {}).get("name") or entity_id.replace("_", " ").title()
+
+    def label(self, entity_id: str) -> str:
+        """The name the user uses, with a full name they gave in brackets: "Acorn (Acorn Testerson)"."""
+        name, full = self.name(entity_id), str((self.meta.get(entity_id) or {}).get("full_name") or "").strip()
+        return f"{name} ({full})" if full and full.lower() != name.lower() else name
 
     def find(self, query: str) -> list[str]:
         """Entity ids matching an email, a full name/alias, or a first name. Ambiguity is
@@ -211,7 +235,7 @@ def upsert_person(home: Home, directory: PeopleDirectory, email: str, seen: Seen
         name = best_name(seen.names)
         eid = directory.new_id(name, email)
         path = home / f"people/{eid}.md"
-        note = Note(meta={"entity_id": eid, "name": name or email, "aliases": [], "org": email.split("@")[-1],
+        note = Note(meta={"entity_id": eid, "name": name or email, "aliases": [], "org": org_of(email),
                           "status": "stub", "first_seen": seen.first, "last_interaction": seen.last},
                     body="## My notes\n\n")
     meta = note.meta

@@ -11,9 +11,9 @@ SAID = ("Goodspouse is my wife. Online she goes by Belle. Childone is non-binary
 ROUTE = understood(part("tell", fact="person"))
 
 
-def person(name, statement, relationship=None, pronouns=None, role=None, other_names=()):
+def person(name, statement, relationship=None, pronouns=None, role=None, other_names=(), full_name=None):
     return {"name": name, "relationship": relationship, "role": role, "pronouns": pronouns,
-            "other_names": list(other_names), "statement": statement}
+            "other_names": list(other_names), "full_name": full_name, "statement": statement}
 
 
 def seeded(tmp_path, people):
@@ -70,4 +70,25 @@ def test_my_family_lists_family_members(tmp_path):
     render(ask(ctx, "Goodspouse is my wife. Acorn is my youngest."))
     ctx.backend = FakeBackend(by_schema(understand=understood(question("who", topic="my family"))))
     out = render(ask(ctx, "Tell me about my family"))
-    assert "Goodspouse Testerson (your wife)" in out and "Acorn (your youngest child)" in out
+    assert "Goodspouse Testerson: your wife" in out and "Acorn: your youngest child" in out
+
+
+def test_a_full_name_is_shown_in_brackets_and_the_usual_name_stays(tmp_path):
+    from archie.ask.intents.who import person_lines
+
+    said = "Acorn's full name is Acorn Testerson. Acorn is full of energy and is 3 and a half years old."
+    ctx = seeded(tmp_path, [person("Acorn", said, full_name="Acorn Testerson")])
+    out = render(ask(ctx, said))
+    assert "Acorn (Acorn Testerson), new" in out
+    acorn = read_note(ctx.home / "people/acorn.md")
+    assert acorn.meta["name"] == "Acorn" and acorn.meta["full_name"] == "Acorn Testerson"
+    assert "full of energy and is 3 and a half years old" in acorn.body  # a description lands in his notes
+    directory = PeopleDirectory.load(ctx.home)
+    assert directory.find("Acorn Testerson") == ["acorn"]
+    assert person_lines(directory, "acorn", [])[0] == "Acorn (Acorn Testerson)"
+
+
+def test_a_full_name_not_in_the_message_is_not_saved(tmp_path):
+    ctx = seeded(tmp_path, [person("Acorn", "Acorn is my youngest.", full_name="Acorn Testerson")])
+    render(ask(ctx, "Acorn is my youngest."))
+    assert "full_name" not in read_note(ctx.home / "people/acorn.md").meta

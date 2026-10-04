@@ -1,7 +1,7 @@
 """Understand a message before acting on it (spec: understand-first §2).
 
-One fast-tier call sees the message, the recent conversation and Archie's open questions,
-and splits the message into parts: a question, something the user is telling Archie, an
+One fast-tier call sees the message, the recent conversation, Archie's open questions and
+the user's open items (so news that finishes one can close it), and splits the message into parts: a question, something the user is telling Archie, an
 instruction, an answer to one of Archie's questions, or something unclear. Code then
 checks the reply: a part's words must be in the message (one part always gets the whole
 message), a rewritten question may only use names someone said, and question numbers must
@@ -92,7 +92,24 @@ def _labels(pending: dict | None) -> list[str]:
     return [o.get("label", "") for o in (pending or {}).get("options") or []]
 
 
-def prompt_input(message: str, recent: list[dict], open_qs: list[dict], pending: dict | None = None) -> str:
+MAX_ITEMS = 10
+
+
+def open_items(ctx: Ctx) -> list[str]:
+    """The user's most pressing open items, one line each, for the understanding call."""
+    from archie.derive.loops import load_loops, rank
+
+    out = []
+    for r in rank(load_loops(ctx.home), ctx.now, ctx.config)[:MAX_ITEMS]:
+        m = r.loop.meta
+        who = m.get("counterpart_name") or m.get("counterpart") or ""
+        waiting = "waiting on " if m.get("kind") == "waiting_on" else ""
+        out.append(f"{waiting}{who}: {_squash(str(m.get('summary') or ''))}")
+    return out
+
+
+def prompt_input(message: str, recent: list[dict], open_qs: list[dict], pending: dict | None = None,
+                 items: list[str] | None = None) -> str:
     out: list[str] = []
     if recent:
         out.append("Recent conversation (oldest first):")
@@ -107,6 +124,10 @@ def prompt_input(message: str, recent: list[dict], open_qs: list[dict], pending:
     if open_qs:
         out.append("Archie's open questions:")
         out += [f"{i}. {q.get('text', '')}" for i, q in enumerate(open_qs, 1)]
+        out.append("")
+    if items:
+        out.append("The user's open items:")
+        out += [f"- {x}" for x in items]
         out.append("")
     if pending:
         from archie.ask.which import ask_which
@@ -185,5 +206,6 @@ def understand(ctx: Ctx, message: str, recent: list[dict], open_qs: list[dict],
     system = load_prompt("understand", me_name=ctx.me.name or "the user", now=local.isoformat(timespec="minutes"),
                          weekday=local.strftime("%A"),
                          intents="\n".join(f"- {k}: {v}" for k, v in QUESTION_INTENTS.items()))
-    out = ctx.backend.complete(system, prompt_input(message, recent, open_qs, pending), SHAPE, tier="fast")
+    user = prompt_input(message, recent, open_qs, pending, open_items(ctx))
+    out = ctx.backend.complete(system, user, SHAPE, tier="fast")
     return checked(out.get("parts") or [], message, recent, open_qs, pending)

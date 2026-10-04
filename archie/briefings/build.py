@@ -15,7 +15,7 @@ from archie.ask.render import render
 from archie.ask.synthesize import synthesize
 from archie.derive.loops import load_loops, rank
 from archie.derive.meetings import Meeting, load_meetings
-from archie.derive.people import PeopleDirectory, slug
+from archie.derive.people import PeopleDirectory, org, slug
 from archie.index.chunk import short_date
 from archie.index.search import search
 from archie.llm.verify import Packet
@@ -109,7 +109,7 @@ def _people_lines(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> list[str]
         if talked:
             bits.append(f"last talked {when(talked[0]['ts'])}")
         else:
-            bits.append(f"New: no history yet ({meta.get('org', 'unknown org')})")
+            bits.append(f"New: no history yet ({org(meta) or 'unknown org'})")
         lines.append(" · ".join(bits))
     return lines
 

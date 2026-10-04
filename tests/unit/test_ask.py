@@ -126,7 +126,7 @@ def test_mixed_message_runs_every_part(tmp_path, monkeypatch):
     ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=reply, remember=sam)))
     out = render(ask(ctx, "I picked up the pizza. Sam is my neighbor."))
     assert calls == ["I picked up the pizza."]
-    assert "Marked done: pizzas" in out and "Sam (neighbor), new" in out
+    assert "Marked done: pizzas" in out and "Sam: neighbor, new" in out
     assert ctx.backend.calls[-1]["user"] == "Sam is my neighbor."
 
 
@@ -232,7 +232,7 @@ def test_a_plain_reply_then_a_cited_one_keeps_the_sources(tmp_path):
     finally:
         _restore(saved)
     out = render(ans)
-    assert out.startswith("Got it. I'll remember:\n  • Sam (neighbor), new") and "Priya is your manager. [1]" in out
+    assert out.startswith("Got it. I'll remember:\n  • Sam: neighbor, new") and "Priya is your manager. [1]" in out
     assert [c["file"] for c in citations_of(ans)] == ["people/priya_sharma.md"]
 
 

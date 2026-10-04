@@ -187,8 +187,16 @@ def _maybe_mute(ctx: Ctx, picked: list[Loop]) -> list[str]:
 
 
 def _loop(action: str) -> Callable[[Ctx, Part, str, dict | None], Answer]:
-    return lambda ctx, part, message, last: update_loops(ctx, part.text, action, part.params.get("until"),
-                                                         part.target)
+    def run(ctx: Ctx, part: Part, message: str, last: dict | None) -> Answer:
+        result = SAVED_ONLY
+        try:
+            answer = update_loops(ctx, part.text, action, part.params.get("until"), part.target)
+            result = (answer.plain or "").splitlines()[0] or SAVED_ONLY
+            return answer
+        finally:
+            save_told(ctx, part.text, result)  # "I got the earbuds to pair" is something you told Archie
+
+    return run
 
 
 def _show(ctx: Ctx, part: Part, message: str, last: dict | None) -> Answer:

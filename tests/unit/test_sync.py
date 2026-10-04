@@ -70,6 +70,26 @@ def test_status_file_records_last_success(tmp_path):
     assert status["good"]["last_success"] and status["broken"]["last_error"] == "token expired"
 
 
+def test_a_failure_stays_explained_after_the_next_success(tmp_path):
+    class Flaky(Good):
+        name = "flaky"
+        calls = 0
+
+        async def sync(self, sctx, cursor):
+            Flaky.calls += 1
+            if Flaky.calls == 1:
+                raise RuntimeError("timed out")
+            return await super().sync(sctx, cursor)
+
+    ctx = make_ctx(tmp_path)
+    asyncio.run(run_cycle(ctx, [Flaky()]))
+    asyncio.run(run_cycle(ctx, [Flaky()]))
+    status = yaml.safe_load((ctx.home / "state/sync_status.yaml").read_text())["flaky"]
+    assert status["last_error"] is None and status["last_failure_error"] == "timed out"
+    log = (ctx.home / "logs/errors.log").read_text()
+    assert "sync: flaky" in log and "RuntimeError: timed out" in log
+
+
 def test_disabled_google_api_error_is_explained(tmp_path):
     class Off:
         name = "calendar"

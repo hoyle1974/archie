@@ -9,6 +9,8 @@
 - `identity`: gender identity if stated ("non-binary", "trans woman"), else -,
 - `avoid`: words never to use for them, from what's said ("doesn't like being called a
   boy" → `boy; son`; "not my son, my child" → `son`), else -,
-- `other_names`: other names or full names they gave ("Belle", "Goodspouse Mae Testerson"),
-- `statement`: the sentence(s) about this person copied EXACTLY from the message.
+- `full_name`: their full name, only if the message gives it ("Acorn Testerson"), else -,
+- `other_names`: other names they go by ("Belle"),
+- `statement`: the sentence(s) about this person copied EXACTLY from the message, including
+  anything else said about them (age, what they're like, what they do).
 Only include what the message says. Never invent details.

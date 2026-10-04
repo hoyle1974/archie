@@ -64,10 +64,10 @@ def test_notes_actions():
 
 def test_remember():
     out, problems = REMEMBER.parse("PERSON Goodspouse\nrelationship: wife\nrole: -\npronouns: she/her\nidentity: -\n"
-                                   "avoid: -\nother_names: Belle; Goodspouse Mae Testerson\nstatement: Goodspouse is my wife.")
+                                   "avoid: -\nfull_name: Goodspouse Mae Testerson\nother_names: Belle\nstatement: Goodspouse is my wife.")
     assert problems == []
     assert out == {"people": [{"name": "Goodspouse", "relationship": "wife", "role": None, "pronouns": "she/her",
-                               "identity": None, "avoid": [], "other_names": ["Belle", "Goodspouse Mae Testerson"],
+                               "identity": None, "avoid": [], "full_name": "Goodspouse Mae Testerson", "other_names": ["Belle"],
                                "statement": "Goodspouse is my wife."}]}
 
 

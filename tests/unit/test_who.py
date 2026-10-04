@@ -90,3 +90,28 @@ def test_a_stated_relationship_leads_even_when_the_mail_never_says_it(tmp_path):
                                                 "statement": "Priya is my manager."}])
     out = render(ask(ctx, "who is Priya?"))
     assert out.startswith("Priya Sharma is your manager. Priya asked to ship SSO")
+
+
+def test_webmail_is_not_an_org():
+    from archie.ask.intents.who import person_lines
+    from archie.derive.people import PeopleDirectory, org_of
+
+    assert org_of("belle@gmail.com") is None and org_of("workpersonthreec@ebsfb.org") == "ebsfb.org"
+    directory = PeopleDirectory()
+    directory.add("goodspouse", {"entity_id": "goodspouse", "name": "Goodspouse", "aliases": [], "org": "gmail.com"})
+    assert not any(line.startswith("Org:") for line in person_lines(directory, "goodspouse", []))
+
+
+def test_recent_lists_each_thing_once(tmp_path):
+    def answer(system, user, schema, tier):
+        return {"summary": [], "sections": []}
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["Priya"])),
+                                                   answer=answer)))
+    same = [write_thread(ctx.home, f"d{i}", [msg(f"d{i}", "priya@acme.example", "Priya Sharma", [addr(TEST)],
+                                               "2026-09-29T17:00:00+00:00", "Agenda attached", subject="Team sync",
+                                               to_me=True)]) for i in range(3)]
+    derive_people(ctx, same)
+    ctx.index.sync()
+    out = render(ask(ctx, "who is Priya?"))
+    assert out.count("Team sync") == 1

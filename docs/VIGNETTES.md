@@ -35,6 +35,7 @@ remove the mark and set the row to ✅.
 | P | "I can't do that yet"        | ask → understand, actions, gaps                                 | M5 | ✅ |
 | Q | "Which one did you mean?"    | loops, people → understand, pending questions                   | M5 | ✅ |
 | R | Nudges                       | Gmail, loops → audit (waiting_nudge), snooze                    | M5 | ✅ |
+| U | News that finishes an item   | loops → understand (open items), loop_done, told record         | M5 | ✅ |
 
 ### Milestones
 
@@ -306,6 +307,17 @@ isn't cited in answers unless the user asks about them by name.
 the sender, answers don't cite them, and "stop ignoring ftbrmktf@sxziiqsov.us" undoes it. The
 user's statement is never checked against the archive.
 
+**Telling Archie about a person.** `ask "Acorn's full name is Acorn Testerson. Acorn
+is full of energy and is 3 and a half years old."` gets:
+```
+Got it. I'll remember:
+  • Acorn (Acorn Testerson), new
+```
+Any sentence about a person (their age, what they're like) is saved word for word in that
+person's "My notes", never "Saved. I don't use that for anything yet." A full name the
+user gives is kept beside the name they use: answers say "Acorn", with the full name in
+brackets where it helps ("Acorn (Acorn Testerson)").
+
 ## O. Follow-ups
 
 **Situation.** The user asks `ask "did Status reply about my earbud?"` and gets an answer
@@ -379,3 +391,19 @@ Still waiting on HeadphonesRUs about the earbud pairing (3 days). Want to follow
 count toward the limit of five open questions and go quiet once the user answers. A reply
 from HeadphonesRUs clears the nudge. "Yes, I'll follow up" waits another three days;
 Archie never sends anything.
+
+## U. News that finishes an open item
+
+**Situation.** Archie has an open item "Troubleshoot new earbud pairing issue", waiting on
+HeadphonesRUs. The user got the earbuds working themselves and hasn't emailed yet.
+
+**User:** `ask "I was able to get my status earbuds to pair. I will let them know it works now."`
+
+**Archie shows:** `Marked done: HeadphonesRUs, troubleshoot new earbud pairing issue.`
+
+If more than one item could match, Archie asks which one (vignette Q). News that matches no
+open item is saved as before.
+
+**Acceptance:** the item moves to `done` on the user's word, the sentence is in
+`journal/told.md` with what Archie did, and no gap is logged. "I will let them know" is the
+user's own plan, not a request to send anything (Archie never sends).
