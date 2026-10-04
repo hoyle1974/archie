@@ -151,6 +151,64 @@ def test_questions_are_not_blocked_while_a_sync_is_embedding(tmp_path):
     t.join()
 
 
+def _fake_sentence_transformers(monkeypatch):
+    """Stands in for the sentence_transformers package; records each model built and the
+    most encode() calls that ever ran at once."""
+    import sys
+    import threading
+    import time
+    import types
+
+    import numpy as np
+
+    seen = {"models": [], "active": 0, "max_active": 0}
+    guard = threading.Lock()
+
+    class FakeModel:
+        def __init__(self, name, device=None):
+            time.sleep(0.02)
+            seen["models"].append(device)
+
+        def encode(self, texts, **kw):
+            with guard:
+                seen["active"] += 1
+                seen["max_active"] = max(seen["max_active"], seen["active"])
+            time.sleep(0.02)
+            with guard:
+                seen["active"] -= 1
+            return np.zeros((len(texts), 384))
+
+    monkeypatch.setitem(sys.modules, "sentence_transformers", types.SimpleNamespace(SentenceTransformer=FakeModel))
+    return seen
+
+
+def test_local_model_runs_on_the_cpu_unless_configured(monkeypatch):
+    from archie.index.embed import make_embedder
+
+    seen = _fake_sentence_transformers(monkeypatch)
+    make_embedder({"index": {"embed_model": "BAAI/bge-small-en-v1.5"}}).embed(["x"])
+    make_embedder({"index": {"embed_model": "BAAI/bge-small-en-v1.5", "embed_device": "mps"}}).embed(["x"])
+    assert seen["models"] == ["cpu", "mps"]
+
+
+def test_embeds_from_many_threads_never_overlap(monkeypatch):
+    """PyTorch isn't safe to call from two threads at once (two TUI workers embedding on the
+    Apple GPU segfaulted), so a sync and a question must take turns, even across embedders."""
+    import threading
+
+    from archie.index.embed import SentenceTransformerEmbedder
+
+    seen = _fake_sentence_transformers(monkeypatch)
+    shared, other = SentenceTransformerEmbedder(), SentenceTransformerEmbedder()
+    threads = [threading.Thread(target=e.embed, args=(["some text"],)) for e in [shared] * 6 + [other] * 2]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert seen["max_active"] == 1
+    assert len(seen["models"]) == 2  # one model per embedder, however many threads asked at once
+
+
 def _sender_chunker(path, data):
     return [Chunk("c0", path, 0, 0, data["body"], source="sendertest", ts=data["ts"], sender=data["from"])]
 

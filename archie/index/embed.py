@@ -9,9 +9,14 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+import threading
 from typing import Protocol
 
 DIM = 384
+
+# PyTorch can't run two of these at once: two TUI worker threads embedding on the Apple GPU
+# (MPS) segfaulted in its kernel cache. Every load and encode in the process takes this lock.
+_MODEL_LOCK = threading.Lock()
 
 
 class Embedder(Protocol):
@@ -35,14 +40,18 @@ def _thread_lock_for_tqdm() -> None:
 
 
 class SentenceTransformerEmbedder:
-    """Local model via sentence-transformers. bge models want a prefix on queries."""
+    """Local model via sentence-transformers. bge models want a prefix on queries.
+
+    Runs on the CPU by default: for this small model it's faster than the Apple GPU, and the
+    GPU path is the one that crashed under concurrent use."""
 
     QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 
-    def __init__(self, name: str = "BAAI/bge-small-en-v1.5", min_similarity: float = 0.5):
+    def __init__(self, name: str = "BAAI/bge-small-en-v1.5", min_similarity: float = 0.5, device: str = "cpu"):
         self.name = name
         self.dim = DIM
         self.min_similarity = min_similarity
+        self.device = device
         self._model = None
 
     def _load(self):
@@ -50,13 +59,14 @@ class SentenceTransformerEmbedder:
             from sentence_transformers import SentenceTransformer
 
             _thread_lock_for_tqdm()
-            self._model = SentenceTransformer(self.name)
+            self._model = SentenceTransformer(self.name, device=self.device)
         return self._model
 
     def embed(self, texts: list[str], query: bool = False) -> list[list[float]]:
         if query and "bge" in self.name:
             texts = [self.QUERY_PREFIX + t for t in texts]
-        vecs = self._load().encode(texts, normalize_embeddings=True, batch_size=32, show_progress_bar=False)
+        with _MODEL_LOCK:
+            vecs = self._load().encode(texts, normalize_embeddings=True, batch_size=32, show_progress_bar=False)
         return [v.tolist() for v in vecs]
 
 
@@ -81,4 +91,6 @@ class HashEmbedder:
 
 def make_embedder(config: dict) -> Embedder:
     name = config["index"]["embed_model"]
-    return HashEmbedder() if name == "hash" else SentenceTransformerEmbedder(name)
+    if name == "hash":
+        return HashEmbedder()
+    return SentenceTransformerEmbedder(name, device=config["index"].get("embed_device", "cpu"))

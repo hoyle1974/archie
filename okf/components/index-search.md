@@ -13,6 +13,8 @@ tags: [component]
   - `Chunk.sender`: the sender's address on email excerpts (set by the Gmail chunker), empty otherwise.
 - `embed.py`:
   - `SentenceTransformerEmbedder` adds bge's query prefix and normalizes vectors. A vector hit counts only if its cosine similarity is at least 0.5; real bge scores showed related text at 0.50–0.61 and unrelated text around 0.42.
+  - The model runs on the CPU (`index.embed_device`, default `cpu`; `mps` uses the Apple GPU). For bge-small the CPU is about twice as fast as MPS here.
+  - PyTorch can't be called from two threads at once, so every model load and `encode()` in the process takes one lock (`_MODEL_LOCK`). A sync embeds one file per call, so a question's embed waits at most one file's batch.
   - `HashEmbedder` is a deterministic embedder for tests.
   - `make_embedder(config)` picks one from the config.
 - `db.py`: `Index(home, embedder)`.

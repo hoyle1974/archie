@@ -21,7 +21,7 @@ DEFAULTS: dict[str, Any] = {
         "thinking": {"fast": "low", "strong": "medium"},
         "monthly_budget_usd": 15,
     },
-    "index": {"embed_model": "BAAI/bge-small-en-v1.5"},
+    "index": {"embed_model": "BAAI/bge-small-en-v1.5", "embed_device": "cpu"},  # "mps" for the Apple GPU
     "briefings": {"lead_minutes": 15, "all_hands_min_attendees": 25},
     "nudges": {"after_days": 3},  # ask "want to follow up?" after waiting this long with no reply
     "loops": {
