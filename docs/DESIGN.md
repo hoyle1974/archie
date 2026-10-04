@@ -68,7 +68,7 @@ from a shell.
                    ▼  indexer (hash-diffed, chunked)
             archie.db: FTS5 + sqlite-vec      (disposable)
                    │
-                   ▼  ask router → intent → retrieval plan → context packet
+                   ▼  ask understand → parts → retrieval plan → context packet
               LLM synthesis → citation verifier → readable answer
                    │
                    ▼
@@ -96,7 +96,8 @@ from a shell.
 ├── config.yaml              # enabled sources, intervals, LLM backend, thresholds
 ├── me.yaml                  # the user's identities (see §4.1)
 ├── state/
-│   └── cursors.yaml         # per-source sync cursors (tracked in git)
+│   ├── cursors.yaml         # per-source sync cursors (tracked in git)
+│   └── conversation.jsonl   # recent ask exchanges, for follow-ups (last 200)
 ├── sources/                 # RAW: written only by connectors
 │   ├── calendar/<eventId>.json
 │   ├── gmail/<threadId>.json
@@ -455,9 +456,15 @@ What changed
 
 `ask` is the only interface the user needs to remember. It's a pipeline:
 
-1. **Route:** the LLM classifies the question into an intent and extracts parameters
-   (people, time window, meeting, project). This is the one place the LLM output
-   doesn't need a citation, because it selects a plan and states no facts.
+1. **Understand:** one fast-tier call reads the message with the last few exchanges
+   (`state/conversation.jsonl`, up to 3, ended by 30 quiet minutes) and Archie's open
+   questions, and splits it into parts: a question (with its intent and parameters, and
+   "them"/"that" filled in), something the user is telling Archie, an instruction, an
+   answer to an open question, or something unclear. Code checks the reply: a part's words
+   must be in the message, a rewritten question may only use names someone said, and
+   question numbers must exist. It states no facts, so it needs no citations. Code-only
+   shortcuts come first: the quick questions, "show N" (a citation from the last answer),
+   "really?" (the last question again), and a plain yes or no to one open question.
 2. **Retrieve:** the intent's plan runs in code (file reads plus index queries) and
    builds a **context packet** (JSON, each item with a citation key).
 3. **Synthesize:** the LLM writes the answer from the packet only, with citations.
@@ -471,24 +478,25 @@ What changed
 | `brief`       | "prep me for 2pm", "what's my next meeting about?"        | A |
 | `who`         | "who is Priya?", "what's my history with Alex?"           | B, J |
 | `loops`       | "what do I owe people?", "what am I waiting on?"          | C |
-| `loop_update` | "done with Sarah's question", "snooze that till Monday"   | C |
 | `next`        | "what should I work on next?"                             | D |
 | `ledger`      | "what did I accomplish this quarter?"                     | E, K |
 | `search`      | "who touched the auth config last week?"                  | F |
 | `handover`    | "write a handover for auth-redesign"                      | G |
-| `notes`       | "notes from the design review: …"                         | H |
 | `catchup`     | "what happened while I was out last week?"                | I |
-| `remember`    | "Goodspouse is my wife", "Childone is non-binary"               | B (§4.2) |
-| `correct`     | "that's a 1:1, not standup", "Alex R. is Alex Rivera"     | (all) |
-| `clarify`     | answers to the audit's questions ("yes, same person")     | (all) |
 | `help`        | "what can you do?", "how do I …?"                         | (all) |
 | fallback      | anything else: hybrid search plus a cited answer          | — |
+
+Tellings, instructions and answers are not intents. Until build steps 2–3 of the
+understand-first spec land, tellings and answers to "Who is …?" use the `remember` code,
+yes/no answers use `clarify`, and instructions use `loop_update` (done, snooze, dismiss,
+reopen), `correct` (meeting type, merging names) and `notes`. Sending anything gets "I
+can't send anything; I only read."
 
 `archie admin` (not for daily use): `init`, `sync`, `rederive`, `reindex`, `status`,
 `connect google|jira`.
 
 Unambiguous questions with no parameters ("what's next?", "what do I owe people?",
-"help") are routed by code (`quick_route`) and skip the routing call.
+"help") are recognized by code (`quick_route`) and skip the understanding call.
 
 ## 9. LLM interface
 
@@ -543,7 +551,7 @@ archie/
   derive/                # meetings.py people.py loops.py projects.py dates.py
   index/                 # chunk.py embed.py db.py search.py
   llm/                   # backend.py verify.py prompts/
-  ask/                   # router.py intents/<intent>.py render.py
+  ask/                   # understand.py dispatch.py intents/<intent>.py render.py
   briefings/             # classify.py templates/<type>.py build.py
   tui/
 tests/

@@ -51,7 +51,7 @@ def _match(ctx: Ctx, text: str | None) -> Meeting | None:
 
 
 def _note_text(question: str, params: dict) -> str:
-    """The user's own words, every line: from where the router says the notes start to the end."""
+    """The user's own words, every line: from where the notes start to the end."""
     start = (params.get("text") or "").strip()
     if start:
         at = question.find(start.splitlines()[0])

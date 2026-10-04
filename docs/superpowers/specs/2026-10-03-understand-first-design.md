@@ -165,9 +165,10 @@ Each finished exchange is appended to `~/.archie/state/conversation.jsonl`:
 - **"show N"** prints citation N of the last answer: its label, the quote, and the file
   path, plus a few lines around the quote from the chunk. If there's no such citation:
   "The last answer has citations 1–3."
-- **"really?" / "are you sure?"** is a `question` part whose `resolved` text is the
-  previous question. It runs again, and the reply opens with "I checked again." If the
-  new answer's summary differs, it says so instead of silently contradicting itself.
+- **"really?" / "are you sure?"** is recognized by code (no extra model call to classify
+  it). The previous question is asked again in full, and the reply opens with "I checked
+  again." If the sources behind the answer changed completely, or one answer found
+  something and the other didn't, it adds "This is different from my earlier answer."
 - Other follow-ups ("do you see the message I sent them?") work through `resolved`.
 
 ## 3. Things the user tells Archie
