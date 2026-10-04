@@ -15,8 +15,9 @@ Each part is one of:
   all-hands); merge_names (two names are one person); notes (the user is giving notes
   from a meeting); ignore or unignore (a sender); show_citation ("show 2");
   nudge_snooze; send (anything that sends: email, message, reply, invite, post); none
-  (anything else, with a short verb phrase for it in `wanted`). `target`: which item, in
-  the user's words.
+  (anything else, with a short verb phrase for it in `wanted`, at most 12 words, that fits
+  after "I can't": "filter Today by day"). `until` for loop_snooze: the ISO date they
+  gave. `target`: which item, in the user's words.
 - answer: a reply to one of Archie's open questions. `question`: its number. For a reply
   to a "Who is …?" question, also set `fact` as for a telling: "it's spam, ignore it" is
   ignore, "my plumber" is person.

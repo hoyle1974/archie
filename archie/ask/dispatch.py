@@ -1,13 +1,14 @@
 """Send each understood part where it belongs (spec: understand-first §2.2).
 
 Questions go to intents, tellings and answers to "Who is …?" to tell.py (which saves them in
-journal/told.md), and instructions to the action list."""
+journal/told.md), and instructions to the action list. Labels ending in "->gap" mark what
+Archie couldn't do or use; the usage log collects them."""
 
 from __future__ import annotations
 
 import re
 
-from archie.ask.actions import ACTIONS, EMPTY
+from archie.ask.actions import ACTIONS, CANT_SEND, EMPTY, cant_do
 from archie.ask.answer import Answer
 from archie.ask.context import Ctx
 from archie.ask.intents import HANDLERS
@@ -17,8 +18,6 @@ from archie.derive.audit import YES_NO
 
 __all__ = ["EMPTY", "dispatch"]
 
-CANT_SEND = "I can't send anything; I only read."
-CANT_YET = "I can't do that yet."
 UNCLEAR = "I'm not sure what you mean. Could you say it another way?"
 
 
@@ -51,7 +50,7 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
         if part.action in ACTIONS:
             return part.action, ACTIONS[part.action](ctx, part, message, last)
         if part.action == "send":
-            return "send", Answer(plain=CANT_SEND)
-        return f"{part.action or 'none'}->cant", Answer(plain=CANT_YET)
+            return "send->gap", Answer(plain=CANT_SEND)
+        return f"{part.action or 'none'}->gap", cant_do(ctx, part)
     ask = (part.ask or "").strip()
     return "unclear", Answer(plain=ask if ask.endswith("?") and len(ask) <= 160 else UNCLEAR)

@@ -15,13 +15,15 @@ from archie.ask.context import Ctx
 from archie.ask.correct import correct
 from archie.ask.followup import citation_number, show
 from archie.ask.intents import HANDLERS
-from archie.ask.tell import tell
+from archie.ask.tell import save_told, tell
 from archie.ask.understand import Part
 from archie.derive.loops import Loop, _history, load_loops, rank, save_loop
 from archie.llm.prompts import load_prompt
 from archie.llm.shape import F, Shape
 
 EMPTY = {"people": [], "since": None, "until": None, "topic": None, "meeting": None, "text": None}
+CANT_SEND = "I can't send anything; I only read."
+WISH = "can't do this yet"
 WHICH = 'Which source? Say, for example, "show 2".'
 UNTIL_WHEN = 'Until when? Say e.g. "snooze that till Monday".'
 _SHOW_N = re.compile(r"\[(\d+)\]|\b(?:show|open|source|citation|number)\s+(?:me\s+)?(?:the\s+)?"
@@ -54,11 +56,14 @@ def _iso(day: str | None) -> str | None:
         return None
 
 
+def _lower_first(text: str) -> str:
+    """"Review the patch" → "review the patch", but "IEP form" stays."""
+    return text[0].lower() + text[1:] if text[:1].isupper() and not text[1:2].isupper() else text
+
+
 def _label(loop: Loop) -> str:
     m = loop.meta
-    what = str(m.get("summary") or "").strip().rstrip(".")
-    if what[:1].isupper() and not what[1:2].isupper():
-        what = what[0].lower() + what[1:]
+    what = _lower_first(str(m.get("summary") or "").strip().rstrip("."))
     return f"{m.get('counterpart_name') or m.get('counterpart')}, {what}"
 
 
@@ -152,6 +157,34 @@ def _show(ctx: Ctx, part: Part, message: str, last: dict | None) -> Answer:
 def _ignore(on: bool) -> Callable[[Ctx, Part, str, dict | None], Answer]:
     name = "ignore" if on else "unignore"
     return lambda ctx, part, message, last: tell(ctx, name, part.text, about=part.target or part.about)
+
+
+def cant_do(ctx: Ctx, part: Part) -> Answer:
+    """Something Archie can't do yet: say so in the user's terms and save it as a wish."""
+    wanted = (part.wanted or "").strip().rstrip(".")
+    if wanted and "\n" not in wanted and len(wanted.split()) <= 12:
+        head = f"I can't {_lower_first(' '.join(wanted.split()))} yet."
+    else:
+        head = f"I can't do “{' '.join(part.text.split()).rstrip('.')}” yet."
+    save_told(ctx, part.text, WISH)
+    return Answer(plain=f"{head} I've saved that you want it.")
+
+
+def _saved(text: str) -> str:
+    return f"I saved that {_lower_first(' '.join(text.split()).rstrip('.!'))}."
+
+
+def compose_cant(handled: list[tuple[Part, str, Answer]]) -> list[tuple[Part, Answer]]:
+    """When a message has something Archie can't do, tellings are said first ("I saved that
+    …"), and one-line replies become one line."""
+    if not any(p.kind == "instruct" and label.endswith("->gap") for p, label, _ in handled):
+        return [(p, a) for p, _, a in handled]
+    tells = [(p, Answer(plain=_saved(p.text)) if label == "other->gap" else a)
+             for p, label, a in handled if p.kind == "tell"]
+    ordered = tells + [(p, a) for p, _, a in handled if p.kind != "tell"]
+    if all(a.plain is not None and "\n" not in a.plain for _, a in ordered):
+        return [(ordered[0][0], Answer(plain=" ".join(a.plain for _, a in ordered)))]
+    return ordered
 
 
 ACTIONS: dict[str, Callable[[Ctx, Part, str, dict | None], Answer]] = {

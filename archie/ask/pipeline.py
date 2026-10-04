@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import NamedTuple
 
 from archie.ask import conversation
+from archie.ask.actions import compose_cant
 from archie.ask.answer import Answer, Section
 from archie.ask.context import Ctx
 from archie.ask.dispatch import EMPTY, dispatch
@@ -114,11 +115,11 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     handled = [dispatch(ctx, p, question, open_qs, last) for p in parts]
     entry["intent"] = handled[0][0]
     entry["parts"] = [{"kind": p.kind, "handler": label} for p, (label, _) in zip(parts, handled)]
-    gaps = [p.text for p, (label, _) in zip(parts, handled) if label == "other->gap"]
+    gaps = [p.text for p, (label, _) in zip(parts, handled) if label.endswith("->gap")]
     if gaps:
         entry["gaps"] = gaps
     resolved = next((p.resolved for p in parts if p.kind == "question" and p.resolved), None)
-    answer = combine([(p, a) for p, (_, a) in zip(parts, handled)])
+    answer = combine(compose_cant([(p, label, a) for p, (label, a) in zip(parts, handled)]))
     if all(label == "show_citation" for label, _ in handled):
         return Reply(answer, _question_of(last), kept)
     return Reply(answer, resolved, None)
@@ -130,7 +131,7 @@ def ask(ctx: Ctx, question: str) -> Answer:
 
     load_all()
     started = time.monotonic()
-    entry = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "question": question, "quick": False}
+    entry = {"ts": datetime.now(UTC).isoformat(timespec="seconds"), "question": question, "quick": False}
     try:
         reply = _respond(ctx, question, entry)
         answer = reply.answer

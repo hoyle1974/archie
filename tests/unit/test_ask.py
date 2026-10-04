@@ -138,7 +138,8 @@ def test_send_is_refused_plainly_and_nothing_runs(tmp_path):
 def test_an_instruction_with_no_action_says_it_cannot_yet(tmp_path):
     reply = understood(part("instruct", action="none", wanted="filter Today by day"))
     ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=reply)))
-    assert render(ask(ctx, "only show work stuff on weekdays")) == "I can't do that yet."
+    assert render(ask(ctx, "only show work stuff on weekdays")) == \
+        "I can't filter Today by day yet. I've saved that you want it."
 
 
 def test_unclear_asks_back_with_a_short_question_only(tmp_path):

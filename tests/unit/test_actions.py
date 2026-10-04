@@ -103,3 +103,69 @@ def test_meeting_type_goes_to_the_correction_code(tmp_path):
         correct={"kind": "meeting_type", "meeting": "sync", "meeting_type": "bogus", "alias": None,
                  "person": None, "role": None})))
     assert render(ask(ctx, "the sync is a standup")).startswith("Which kind of meeting is it")
+
+
+def told(ctx):
+    from archie.ask.tell import TOLD
+
+    path = ctx.home / TOLD
+    return path.read_text() if path.exists() else ""
+
+
+def gaps(ctx):
+    import json
+
+    lines = (ctx.home / "logs/usage.jsonl").read_text().splitlines()
+    return json.loads(lines[-1]).get("gaps", [])
+
+
+def test_a_wish_is_saved_and_said_plainly(tmp_path):
+    msg = "only show work stuff on weekdays"
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(
+        understand=understood(part("instruct", action="none", wanted="filter Today by day")))))
+    assert render(ask(ctx, msg)) == "I can't filter Today by day yet. I've saved that you want it."
+    assert f'"{msg}" → can\'t do this yet' in told(ctx)
+    assert gaps(ctx) == [msg]
+
+
+def test_a_long_or_missing_wish_quotes_the_words(tmp_path):
+    msg = "only show work stuff on weekdays"
+    quoted = "I can't do “only show work stuff on weekdays” yet. I've saved that you want it."
+    cases = (("one two three four five six seven eight nine ten eleven twelve thirteen", "none"),
+             ("filter Today\nby day", "none"), (None, "none"), (None, None), (None, "fly_to_mars"))
+    for i, (wanted, action) in enumerate(cases):
+        ctx = make_ctx(tmp_path / str(i),
+                       FakeBackend(by_schema(understand=understood(part("instruct", action=action, wanted=wanted)))))
+        assert render(ask(ctx, msg)) == quoted, (wanted, action)
+        assert gaps(ctx) == [msg]
+
+
+def test_send_is_refused_logged_as_a_gap_and_not_saved_as_a_wish(tmp_path):
+    msg = "email Workpersonthree about Friday"
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(part("instruct", action="send")))))
+    assert render(ask(ctx, msg)) == "I can't send anything; I only read."
+    assert told(ctx) == "" and gaps(ctx) == [msg]
+
+
+def test_a_telling_beside_a_send_is_saved_and_said_first(tmp_path):
+    msg = "email Workpersonthree that the pizza's picked up"
+    tell = part("tell", text="the pizza's picked up", fact="other")
+    send = part("instruct", text="email Workpersonthree", action="send")
+    for i, parts in enumerate(([tell, send], [send, tell])):
+        ctx = make_ctx(tmp_path / str(i), FakeBackend(by_schema(understand=understood(*parts))))
+        out = render(ask(ctx, msg))
+        assert out == "I saved that the pizza's picked up. I can't send anything; I only read."
+        assert '"the pizza\'s picked up" → saved only' in told(ctx) and "email Workpersonthree\"" not in told(ctx)
+        assert "archie ask" not in out
+
+
+def test_a_person_telling_beside_a_wish_keeps_both_replies_telling_first(tmp_path):
+    sam = {"people": [{"name": "Sam", "relationship": "neighbor", "role": None, "pronouns": None, "identity": None,
+                       "avoid": [], "other_names": [], "statement": "Sam is my neighbor."}]}
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(
+        understand=understood(part("instruct", text="text me a reminder", action="none", wanted="send you reminders"),
+                              part("tell", text="Sam is my neighbor.", fact="person")),
+        remember=sam)))
+    out = render(ask(ctx, "text me a reminder. Sam is my neighbor."))
+    assert out.startswith("Got it. I'll remember:\n  • Sam (neighbor), new")
+    assert out.endswith("\n\nI can't send you reminders yet. I've saved that you want it.")
