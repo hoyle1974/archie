@@ -89,6 +89,57 @@ def test_facts_show_in_who_at_a_glance(tmp_path):
     assert "Known for: Runs people ops at Overwatch" in lines
 
 
+def seed_family(ctx):
+    """Goodspouse writes about Childone, whom the user has said is their child, never "son"."""
+    paths = [write_thread(ctx.home, "g1", [msg("m1", "gid@x.example", "Childone Testerson", [addr(TEST)],
+                                               "2026-09-29T00:00:00+00:00", "hi", to_me=True)]),
+             write_thread(ctx.home, "g2", [msg("m2", "goodspouse@x.example", "Goodspouse Testerson", [addr(TEST)],
+                                               "2026-09-30T00:00:00+00:00",
+                                               "My son Childone has his IEP meeting Wednesday.", to_me=True)])]
+    derive_people(ctx, paths)
+    p = ctx.home / "people/childone_testerson.md"
+    note = read_note(p)
+    note.meta.update(relationship="child", identity="non-binary", pronouns="he/him", avoid=["boy", "son"])
+    write_note(p, note)
+    ctx.index.sync()
+    return ctx.home / "people/goodspouse_testerson.md"
+
+
+def test_facts_about_one_person_respect_what_the_user_said_about_others(tmp_path):
+    prompts = []
+
+    def reply(s, u, sc, t):
+        prompts.append(u)
+        return facts(("Mother of your son Childone", "My son Childone"),
+                     ("Attends Childone's IEP meetings", "Childone has his IEP meeting"))
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(people_facts=reply)))
+    goodspouse = seed_family(ctx)
+    enrich_people(ctx)
+    fence = get_fence(read_note(goodspouse).body)
+    assert "Attends Childone's IEP meetings" in fence
+    assert "son" not in fence.split("<!-- archie:citations")[0]
+    assert any("Childone Testerson: your child" in u and "never call them: boy, son" in u for u in prompts)
+
+
+def test_an_old_fact_using_a_ruled_out_word_is_redone(tmp_path):
+    from archie.derive.people import render_facts
+    from archie.store.fence import set_fence
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(people_facts=facts(
+        ("Attends Childone's IEP meetings", "Childone has his IEP meeting")))))
+    goodspouse = seed_family(ctx)
+    enrich_people(ctx)
+    note = read_note(goodspouse)
+    note.body = set_fence(note.body, render_facts(note.meta, [
+        {"text": "Advocates for your son's IEP", "file": "sources/gmail/g2.json", "chunk": "c0",
+         "quote": "My son Childone has his IEP meeting"}]))
+    write_note(goodspouse, note)
+    enrich_people(ctx)  # no new mail, but the old fact must go
+    fence = get_fence(read_note(goodspouse).body)
+    assert "your son" not in fence and "Attends Childone's IEP meetings" in fence
+
+
 def test_a_person_whose_reply_keeps_failing_stops_costing_calls(tmp_path):
     from archie.derive.failures import MAX_TRIES
 

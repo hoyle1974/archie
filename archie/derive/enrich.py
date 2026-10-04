@@ -7,6 +7,8 @@ each with a verified quote. They live inside the fence; the user's notes are unt
 
 from __future__ import annotations
 
+import re
+
 import yaml
 
 from archie.ask.context import Ctx
@@ -25,41 +27,51 @@ SHAPE = Shape("people_facts", records=(Record("FACT", "facts", F("text", hint="s
               example='FACT Product manager for auth\ncite: [2] "I\'m the PM for auth"')
 
 
+def _uses(text: str, words: set[str]) -> bool:
+    return any(re.search(rf"(?<!\w){re.escape(w)}(?!\w)", text, re.IGNORECASE) for w in words)
+
+
 def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str, failures: Failures) -> str | None:
     """Update one dossier; returns the newest chunk time considered, or None if skipped."""
     if directory.meta.get(eid, {}).get("facts_stale"):
         since = ""  # the user told us something: redo facts from scratch against it
     recent = [c for c in ctx.index.chunks_with_people(directory.identifiers(eid), limit=12, before=ctx.now.isoformat())
               if c["source"] not in ("briefings", "loops", "people")]
-    newest = max((c["ts"] or "" for c in recent), default="")
-    if not recent or newest <= since or failures.gave_up(f"people:{eid}", newest):
+    if not recent:
         return None
-    name = directory.name(eid)
     packet = Packet()
     for c in recent:
         packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
-    from archie.ask.synthesize import describe
+    from archie.ask.synthesize import describe, packet_text, people_context
 
+    avoid = directory.avoided_words([eid, *directory.mentioned_in(packet_text(packet))])
+    path = ctx.home / f"people/{eid}.md"
+    if any(_uses(f["text"], avoid) for f in parse_facts(get_fence(read_note(path).body))):
+        since = ""  # an old fact uses a word the user ruled out: redo against what they said
+    newest = max((c["ts"] or "" for c in recent), default="")
+    if newest <= since or failures.gave_up(f"people:{eid}", newest):
+        return None
+    name = directory.name(eid)
     system = load_prompt("people_facts", person=name, me_name=ctx.me.name or "the user")
     told = describe(directory.meta.get(eid, {}), name)
-    path = ctx.home / f"people/{eid}.md"
     mine = read_note(path).body.split("<!-- archie:auto -->")[0].replace("## My notes", "").strip()
     if told or mine:
         system += ("\n\nWhat the user has told you about them is ground truth. Never state a fact that "
                    "contradicts it (e.g. if they say 'my child', never write 'son').\n"
                    + (f"Stated: {told}\n" if told else "") + (f"Their notes:\n{mine}" if mine else ""))
+    user = f"{people_context(ctx, packet)}\n\nSources about {name}:\n\n{packet.render()}".lstrip()
     try:
-        out = ctx.backend.complete(system, f"Sources about {name}:\n\n{packet.render()}", SHAPE, tier="fast")
+        out = ctx.backend.complete(system, user, SHAPE, tier="fast")
     except LLMError as exc:
         failures.failed(f"people:{eid}", newest, exc)
         return None
     failures.ok(f"people:{eid}")
     note = read_note(path)
     stale = note.meta.pop("facts_stale", None)
-    facts = [] if stale else parse_facts(get_fence(note.body))
+    facts = [] if stale else [f for f in parse_facts(get_fence(note.body)) if not _uses(f["text"], avoid)]
     for f in out.get("facts") or []:
         cite = check_quote(packet, int(f.get("ref", 0)), f.get("quote", ""))
-        if cite is None or not f.get("text"):
+        if cite is None or not f.get("text") or _uses(f["text"], avoid):
             continue
         new = {"text": f["text"].strip().rstrip("."), "file": cite.path, "chunk": cite.chunk_id,
                "quote": cite.quote.replace('"', "'")}

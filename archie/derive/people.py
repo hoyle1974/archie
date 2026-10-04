@@ -104,6 +104,23 @@ class PeopleDirectory:
                 first.append(eid)
         return exact or first
 
+    def mentioned_in(self, text: str) -> list[str]:
+        """Entity ids whose name, a name alias, or a first name (3+ letters) appears in text."""
+        text = text.lower()
+        out = []
+        for eid, meta in self.meta.items():
+            names = {str(n) for n in [meta.get("name"), *(meta.get("aliases") or [])] if n and "@" not in str(n)}
+            first = str(meta.get("name") or "").split(" ")[0]
+            if first and len(first) > 2:
+                names.add(first)
+            if any(re.search(rf"(?<!\w){re.escape(n.lower())}(?!\w)", text) for n in names):
+                out.append(eid)
+        return out
+
+    def avoided_words(self, entity_ids: list[str]) -> set[str]:
+        """Words the user said never to use for any of these people."""
+        return {str(w).lower() for e in entity_ids for w in (self.meta.get(e) or {}).get("avoid") or []}
+
     def new_id(self, name: str, email: str) -> str:
         base = slug(name) if name else slug(email.split("@")[0])
         eid, n = base, 2

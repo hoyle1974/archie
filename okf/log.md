@@ -5,6 +5,7 @@ description: Chronological history of design decisions and structural changes, n
 ---
 
 ## 2026-10-04
+- People facts now respect what the user said about everyone the sources mention, not only the dossier's own person. Goodspouse's dossier had facts calling Childone "your son" although Childone's dossier says never to. Enrichment now gets `people_context`, code drops facts using any mentioned person's `avoid` words (`PeopleDirectory.mentioned_in` and `avoided_words` in `archie/derive/people.py`), and a dossier already holding such a fact is redone on the next run.
 - Fixed a TUI segfault: a startup sync and a question embedded at the same time from two worker threads, both on the Apple GPU (MPS), and PyTorch's MPS kernel cache crashed (`exec_unary_kernel`, reproduced outside the TUI as a crash or a hang). Every model load and encode now takes one process-wide lock (`archie/index/embed.py`), and the embedding model runs on the CPU by default (`index.embed_device`), which is also about twice as fast as MPS for bge-small.
 
 ## 2026-10-03

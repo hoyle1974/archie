@@ -20,25 +20,17 @@ def describe(meta: dict, name: str) -> str | None:
     return f"{name}: {'; '.join(bits)}" if bits else None
 
 
+def packet_text(packet: Packet) -> str:
+    return "\n".join(it.text + " " + it.label for it in packet.items)
+
+
 def people_context(ctx: Ctx, packet: Packet) -> str:
     """What the user has told Archie about anyone the sources mention. It overrides how the
     sources describe them (an email saying "my son" about the user's non-binary child)."""
-    import re
-
     from archie.derive.people import PeopleDirectory
 
-    text = "\n".join(it.text + " " + it.label for it in packet.items).lower()
     d = PeopleDirectory.load(ctx.home)
-    lines = []
-    for eid, meta in d.meta.items():
-        names = {str(n) for n in [meta.get("name"), *(meta.get("aliases") or [])] if n and "@" not in str(n)}
-        first = str(meta.get("name") or "").split(" ")[0]
-        if first and len(first) > 2:
-            names.add(first)
-        if any(re.search(rf"(?<!\w){re.escape(n.lower())}(?!\w)", text) for n in names):
-            line = describe(meta, d.name(eid))
-            if line:
-                lines.append(f"- {line}")
+    lines = [f"- {line}" for eid in d.mentioned_in(packet_text(packet)) if (line := describe(d.meta[eid], d.name(eid)))]
     if not lines:
         return ""
     return ("What you've told me about people mentioned below. These override how the sources describe "
