@@ -87,5 +87,6 @@ def _answer_question(ctx: Ctx, pending: dict, qid: str) -> Answer:
         return Answer(plain="That question has already been answered.")
     if open_qs[number - 1].get("kind") in YES_NO:  # clarify would match the words against every yes/no question
         return Answer(plain=f"Please answer “{open_qs[number - 1].get('text', '')}” with yes or no.")
-    part = Part(kind="answer", text=pending["text"], question=number, fact=pending.get("fact"))
+    part = Part(kind="answer", text=pending["text"], question=number, fact=pending.get("fact"),
+                action=pending.get("action"), params={"until": pending.get("until")})
     return dispatch(ctx, part, pending["text"], open_qs)[1]

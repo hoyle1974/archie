@@ -17,6 +17,7 @@ At most MAX_OPEN questions are open at once, most important first, so it never f
 from __future__ import annotations
 
 import hashlib
+import re
 from datetime import datetime
 
 from archie.ask.context import Ctx
@@ -30,6 +31,12 @@ MAX_OPEN = 5
 PRIORITY = {"same_person": 0, "loop_done": 1, "loop_stale": 2, "waiting_nudge": 3, "who_is": 4}
 YES_NO = ("same_person", "loop_done", "loop_stale")
 _ARTICLES = ("the", "a", "an", "my", "your", "their", "our")
+# Loop summaries are usually imperative ("Review the patch"); "the review the patch" reads badly.
+_VERBS = frozenset(re.findall(r"\w+", """add answer approve arrange ask attend book bring buy call cancel check
+clarify complete confirm decide deliver discuss draft drop email file find finish fix follow forward get give help
+install investigate let look make meet merge move order organize pay pick plan prepare provide read register remind
+renew reply resolve respond return review schedule send set share sign submit take talk tell test text troubleshoot
+update upload write"""))
 
 
 def _qid(kind: str, key: str) -> str:
@@ -70,10 +77,10 @@ def _waiting_days(ctx: Ctx, lp: Loop) -> int | None:
 
 
 def _about(m: dict) -> str:
-    """"the earbud pairing" for a short summary, the summary in quotes otherwise."""
+    """"the earbud pairing" for a short noun phrase, the summary in quotes otherwise."""
     what = str(m.get("summary") or "").strip().rstrip(".")
     words = what.split()
-    if not words or len(words) > 4:
+    if not words or len(words) > 4 or words[0].lower() in _VERBS:
         return f"“{what}”"
     names = {w.lower() for w in str(m.get("counterpart_name") or "").split()}
     if words[0][:1].isupper() and not words[0][1:2].isupper() and words[0].lower().split("'")[0] not in names:

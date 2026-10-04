@@ -369,8 +369,14 @@ The reply to an instruction is built only from the sentences the actions returne
 - "A reply" is any message in the thread after `created_at` that isn't from the user and
   is from the counterpart's address or domain (support@headphonesrus.example counts for
   contact@headphonesrus.example). No thread file means no nudge.
-- The topic is "the earbud pairing" for a summary of four words or fewer, otherwise the
+- The topic is "the earbud pairing" for a noun-phrase summary of four words or fewer.
+  Otherwise, including the usual imperative summaries ("Review the patch"), it's the
   summary in quote marks.
+- While a nudge is open, the yes/no shortcut is skipped, so "yes, I'll follow up" can't
+  answer a "Did you finish …?" question by mistake.
+- If a reply could answer several nudges, the which-one question keeps the reply's
+  action and date, so "drop it" then "the refund one" dismisses the refund item.
+- The Nudge section of "what should I do next?" uses `nudges.after_days` too.
 - A nudge reply's `action` (loop_snooze, loop_done, loop_dismiss or nudge_snooze) comes
   from the understanding call; an answer with no action, such as a plain "yes", follows
   up. A snooze with no date, or a date that isn't in the future, asks "Until when?" and

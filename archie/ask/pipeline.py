@@ -114,7 +114,8 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
         new = citations_of(reply.answer)
         return Reply(recheck(last, reply.answer, new), again, new)
     open_qs = open_questions(ctx.home)
-    if not pending and any(q["kind"] in YES_NO for q in open_qs) and looks_like_answer(question):
+    nudging = any(q["kind"] == "waiting_nudge" for q in open_qs)  # "yes, I'll follow up" answers a nudge
+    if not pending and not nudging and any(q["kind"] in YES_NO for q in open_qs) and looks_like_answer(question):
         entry.update(intent="clarify", parts=[{"kind": "answer", "handler": "clarify"}])
         return Reply(answer_yes_no(ctx, question), None, None)
     parts = understand(ctx, question, recent, open_qs, pending)

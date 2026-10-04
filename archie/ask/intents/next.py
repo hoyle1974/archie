@@ -14,8 +14,6 @@ from archie.briefings.schedule import todays
 from archie.derive.loops import load_loops, rank
 from archie.llm.verify import Claim
 
-NUDGE_AFTER_DAYS = 3
-
 
 def _free_time(ctx: Ctx) -> tuple[str, set[str]]:
     meetings = todays(ctx)
@@ -35,8 +33,9 @@ def next_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     free, people = _free_time(ctx)
     ranked = [r for r in rank(load_loops(ctx.home), ctx.now, ctx.config, upcoming_people=people) if not r.stale]
     todo = [r for r in ranked if r.loop.meta["kind"] != "waiting_on"]
+    after = int(ctx.config.get("nudges", {}).get("after_days", 3))
     nudges = [r for r in ranked if r.loop.meta["kind"] == "waiting_on"
-              and (ctx.now - datetime.fromisoformat(r.loop.meta["created_at"])).days >= NUDGE_AFTER_DAYS]
+              and (ctx.now - datetime.fromisoformat(r.loop.meta["created_at"])).days >= after]
     from archie.store.files import read_raw
 
     in_progress = []

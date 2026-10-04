@@ -214,3 +214,40 @@ def test_follow_up_with_two_open_nudges_asks_which(tmp_path):
     assert render(ask(ctx, "I'll follow up with them")) == \
         "Which one: HeadphonesRUs about the earbud pairing or HeadphonesRUs about the refund?"
     assert render(ask(ctx, "the refund one")) == "Snoozed until Sunday: HeadphonesRUs, refund."
+
+
+def test_yes_to_a_nudge_with_a_did_you_finish_question_open_leaves_the_other_item_alone(tmp_path):
+    from archie.ask.pipeline import ask
+    from archie.ask.render import render
+    from tests.support.fixtures import part
+
+    ctx = nudged(tmp_path, part("answer", text="yes, I'll follow up", question=1, action="nudge_snooze"))
+    waiting(ctx, lid="l2", summary="Send invoice", kind="asked_of_me", status="maybe_done", thread="t2")
+    audit(ctx)
+    assert [q["kind"] for q in open_questions(ctx.home)] == ["waiting_nudge", "loop_done"]
+    assert render(ask(ctx, "yes, I'll follow up")) == "Snoozed until Sunday: HeadphonesRUs, earbud pairing."
+    assert [c["shape"].name for c in ctx.backend.calls] == ["understand"]
+    assert {lp.loop_id: lp.meta["status"] for lp in load_loops(ctx.home)} == {"l1": "snoozed", "l2": "maybe_done"}
+
+
+def test_which_one_keeps_the_action_the_user_asked_for(tmp_path):
+    from archie.ask.pipeline import ask
+    from archie.ask.render import render
+    from tests.support.fixtures import part
+
+    for action, until, want in (("loop_dismiss", None, "Dismissed: HeadphonesRUs, refund."),
+                                ("loop_snooze", "2026-10-09", "Snoozed until Fri, Oct 9: HeadphonesRUs, refund.")):
+        ctx = nudged(tmp_path / action, part("unclear", text="drop it", options=[1, 2], action=action, until=until))
+        waiting(ctx, lid="l2", summary="Refund", thread="t2")
+        thread(ctx, tid="t2")
+        audit(ctx)
+        assert render(ask(ctx, "drop it")).startswith("Which one:")
+        assert render(ask(ctx, "the refund one")) == want
+
+
+def test_short_imperative_summaries_are_quoted(tmp_path):
+    ctx = make_ctx(tmp_path)
+    waiting(ctx, summary="Review the patch")
+    thread(ctx)
+    audit(ctx)
+    assert nudges(ctx) == ["Still waiting on HeadphonesRUs about “Review the patch” (3 days). Want to follow up?"]

@@ -64,7 +64,9 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
         qs = [open_qs[o - 1] for o in part.options]
         options = [{"label": _question_label(q), "id": q.get("id")} for q in qs]
         return "unclear", Answer(plain=ask_which([o["label"] for o in options]),
-                                 pending={"kind": "question", "text": part.text, "fact": part.fact, "options": options})
+                                 pending={"kind": "question", "text": part.text, "fact": part.fact,
+                                          "action": part.action, "until": part.params.get("until"),
+                                          "options": options})
     ask = (part.ask or "").strip()
     return "unclear", Answer(plain=ask if ask.endswith("?") and len(ask) <= 160 else UNCLEAR)
 

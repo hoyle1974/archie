@@ -14,7 +14,7 @@ Each part is one of:
   a real item, or is open again); meeting_type (a meeting is a 1:1, standup or
   all-hands); merge_names (two names are one person); notes (the user is giving notes
   from a meeting); ignore or unignore (a sender); show_citation ("show 2");
-  nudge_snooze; send (anything that sends: email, message, reply, invite, post); none
+  nudge_snooze (the user will follow up on a "Still waiting on …" item themselves); send (anything that sends: email, message, reply, invite, post); none
   (anything else, with a short verb phrase for it in `wanted`, at most 12 words, that fits
   after "I can't": "filter Today by day"). `until` for loop_snooze: the ISO date they
   gave. `target`: which item, in the user's words.
@@ -28,7 +28,8 @@ Each part is one of:
   `question`.
 - unclear: you can't tell what the user means, or more than one thing fits. `ask`: one
   short question back. If it could answer more than one of Archie's open questions, put
-  their numbers in `options`.
+  their numbers in `options` (and for "Still waiting on …" questions, the `action` and
+  `until` it would set).
 An instruction about an open item ("she's done with it") is an instruct part even when
 you can't tell which item; Archie lists the items and asks.
 
