@@ -50,8 +50,9 @@ def test_text_backend_retries_once_then_explains():
     b = Scripted(["oops", "a: fixed"])
     assert b.complete("s", "hi", SHAPE) == {"a": "fixed"}
     assert "couldn't be read: missing `a`" in b.seen[1][1]
-    with pytest.raises(LLMError, match="reply couldn't be read \\(missing `a`\\)"):
+    with pytest.raises(LLMError, match="reply couldn't be read \\(missing `a`\\)") as err:
         Scripted(["oops", "still oops"]).complete("s", "hi", SHAPE)
+    assert err.value.about_input
 
 
 def reply(text, finish="STOP", block=None):
@@ -102,17 +103,18 @@ def test_thinking_can_be_switched_off():
     (httpx.ConnectError("down"), "couldn't reach Gemini"),
 ])
 def test_errors_are_explained(exc, words):
-    with pytest.raises(LLMError, match=words):
+    with pytest.raises(LLMError, match=words) as err:
         GeminiBackend(LLM, client=Client(exc)).generate("s", "u", "fast")
+    assert not err.value.about_input  # service problems: retrying the same input may work
 
 
 def test_empty_reply_is_explained():
-    with pytest.raises(LLMError, match="blocked the request \\(SAFETY\\)"):
-        GeminiBackend(LLM, client=Client(reply(None, finish=None, block="SAFETY"))).generate("s", "u")
-    with pytest.raises(LLMError, match="cut off at the output limit"):
-        GeminiBackend(LLM, client=Client(reply(None, finish="MAX_TOKENS"))).generate("s", "u")
-    with pytest.raises(LLMError, match="empty reply"):
-        GeminiBackend(LLM, client=Client(reply("  "))).generate("s", "u")
+    for resp, words in [(reply(None, finish=None, block="SAFETY"), "blocked the request \\(SAFETY\\)"),
+                        (reply(None, finish="MAX_TOKENS"), "cut off at the output limit"),
+                        (reply("  "), "empty reply")]:
+        with pytest.raises(LLMError, match=words) as err:
+            GeminiBackend(LLM, client=Client(resp)).generate("s", "u")
+        assert err.value.about_input
 
 
 def test_missing_key_says_how_to_fix(monkeypatch):

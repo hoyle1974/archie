@@ -87,3 +87,14 @@ def test_facts_show_in_who_at_a_glance(tmp_path):
     d = PeopleDirectory.load(ctx.home)
     lines = person_lines(d, "workperson_acorn", [], d.facts(ctx.home, "workperson_acorn"))
     assert "Known for: Runs people ops at Overwatch" in lines
+
+
+def test_a_person_whose_reply_keeps_failing_stops_costing_calls(tmp_path):
+    from archie.derive.failures import MAX_TRIES
+
+    fb = FakeBackend(by_schema(people_facts="FACT Runs people ops"))  # no cite: unreadable
+    ctx = make_ctx(tmp_path, fb)
+    seed(ctx)
+    for _ in range(MAX_TRIES + 2):
+        enrich_people(ctx)
+    assert len(fb.calls) == MAX_TRIES

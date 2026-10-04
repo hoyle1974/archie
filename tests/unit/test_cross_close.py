@@ -56,3 +56,12 @@ def test_unverified_quote_changes_nothing_and_no_recheck_without_new_activity(tm
     close_across_channels(ctx, [])
     assert load_loops(ctx.home)[0].meta["status"] == "open"
     assert len(calls) == 1
+
+
+def test_a_loop_whose_reply_keeps_failing_stops_costing_calls(tmp_path):
+    from archie.derive.failures import MAX_TRIES
+
+    ctx, calls = setup(tmp_path, "strength: strong")  # no `done`: unreadable
+    for _ in range(MAX_TRIES + 2):
+        close_across_channels(ctx, [])
+    assert len(calls) == MAX_TRIES

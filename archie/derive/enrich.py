@@ -10,6 +10,7 @@ from __future__ import annotations
 import yaml
 
 from archie.ask.context import Ctx
+from archie.derive.failures import Failures
 from archie.derive.people import PeopleDirectory, parse_facts, render_facts
 from archie.llm.backend import LLMError
 from archie.llm.prompts import load_prompt
@@ -24,14 +25,14 @@ SHAPE = Shape("people_facts", records=(Record("FACT", "facts", F("text", hint="s
               example='FACT Product manager for auth\ncite: [2] "I\'m the PM for auth"')
 
 
-def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str) -> str | None:
+def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str, failures: Failures) -> str | None:
     """Update one dossier; returns the newest chunk time considered, or None if skipped."""
     if directory.meta.get(eid, {}).get("facts_stale"):
         since = ""  # the user told us something: redo facts from scratch against it
     recent = [c for c in ctx.index.chunks_with_people(directory.identifiers(eid), limit=12, before=ctx.now.isoformat())
               if c["source"] not in ("briefings", "loops", "people")]
     newest = max((c["ts"] or "" for c in recent), default="")
-    if not recent or newest <= since:
+    if not recent or newest <= since or failures.gave_up(f"people:{eid}", newest):
         return None
     name = directory.name(eid)
     packet = Packet()
@@ -49,8 +50,10 @@ def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str) -> s
                    + (f"Stated: {told}\n" if told else "") + (f"Their notes:\n{mine}" if mine else ""))
     try:
         out = ctx.backend.complete(system, f"Sources about {name}:\n\n{packet.render()}", SHAPE, tier="fast")
-    except LLMError:
+    except LLMError as exc:
+        failures.failed(f"people:{eid}", newest, exc)
         return None
+    failures.ok(f"people:{eid}")
     note = read_note(path)
     stale = note.meta.pop("facts_stale", None)
     facts = [] if stale else parse_facts(get_fence(note.body))
@@ -73,9 +76,11 @@ def enrich_people(ctx: Ctx, paths=None) -> None:
     done = (yaml.safe_load(state_file.read_text()) or {}) if state_file.exists() else {}
     directory = PeopleDirectory.load(ctx.home)
     ids = sorted(directory.meta)
+    failures = Failures(ctx.home)
     workers = max(1, int(ctx.config["llm"].get("parallel", 1)))
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(lambda e: _enrich_one(ctx, directory, e, done.get(e, "")), ids))
+        results = list(pool.map(lambda e: _enrich_one(ctx, directory, e, done.get(e, ""), failures), ids))
+    failures.save()
     updated = {e: r for e, r in zip(ids, results) if r}
     if updated:
         done.update(updated)

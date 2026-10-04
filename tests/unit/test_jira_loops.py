@@ -48,3 +48,14 @@ def test_my_later_comment_can_close_it(tmp_path):
     derive_jira_loops(ctx, [issue(ctx.home, [ASK])])
     derive_jira_loops(ctx, [issue(ctx.home, [ASK, MINE])])
     assert load_loops(ctx.home)[0].meta["status"] == "done"
+
+
+def test_an_issue_whose_reply_keeps_failing_stops_costing_calls(tmp_path):
+    from archie.derive.failures import MAX_TRIES
+
+    fb = FakeBackend(by_schema(loops_extract="LOOP asked_of_me\nsummary: Finish ENG-402"))  # no cite: unreadable
+    ctx = make_ctx(tmp_path, fb)
+    path = issue(ctx.home, [ASK])
+    for _ in range(MAX_TRIES + 2):
+        derive_jira_loops(ctx, [path])
+    assert len(fb.calls) == MAX_TRIES

@@ -16,6 +16,7 @@ import yaml
 
 from archie.activity import my_activity
 from archie.ask.context import Ctx
+from archie.derive.failures import Failures
 from archie.derive.loops import OPEN, _history, load_loops, save_loop
 from archie.llm.backend import LLMError
 from archie.llm.prompts import load_prompt
@@ -35,7 +36,7 @@ def _words(text: str) -> set[str]:
     return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOP and len(w) > 2}
 
 
-def _check(ctx: Ctx, lp, checked: dict) -> str | None:
+def _check(ctx: Ctx, lp, checked: dict, failures: Failures) -> str | None:
     """Check one loop; returns the newest candidate time seen (to record), or None if skipped."""
     m = lp.meta
     start = datetime.fromisoformat(m["created_at"])
@@ -46,6 +47,8 @@ def _check(ctx: Ctx, lp, checked: dict) -> str | None:
     if not cands or cands[-1].when <= checked.get(lp.loop_id, ""):
         return None
     newest = max(i.when for i in cands)
+    if failures.gave_up(f"cross:{lp.loop_id}", newest):
+        return None
     cands = sorted(cands, key=lambda i: -len(want & _words(i.title)))[:5]
     packet = Packet()
     for i in cands:
@@ -55,8 +58,10 @@ def _check(ctx: Ctx, lp, checked: dict) -> str | None:
     user = f"Open item: {m.get('summary')} (with {m.get('counterpart_name')})\n\nLater activity:\n\n{packet.render()}"
     try:
         out = ctx.backend.complete(system, user, SHAPE, tier="fast")
-    except LLMError:
+    except LLMError as exc:
+        failures.failed(f"cross:{lp.loop_id}", newest, exc)
         return None
+    failures.ok(f"cross:{lp.loop_id}")
     cite = check_quote(packet, int(out.get("ref", 0)), out.get("quote", "")) if out.get("done") else None
     if cite is not None:
         m["status"] = "done" if out.get("strength") == "strong" else "maybe_done"
@@ -74,9 +79,11 @@ def close_across_channels(ctx: Ctx, paths: list[Path]) -> None:
     checked = (yaml.safe_load(state_file.read_text()) or {}) if state_file.exists() else {}
     loops = [lp for lp in load_loops(ctx.home)
              if lp.meta.get("status") in OPEN and lp.meta.get("kind") != "waiting_on"]
+    failures = Failures(ctx.home)
     workers = max(1, int(ctx.config["llm"].get("parallel", 1)))
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(lambda lp: _check(ctx, lp, checked), loops))
+        results = list(pool.map(lambda lp: _check(ctx, lp, checked, failures), loops))
+    failures.save()
     updated = {lp.loop_id: r for lp, r in zip(loops, results) if r}
     if updated:
         checked.update(updated)

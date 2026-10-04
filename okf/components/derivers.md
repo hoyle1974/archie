@@ -9,6 +9,7 @@ tags: [component]
 
 Idempotent. Write only inside fences ([fence rule](../principles/fence-rule.md)). Extraction goes through [llm](llm.md). Loop logic lives in [loops](loops.md). Design: [DESIGN §5.2](../../docs/DESIGN.md#52-derivers).
 
+- `failures.py`: when a model call fails, derivers leave the item for the next sync. `Failures` (`state/llm_failures.yaml`) counts failures caused by the item itself (an unreadable or cut-off reply, a safety block: `LLMError.about_input`) and skips the item after 3 on the same content, so one bad thread can't cost a call every sync. Quota, key, network and server errors never count. New content (a new message, comment or mention) gets a fresh start. Used by email loops, Jira loops, people facts and cross-channel closing.
 - `registry.py`: `all_derivers()` returns the derivers in the order they run, and `rederive(ctx)` replays all of them over every raw file (`archie admin rederive`).
 - `people.py`: builds and updates dossiers in `people/<entity_id>.md`.
   - Who gets a dossier: anyone you emailed, unless it's a role address like noreply@, support@ or unsubscribe@. Also anyone who wrote to you directly (To or Cc) with mail that Gmail filed as `CATEGORY_PERSONAL`, or with no category at all, and that isn't from a role address.

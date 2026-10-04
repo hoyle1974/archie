@@ -63,9 +63,23 @@ def check_jira(cfg: dict) -> Check:
     return (True, "jira: token stored") if ok else (False, "jira: no API token: run `archie admin connect jira`")
 
 
+def check_failures(home: Home) -> Check | None:
+    from archie.derive.failures import FILE, MAX_TRIES, Failures
+
+    skipped = Failures(home).skipped()
+    if not skipped:
+        return None
+    n = len(skipped)
+    return False, (f"{n} item{'s' if n != 1 else ''} skipped after {MAX_TRIES} unreadable model replies "
+                   f"({', '.join(skipped[:3])}{', …' if n > 3 else ''}): delete {home.root / FILE} to retry")
+
+
 def run_checks(home: Home) -> list[Check]:
     cfg = load_config(home)
     results = [check_me(home), check_gemini()]
+    skipped = check_failures(home)
+    if skipped:
+        results.append(skipped)
     enabled = [n for n, c in cfg["connectors"].items() if (c or {}).get("enabled")]
     if not enabled:
         results.append((False, "no sources switched on: add them under `connectors:` in config.yaml"))

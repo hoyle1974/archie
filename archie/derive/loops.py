@@ -23,6 +23,7 @@ import yaml
 from archie.ask.context import Ctx
 from archie.connectors.gmail import chunk_thread
 from archie.derive.dates import due_in
+from archie.derive.failures import Failures
 from archie.derive.people import PeopleDirectory, looks_personal, slug
 from archie.llm.backend import LLMError
 from archie.llm.prompts import load_prompt
@@ -220,6 +221,7 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
         by_thread.setdefault(str(lp.meta.get("thread")), []).append(lp)
     lock = threading.Lock()
     contacts = written_to(ctx.home)
+    failures = Failures(ctx.home)
 
     class _Known:  # set-like view guarded by a lock, shared by worker threads
         def __contains__(self, item):
@@ -242,17 +244,22 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
         new = {i for i, m in enumerate(msgs) if m["date"] > seen.get(tid, "")}
         if not new:
             return None
+        latest = max(m["date"] for m in msgs)
         relevant_new = {i + 1 for i in new if _relevant(msgs[i], ctx.config["loops"].get("mute"))}
         if relevant_new:
+            if failures.gave_up(f"gmail:{tid}", latest):
+                return None
             packet = _packet(rel, data, new, contacts)
             open_here = [lp for lp in by_thread.get(tid, []) if lp.meta.get("status") in OPEN]
             try:
                 if open_here:
                     _close(ctx, packet, open_here, relevant_new, tid)
                 _extract(ctx, packet, data, rel, tid, relevant_new, directory, _Known(), by_thread.setdefault(tid, []))
-            except LLMError:
+            except LLMError as exc:
+                failures.failed(f"gmail:{tid}", latest, exc)
                 return None  # leave the thread unseen; the next cycle retries it
-        return tid, max(m["date"] for m in msgs)
+            failures.ok(f"gmail:{tid}")
+        return tid, latest
 
     workers = max(1, int(ctx.config["llm"].get("parallel", 1)))
     finished = 0
@@ -266,6 +273,7 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
                 atomic_write(_seen_file(ctx.home), yaml.safe_dump(seen, sort_keys=True))
     if finished:
         atomic_write(_seen_file(ctx.home), yaml.safe_dump(seen, sort_keys=True))
+    failures.save()
 
 
 STALE_AFTER_DAYS = 7  # this far past due, it's more likely done than urgent

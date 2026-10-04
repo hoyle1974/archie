@@ -12,6 +12,7 @@ import yaml
 
 from archie.ask.context import Ctx
 from archie.derive.dates import due_in
+from archie.derive.failures import Failures
 from archie.derive.loops import (CLOSE_SHAPE, EXTRACT_SHAPE, OPEN, Loop, _duplicate, _history, load_loops,
                                  save_loop)
 from archie.derive.people import PeopleDirectory, slug
@@ -35,6 +36,7 @@ def derive_jira_loops(ctx: Ctx, paths: list[Path]) -> None:
     directory = PeopleDirectory.load(ctx.home)
     loops = load_loops(ctx.home)
     me = ctx.me.name or "the user"
+    failures = Failures(ctx.home)
     changed = False
     for path in sorted(paths):
         rel = Path(path).relative_to(ctx.home.root).as_posix()
@@ -45,6 +47,9 @@ def derive_jira_loops(ctx: Ctx, paths: list[Path]) -> None:
         comments = data.get("comments") or []
         new = {i for i, c in enumerate(comments) if (c.get("date") or "") > seen.get(key, "")}
         if data.get("deleted") or not new:
+            continue
+        latest = max(c.get("date") or "" for c in comments)
+        if failures.gave_up(f"jira:{key}", latest):
             continue
         packet = _packet(rel, Path(path).read_text(), {i + 1 for i in new})  # chunk 0 is the description
         mine_new = {i + 2 for i in new if comments[i].get("from_me")}
@@ -90,9 +95,12 @@ def derive_jira_loops(ctx: Ctx, paths: list[Path]) -> None:
                     _history(lp, f"{when:%Y-%m-%d %H:%M} mentioned on {key}")
                     save_loop(ctx.home, lp)
                     loops.append(lp)
-        except LLMError:
+        except LLMError as exc:
+            failures.failed(f"jira:{key}", latest, exc)
             continue
-        seen[key] = max(c.get("date") or "" for c in comments)
+        failures.ok(f"jira:{key}")
+        seen[key] = latest
         changed = True
     if changed:
         atomic_write(seen_file, yaml.safe_dump(seen, sort_keys=True))
+    failures.save()

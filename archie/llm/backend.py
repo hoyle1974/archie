@@ -13,7 +13,13 @@ from archie.llm.shape import Shape
 
 
 class LLMError(RuntimeError):
-    pass
+    """`about_input` is True when the failure came from this input (an unreadable or cut-off reply,
+    a safety block), so retrying the same input will likely fail again. Service problems
+    (quota, key, network, server) leave it False."""
+
+    def __init__(self, message: str, about_input: bool = False):
+        super().__init__(message)
+        self.about_input = about_input
 
 
 class Backend(Protocol):
@@ -35,7 +41,7 @@ class TextBackend:
         retry = f"{user}\n\nYour last reply couldn't be read: {'; '.join(problems)}. Reply again in the format."
         out, problems = shape.parse(self.generate(system, retry, tier))
         if problems:
-            raise LLMError(f"the model's reply couldn't be read ({'; '.join(problems[:3])})")
+            raise LLMError(f"the model's reply couldn't be read ({'; '.join(problems[:3])})", about_input=True)
         return out
 
 
@@ -58,7 +64,7 @@ class FakeBackend:
         if isinstance(reply, str):
             out, problems = shape.parse(reply)
             if problems:
-                raise LLMError(f"the model's reply couldn't be read ({'; '.join(problems[:3])})")
+                raise LLMError(f"the model's reply couldn't be read ({'; '.join(problems[:3])})", about_input=True)
             return out
         return reply
 
@@ -118,11 +124,12 @@ class GeminiBackend(TextBackend):
             return text
         block = getattr(getattr(resp, "prompt_feedback", None), "block_reason", None)
         if block:
-            raise LLMError(f"Gemini blocked the request ({block.name})")
+            raise LLMError(f"Gemini blocked the request ({block.name})", about_input=True)
         finish = resp.candidates[0].finish_reason.name if resp.candidates else ""
         if finish == "MAX_TOKENS":
-            raise LLMError("Gemini's reply was cut off at the output limit (llm.max_output_tokens in config.yaml)")
-        raise LLMError("Gemini returned an empty reply")
+            raise LLMError("Gemini's reply was cut off at the output limit (llm.max_output_tokens in config.yaml)",
+                           about_input=True)
+        raise LLMError("Gemini returned an empty reply", about_input=True)
 
 
 def _explain(exc, model: str) -> str:
