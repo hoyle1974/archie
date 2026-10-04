@@ -9,6 +9,7 @@ import re
 
 from archie.ask.answer import Answer
 from archie.ask.context import Ctx
+from archie.ask.followup import citation_number, show
 from archie.ask.intents import HANDLERS
 from archie.ask.understand import Part
 from archie.derive.audit import YES_NO
@@ -41,6 +42,10 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
         subject = _who_is_subject(q)
         return "remember", HANDLERS["remember"](ctx, f"{subject}: {part.text}" if subject else part.text, dict(EMPTY))
     if part.kind == "instruct":
+        if part.action == "show_citation":
+            m = re.search(r"\d+", part.text)
+            n = citation_number(part.text) or (int(m.group()) if m else 1)
+            return "show_citation", show(ctx, last, n)
         name = ACTION_INTENT.get(part.action or "")
         if name == "notes":  # the notes handler finds the note's start in the whole message
             return "notes", HANDLERS["notes"](ctx, message, {**EMPTY, **part.params})

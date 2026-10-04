@@ -18,6 +18,7 @@ from archie.ask import conversation
 from archie.ask.answer import Answer
 from archie.ask.context import Ctx
 from archie.ask.dispatch import EMPTY, dispatch
+from archie.ask.followup import citation_number, is_recheck, recheck, show
 from archie.ask.intents import HANDLERS, load_all
 from archie.ask.router import quick_route
 from archie.ask.understand import understand
@@ -60,13 +61,25 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     if quick:
         entry.update(quick=True, intent=quick)
         return Reply(HANDLERS[quick](ctx, question, dict(EMPTY)), None, None)
+    recent = conversation.recent(ctx.home, ctx.now)
+    last = recent[-1] if recent else None
+    n = citation_number(question)
+    if n is not None:
+        entry.update(quick=True, intent="show_citation")
+        return Reply(show(ctx, last, n), (last or {}).get("resolved"), (last or {}).get("citations") or [])
+    again = (last or {}).get("resolved") or (last or {}).get("said")
+    if is_recheck(question) and again and not is_recheck(again):
+        entry["recheck"] = again
+        reply = _respond(ctx, again, entry)
+        from archie.ask.render import citations_of
+
+        new = citations_of(reply.answer)
+        return Reply(recheck(last, reply.answer, new), again, new)
     open_qs = open_questions(ctx.home)
     if any(q["kind"] in YES_NO for q in open_qs) and looks_like_answer(question):
         entry["intent"] = "clarify"
         return Reply(HANDLERS["clarify"](ctx, question, dict(EMPTY)), None, None)
-    recent = conversation.recent(ctx.home, ctx.now)
     parts = understand(ctx, question, recent, open_qs)
-    last = recent[-1] if recent else None
     handled = [dispatch(ctx, p, question, open_qs, last) for p in parts]
     entry["intent"] = handled[0][0]
     entry["parts"] = [{"kind": p.kind, "handler": label} for p, (label, _) in zip(parts, handled)]
