@@ -85,6 +85,7 @@ def _question_of(last: dict | None) -> str | None:
 def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     from archie.ask.intents.clarify import looks_like_answer
     from archie.ask.render import citations_of
+    from archie.ask.tell import answer_yes_no
     from archie.derive.audit import YES_NO
     from archie.derive.dedupe import open_questions
 
@@ -108,11 +109,14 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     open_qs = open_questions(ctx.home)
     if any(q["kind"] in YES_NO for q in open_qs) and looks_like_answer(question):
         entry.update(intent="clarify", parts=[{"kind": "answer", "handler": "clarify"}])
-        return Reply(HANDLERS["clarify"](ctx, question, dict(EMPTY)), None, None)
+        return Reply(answer_yes_no(ctx, question), None, None)
     parts = understand(ctx, question, recent, open_qs)
     handled = [dispatch(ctx, p, question, open_qs, last) for p in parts]
     entry["intent"] = handled[0][0]
     entry["parts"] = [{"kind": p.kind, "handler": label} for p, (label, _) in zip(parts, handled)]
+    gaps = [p.text for p, (label, _) in zip(parts, handled) if label == "other->gap"]
+    if gaps:
+        entry["gaps"] = gaps
     resolved = next((p.resolved for p in parts if p.kind == "question" and p.resolved), None)
     answer = combine([(p, a) for p, (_, a) in zip(parts, handled)])
     if all(label == "show_citation" for label, _ in handled):

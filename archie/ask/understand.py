@@ -147,9 +147,11 @@ def checked(raw: list[dict], message: str, recent: list[dict], open_qs: list[dic
         if kind == "answer" and not (isinstance(question, int) and 1 <= question <= len(open_qs)):
             kind, question = "question", None
         ask = r.get("ask") if r.get("ask") and _grounded(r["ask"], heard) else None
+        about = r.get("about") if r.get("about") and _said(r["about"], heard) else None
+        target = r.get("target") if r.get("target") and _said(r["target"], heard) else None
         parts.append(Part(kind=kind, text=text, resolved=resolved, intent=r.get("intent"), params=_params(r, heard),
-                          fact=r.get("fact"), about=r.get("about"), question=question, action=r.get("action"),
-                          target=r.get("target"), wanted=r.get("wanted"), options=list(r.get("options") or []),
+                          fact=r.get("fact"), about=about, question=question, action=r.get("action"),
+                          target=target, wanted=r.get("wanted"), options=list(r.get("options") or []),
                           ask=ask))
     return parts or [Part(kind="question", text=message.strip(), intent="search", params=_params({}, heard))]
 

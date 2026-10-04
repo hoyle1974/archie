@@ -6,8 +6,9 @@ Each part is one of:
 - question: the user wants to know something. Pick the intent that answers it.
 - tell: the user is telling Archie something to remember. `fact`: person (who someone
   is: relationship, role, pronouns, other names, words to avoid), ignore (a sender is
-  spam or should be ignored), unignore (stop ignoring one), or other. `about`: who or
-  what it's about.
+  spam, junk, or should be ignored), unignore (stop ignoring one), or other. `about`: who
+  or what it's about, in the user's words (for ignore and unignore: the email address,
+  @domain or name they gave).
 - instruct: the user wants Archie to do something. `action`: loop_done, loop_snooze,
   loop_dismiss or loop_reopen (an open item is finished, should wait until `until`, isn't
   a real item, or is open again); meeting_type (a meeting is a 1:1, standup or
@@ -16,7 +17,9 @@ Each part is one of:
   nudge_snooze; send (anything that sends: email, message, reply, invite, post); none
   (anything else, with a short verb phrase for it in `wanted`). `target`: which item, in
   the user's words.
-- answer: a reply to one of Archie's open questions. `question`: its number.
+- answer: a reply to one of Archie's open questions. `question`: its number. For a reply
+  to a "Who is …?" question, also set `fact` as for a telling: "it's spam, ignore it" is
+  ignore, "my plumber" is person.
 - unclear: you can't tell what the user means, or more than one thing fits. `ask`: one
   short question back.
 

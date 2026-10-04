@@ -112,26 +112,23 @@ def test_each_question_is_logged_locally(tmp_path):
     assert "couldn't find" in lines[0]["answer"] and "archie ask" in lines[1]["answer"]
 
 
-def test_mixed_message_runs_every_part(tmp_path):
+def test_mixed_message_runs_every_part(tmp_path, monkeypatch):
     from archie.ask.answer import Answer
     from archie.ask.intents import HANDLERS, load_all
 
     load_all()
     calls = []
-    monkey_loop = lambda ctx, q, p: (calls.append(("loop_update", q)), Answer(plain="Marked done: pizzas"))[1]  # noqa
-    monkey_rem = lambda ctx, q, p: (calls.append(("remember", q)), Answer(plain="Got it. I'll remember: X"))[1]  # noqa
-    saved = dict(HANDLERS)
-    HANDLERS.update(loop_update=monkey_loop, remember=monkey_rem)
-    try:
-        reply = understood(part("instruct", text="I picked up the pizza.", action="loop_done"),
-                           part("tell", text="Sam is my neighbor.", fact="person"))
-        ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=reply)))
-        out = render(ask(ctx, "I picked up the pizza. Sam is my neighbor."))
-    finally:
-        HANDLERS.clear()
-        HANDLERS.update(saved)
-    assert calls == [("loop_update", "I picked up the pizza."), ("remember", "Sam is my neighbor.")]
-    assert "Marked done: pizzas" in out and "Got it. I'll remember: X" in out
+    monkeypatch.setitem(HANDLERS, "loop_update",
+                        lambda ctx, q, p: (calls.append(q), Answer(plain="Marked done: pizzas"))[1])
+    sam = {"people": [{"name": "Sam", "relationship": "neighbor", "role": None, "pronouns": None, "identity": None,
+                       "avoid": [], "other_names": [], "statement": "Sam is my neighbor."}]}
+    reply = understood(part("instruct", text="I picked up the pizza.", action="loop_done"),
+                       part("tell", text="Sam is my neighbor.", fact="person"))
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=reply, remember=sam)))
+    out = render(ask(ctx, "I picked up the pizza. Sam is my neighbor."))
+    assert calls == ["I picked up the pizza."]
+    assert "Marked done: pizzas" in out and "Sam (neighbor), new" in out
+    assert ctx.backend.calls[-1]["user"] == "Sam is my neighbor."
 
 
 def test_send_is_refused_plainly_and_nothing_runs(tmp_path):
@@ -155,23 +152,16 @@ def test_unclear_asks_back_with_a_short_question_only(tmp_path):
 
 
 def test_answer_to_who_is_reaches_remember_with_the_address(tmp_path):
-    from archie.ask.answer import Answer
-    from archie.ask.intents import HANDLERS, load_all
     from archie.derive.dedupe import save_questions
 
-    load_all()
     seen = []
-    saved = dict(HANDLERS)
-    HANDLERS["remember"] = lambda ctx, q, p: (seen.append(q), Answer(plain="Got it."))[1]
-    try:
-        ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(part("answer", question=1)))))
-        save_questions(ctx.home, [{"id": "q1", "kind": "who_is", "person": "x", "status": "open",
-                                   "text": "Who is a@b.co? Tell me, e.g. \"a@b.co is my plumber\".",
-                                   "asked_at": "2026-10-01T00:00:00+00:00"}])
-        ask(ctx, "it's my plumber")
-    finally:
-        HANDLERS.clear()
-        HANDLERS.update(saved)
+    model = by_schema(understand=understood(part("answer", question=1)),
+                      remember=lambda s, u, sh, t: (seen.append(u), {"people": []})[1])
+    ctx = make_ctx(tmp_path, FakeBackend(model))
+    save_questions(ctx.home, [{"id": "q1", "kind": "who_is", "person": "x", "status": "open",
+                               "text": "Who is a@b.co? Tell me, e.g. \"a@b.co is my plumber\".",
+                               "asked_at": "2026-10-01T00:00:00+00:00"}])
+    ask(ctx, "it's my plumber")
     assert seen == ["a@b.co: it's my plumber"]
 
 
@@ -233,35 +223,30 @@ def test_a_plain_reply_then_a_cited_one_keeps_the_sources(tmp_path):
     from archie.llm.verify import Citation, Claim
 
     priya = Citation(1, "people/priya_sharma.md", "c0", "Priya is your manager", "Priya (dossier)")
-    saved = _with_handlers(remember=lambda ctx, q, p: Answer(plain="Got it. I'll remember: Sam is your neighbor."),
-                           who=lambda ctx, q, p: Answer(summary=[Claim("Priya is your manager.", [priya])]))
+    sam = {"people": [{"name": "Sam", "relationship": "neighbor", "statement": "Sam is my neighbor."}]}
+    saved = _with_handlers(who=lambda ctx, q, p: Answer(summary=[Claim("Priya is your manager.", [priya])]))
     try:
         reply = understood(part("tell", text="Sam is my neighbor."), question("who", text="who is Priya?"))
-        ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=reply)))
+        ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=reply, remember=sam)))
         ans = ask(ctx, "Sam is my neighbor. who is Priya?")
     finally:
         _restore(saved)
     out = render(ans)
-    assert out.startswith("Got it. I'll remember: Sam is your neighbor.") and "Priya is your manager. [1]" in out
+    assert out.startswith("Got it. I'll remember:\n  • Sam (neighbor), new") and "Priya is your manager. [1]" in out
     assert [c["file"] for c in citations_of(ans)] == ["people/priya_sharma.md"]
 
 
 def test_really_after_something_that_was_not_a_question_does_not_redo_it(tmp_path):
-    from archie.ask.answer import Answer
-
     told = []
-    saved = _with_handlers(remember=lambda ctx, q, p: (told.append(q), Answer(plain="Got it."))[1])
 
     def model(system, user, shape, tier):
         msg = user.rsplit("Message:", 1)[-1].strip()
         return understood(part("unclear", ask="Really what?") if msg == "really?" else part("tell"))
 
-    try:
-        ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=model)))
-        ask(ctx, "Sam is my neighbor.")
-        out = render(ask(ctx, "really?"))
-    finally:
-        _restore(saved)
+    remember = lambda s, u, sh, t: (told.append(u), {"people": []})[1]  # noqa: E731
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=model, remember=remember)))
+    ask(ctx, "Sam is my neighbor.")
+    out = render(ask(ctx, "really?"))
     assert told == ["Sam is my neighbor."] and not out.startswith("I checked again.")
 
 

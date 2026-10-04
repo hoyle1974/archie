@@ -1,4 +1,4 @@
-"""`remember`: the user tells Archie about people ("Goodspouse is my wife", "Acorn is my
+"""`remember`: apply what the user tells Archie about people ("Goodspouse is my wife", "Acorn is my
 youngest, he's three"). Works for several people at once and for people who never email.
 
 Each person's sentence is saved word for word in their dossier's `## My notes` (the user's
@@ -7,9 +7,7 @@ role, pronouns and other names go in frontmatter, where the user can edit them."
 
 from __future__ import annotations
 
-from archie.ask.answer import Answer
 from archie.ask.context import Ctx
-from archie.ask.intents import intent
 from archie.derive.people import PeopleDirectory, best_name
 from archie.llm.prompts import load_prompt
 from archie.llm.shape import F, Record, Shape
@@ -83,10 +81,7 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
     return done + asks
 
 
-@intent("remember")
-def remember_intent(ctx: Ctx, question: str, params: dict) -> Answer:
-    out = ctx.backend.complete(load_prompt("remember", me_name=ctx.me.name or "the user"), question, SHAPE)
-    lines = apply_facts(ctx, question, out.get("people") or [])
-    if not lines:
-        return Answer(plain="I didn't catch who that was about. Try \"Goodspouse is my wife\".")
-    return Answer(plain="Got it. I'll remember:\n" + "\n".join(f"  • {x}" for x in lines))
+def remember_people(ctx: Ctx, said: str) -> list[str]:
+    """Apply what the user said about people; one line per person changed (or a "Which …?")."""
+    out = ctx.backend.complete(load_prompt("remember", me_name=ctx.me.name or "the user"), said, SHAPE)
+    return apply_facts(ctx, said, out.get("people") or [])

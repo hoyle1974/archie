@@ -1,7 +1,8 @@
 """Send each understood part where it belongs (spec: understand-first §2.2).
 
-Until the told record (step 2) and the action list (step 3) exist, tellings go to
-`remember` and instructions go to the intents that already carry them out."""
+Tellings and answers to "Who is …?" go to tell.py, which saves them in journal/told.md.
+Until the action list (step 3) exists, other instructions go to the intents that already
+carry them out."""
 
 from __future__ import annotations
 
@@ -11,7 +12,8 @@ from archie.ask.answer import Answer
 from archie.ask.context import Ctx
 from archie.ask.followup import citation_number, show
 from archie.ask.intents import HANDLERS
-from archie.ask.understand import Part
+from archie.ask.tell import answer_yes_no, tell
+from archie.ask.understand import FACTS, Part
 from archie.derive.audit import YES_NO
 
 EMPTY = {"people": [], "since": None, "until": None, "topic": None, "meeting": None, "text": None}
@@ -30,6 +32,10 @@ def _who_is_subject(q: dict) -> str:
     return m.group(1) if m else ""
 
 
+def _fact(part: Part) -> str:
+    return part.fact if part.fact in FACTS else "person"
+
+
 def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict | None = None) -> tuple[str, Answer]:
     """(what handled the part, for the usage log; the reply)."""
     if part.kind == "question":
@@ -37,18 +43,22 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
         label = name if name == part.intent else f"{part.intent}->search"
         return label, HANDLERS[name](ctx, part.resolved or part.text, {**EMPTY, **part.params})
     if part.kind == "tell":
-        return "remember", HANDLERS["remember"](ctx, part.text, dict(EMPTY))
+        fact = _fact(part)
+        return ("other->gap" if fact == "other" else f"tell:{fact}"), tell(ctx, fact, part.text, about=part.about)
     if part.kind == "answer":
         q = open_qs[part.question - 1]
         if q.get("kind") in YES_NO:
-            return "clarify", HANDLERS["clarify"](ctx, part.text, dict(EMPTY))
-        subject = _who_is_subject(q)
-        return "remember", HANDLERS["remember"](ctx, f"{subject}: {part.text}" if subject else part.text, dict(EMPTY))
+            return "clarify", answer_yes_no(ctx, part.text)
+        fact, subject = _fact(part), _who_is_subject(q) or None
+        label = "other->gap" if fact == "other" else f"answer:{fact}"
+        return label, tell(ctx, fact, part.text, about=part.about or subject, subject=subject)
     if part.kind == "instruct":
         if part.action == "show_citation":
             m = _SHOW_N.search(part.text)
             n = citation_number(part.text) or (int(m.group(1) or m.group(2)) if m else None)
             return "show_citation", show(ctx, last, n) if n else Answer(plain=WHICH)
+        if part.action in ("ignore", "unignore"):
+            return part.action, tell(ctx, part.action, part.text, about=part.target or part.about)
         name = ACTION_INTENT.get(part.action or "")
         if name == "notes":  # the notes handler finds the note's start in the whole message
             return "notes", HANDLERS["notes"](ctx, message, {**EMPTY, **part.params})

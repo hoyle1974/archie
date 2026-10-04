@@ -88,3 +88,11 @@ def test_an_ask_back_naming_someone_nobody_mentioned_is_dropped():
 def test_the_model_sees_what_earlier_messages_were_understood_as():
     entry = {**RECENT[0], "said": "really?", "resolved": "Did Status reply about my earbud?"}
     assert "You: really? (meaning: Did Status reply about my earbud?)" in prompt_input("and then?", [entry], [])
+
+
+def test_about_must_be_someone_or_something_said():
+    [p] = checked([{"kind": "tell", "text": "ignore it", "fact": "ignore", "about": "Ken Smith"}], "ignore it", [], [])
+    assert p.about is None
+    [p] = checked([{"kind": "tell", "text": "ignore Goodcompany", "fact": "ignore", "about": "Goodcompany"}],
+                  "ignore Goodcompany", [], [])
+    assert p.about == "Goodcompany"
