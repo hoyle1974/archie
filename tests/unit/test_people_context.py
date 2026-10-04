@@ -63,7 +63,7 @@ def test_remember_resets_auto_facts_and_enrichment_gets_ground_truth(tmp_path):
 
 
 def test_remember_stores_identity_and_marks_facts_stale(tmp_path):
-    from archie.ask.intents.remember import apply_facts
+    from archie.ask.remember import apply_facts
 
     ctx = make_ctx(tmp_path)
     seed(ctx)
@@ -87,7 +87,7 @@ def test_words_to_avoid_reach_every_answer(tmp_path):
 
 
 def test_remember_records_words_to_avoid(tmp_path):
-    from archie.ask.intents.remember import apply_facts
+    from archie.ask.remember import apply_facts
 
     ctx = make_ctx(tmp_path)
     seed(ctx)

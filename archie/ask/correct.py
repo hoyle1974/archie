@@ -1,5 +1,6 @@
-"""`correct`: the user fixes Archie in plain English. Every correction lands in a file the
-user can see and edit: config/meeting_types.yaml, or a dossier's frontmatter."""
+"""Corrections (the `meeting_type` and `merge_names` actions): the user fixes Archie in plain
+English. Every correction lands in a file the user can see and edit:
+config/meeting_types.yaml, or a dossier's frontmatter."""
 
 from __future__ import annotations
 
@@ -7,7 +8,6 @@ import yaml
 
 from archie.ask.answer import Answer
 from archie.ask.context import Ctx
-from archie.ask.intents import intent
 from archie.briefings.build import pick_meeting
 from archie.briefings.classify import TYPES
 from archie.derive.meetings import load_meetings, recent_or_upcoming
@@ -57,8 +57,7 @@ def _person(ctx: Ctx, name: str | None) -> tuple[PeopleDirectory, str | None, st
     return d, hits[0], ""
 
 
-@intent("correct")
-def correct_intent(ctx: Ctx, question: str, params: dict) -> Answer:
+def correct(ctx: Ctx, question: str) -> Answer:
     out = ctx.backend.complete(load_prompt("correct", me_name=ctx.me.name or "the user"), question, SHAPE)
     if out["kind"] == "meeting_type":
         return _meeting_type(ctx, out)

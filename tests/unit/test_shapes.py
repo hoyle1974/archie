@@ -1,10 +1,10 @@
 import pytest
 
-from archie.ask.intents.clarify import SHAPE as CLARIFY
-from archie.ask.intents.correct import SHAPE as CORRECT
-from archie.ask.intents.loops import UPDATE_SHAPE as UPDATE
+from archie.ask.actions import UPDATE_SHAPE as UPDATE
+from archie.ask.clarify import SHAPE as CLARIFY
+from archie.ask.correct import SHAPE as CORRECT
 from archie.ask.intents.notes import SHAPE as NOTES
-from archie.ask.intents.remember import SHAPE as REMEMBER
+from archie.ask.remember import SHAPE as REMEMBER
 from archie.ask.synthesize import SHAPE as ANSWER
 from archie.ask.understand import SHAPE as UNDERSTAND
 from archie.derive.cross_close import SHAPE as CROSS
@@ -48,9 +48,9 @@ def test_correct():
 
 
 def test_loop_update():
-    assert UPDATE.parse("action: snooze\nloops: 2; 3\nuntil: 2026-10-05\nreason: -") == (
-        {"action": "snooze", "loops": [2, 3], "until": "2026-10-05", "reason": None}, [])
-    assert UPDATE.parse("action: done\nloops: -")[0]["loops"] == []
+    assert UPDATE.parse("loops: 2; 3\nuntil: 2026-10-05\nreason: -") == (
+        {"loops": [2, 3], "until": "2026-10-05", "reason": None}, [])
+    assert UPDATE.parse("loops: -")[0]["loops"] == []
 
 
 def test_notes_actions():

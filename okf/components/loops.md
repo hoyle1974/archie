@@ -22,7 +22,7 @@ Implementation (`archie/derive/loops.py`):
 Intents (`archie/ask/intents/loops.py`):
 - `loops` lists open items ranked by code, with no LLM call. "waiting" narrows the list to `waiting_on`, and "owe" or "promised" removes `waiting_on`. Each line cites its source quote.
 - Noise rule: the second dismissal of items from the same counterpart adds their email to `loops.mute` in `config.yaml` and tells the user how to undo it. Mail from muted senders (an exact email or an `@domain`) never reaches extraction. Telling Archie to ignore a sender dismisses their open items with reason `ignored`.
-- `loop_update` uses the fast model to match "done with Sarah's question", "snooze till Monday" or "that's not a loop" to the numbered items, then applies the change in code. A loop closed this way records `closed_by: {user: "said done <date>"}`.
+- Marking items done, snoozing, dismissing and reopening are actions (`update_loops` in `archie/ask/actions.py`, see [ask](ask.md)): the understanding call picks the action, the fast model matches "done with Sarah's question" to the numbered items, and code applies the change and writes the confirmation. A loop closed this way records `closed_by: {user: "said done <date>"}`.
 
 Cross-channel closure (`archie/derive/cross_close.py`) runs as the last deriver.
 - For each open `asked_of_me` or `i_promised` loop, the candidates are the user's own [activity](activity.md) since the loop opened that shares a content word with its summary, excluding the loop's own thread. The top 5 are kept.

@@ -96,6 +96,13 @@ class HeuristicLLM:
         if r["intent"] in self.TO_PART:
             item["kind"], item["action"] = self.TO_PART[r["intent"]]
             item["intent"] = None
+            low = msg.lower()
+            if item["action"] == "loop_done" and "snooze" in low:
+                item["action"], item["until"] = "loop_snooze", "2026-10-05"
+            elif item["action"] == "loop_done" and "not a loop" in low:
+                item["action"] = "loop_dismiss"
+            elif item["action"] == "loop_done" and "reopen" in low:
+                item["action"] = "loop_reopen"
         return {"parts": [item]}
 
     def _answer(self, system, user):
@@ -155,11 +162,9 @@ class HeuristicLLM:
 
     def _loop_update(self, system, user):
         said = user.rsplit("They said:", 1)[-1].lower()
-        action = "snooze" if "snooze" in said else "dismiss" if "not a loop" in said else "done"
         picks = [int(n) for n, line in re.findall(r"^(\d+)\. (.*)$", user, re.M)
                  if any(w in line.lower() for w in re.findall(r"\w{4,}", said))]
-        return {"action": action, "loops": picks[:1], "until": "2026-10-05" if action == "snooze" else None,
-                "reason": None}
+        return {"loops": picks[:1], "until": None, "reason": None}
 
     def _correct(self, system, user):
         m = re.search(r"(.+?) is an? (1:1|standup|all-hands)", user, re.I)

@@ -8,9 +8,9 @@ never checked against the archive."""
 from __future__ import annotations
 
 from archie.ask.answer import Answer
+from archie.ask.clarify import clarify
 from archie.ask.context import Ctx
-from archie.ask.intents import HANDLERS
-from archie.ask.intents.remember import remember_people
+from archie.ask.remember import remember_people
 from archie.ask.render import render
 from archie.derive.ignore import addresses_for, describe, ignored, on_list, set_ignored
 from archie.derive.people import PeopleDirectory
@@ -93,7 +93,7 @@ def answer_yes_no(ctx: Ctx, text: str) -> Answer:
     """A reply to Archie's yes/no questions, saved with what it did."""
     result = SAVED_ONLY
     try:
-        answer = HANDLERS["clarify"](ctx, text, {})
+        answer = clarify(ctx, text)
         first = render(answer).strip().splitlines()
         result = first[0] if first else SAVED_ONLY
         return answer

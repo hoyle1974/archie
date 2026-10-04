@@ -83,7 +83,7 @@ def _question_of(last: dict | None) -> str | None:
 
 
 def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
-    from archie.ask.intents.clarify import looks_like_answer
+    from archie.ask.clarify import looks_like_answer
     from archie.ask.render import citations_of
     from archie.ask.tell import answer_yes_no
     from archie.derive.audit import YES_NO

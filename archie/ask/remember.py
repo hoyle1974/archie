@@ -1,4 +1,4 @@
-"""`remember`: apply what the user tells Archie about people ("Goodspouse is my wife", "Acorn is my
+"""Apply what the user tells Archie about people ("Goodspouse is my wife", "Acorn is my
 youngest, he's three"). Works for several people at once and for people who never email.
 
 Each person's sentence is saved word for word in their dossier's `## My notes` (the user's
