@@ -318,6 +318,23 @@ The reply to an instruction is built only from the sentences the actions returne
   original part then runs on the chosen item.
 - After 30 minutes the pending question is dropped and nothing happens.
 
+### 5.3 Added while building step 4
+
+- The item picker (`loop_update` shape) has a `one` field: when the user means a single
+  item and it lists several, Archie asks. With `one` empty, every listed item is changed.
+- Options for open items are labeled "Workpersonthree's pizza instructions" (the summary alone if it
+  already starts with the person's name), in Archie's ranking order.
+- The understanding call doesn't see open items, so its `unclear` options are numbers of
+  Archie's open questions; code always writes the question when there are two or more
+  valid options (the model's `ask` is used only without options).
+- Code matching only accepts a bare number, a bare ordinal, or up to three words that are
+  all in exactly one option's label, so an unrelated message ("is Workpersonfour coming
+  tomorrow?") isn't taken as an answer. Any next message drops the question, answered or
+  not.
+- An answer to the pending question from the understanding call is `PART answer` with
+  `options: <n>`; code keeps it only if `n` is one listed option.
+- If the chosen item was closed in the meantime, Archie says so and changes nothing.
+
 ### 5.2 Nudges
 
 - A new audit question kind, `waiting_nudge`, built by code in `archie/derive/audit.py`

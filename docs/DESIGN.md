@@ -506,6 +506,13 @@ I've saved that you want it." and is saved in `journal/told.md`. Both are record
 in the usage log, and anything the user told Archie in the same message is saved and said
 first. The help menu is never the reply to a telling or an instruction.
 
+When more than one thing fits ("she's done with it" with two open items), Archie asks
+"Which one: Workpersonthree's pizza instructions or Workpersonfour's IEP form?" instead of guessing. The
+question, written by code, is saved with the conversation entry; the next message
+answers it ("Workpersonthree's", "the first one", "2", matched by code first) and the original
+request runs on that item. Any other message, or 30 quiet minutes, drops the question and
+nothing happens.
+
 `archie admin` (not for daily use): `init`, `sync`, `rederive`, `reindex`, `status`,
 `connect google|jira`.
 
