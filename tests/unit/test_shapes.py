@@ -48,8 +48,8 @@ def test_correct():
 
 
 def test_loop_update():
-    assert UPDATE.parse("loops: 2; 3\nuntil: 2026-10-05\nreason: -") == (
-        {"loops": [2, 3], "until": "2026-10-05", "reason": None}, [])
+    assert UPDATE.parse("loops: 2; 3\nuntil: 2026-10-05\nreason: -\none: yes") == (
+        {"loops": [2, 3], "until": "2026-10-05", "reason": None, "one": True}, [])
     assert UPDATE.parse("loops: -")[0]["loops"] == []
 
 

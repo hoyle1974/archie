@@ -24,3 +24,4 @@ class Answer:
     notes: list[str] = field(default_factory=list)  # e.g. "data as of 1:45 PM"
     nothing_found: bool = False
     title: str | None = None  # a code-computed first line, e.g. "2:00 PM · Design Review · 45 min"
+    pending: dict | None = None  # a "which one?" question waiting on the next message (which.py)

@@ -17,6 +17,7 @@ from archie.ask.followup import citation_number, show
 from archie.ask.intents import HANDLERS
 from archie.ask.tell import save_told, tell
 from archie.ask.understand import Part
+from archie.ask.which import ask_which
 from archie.derive.loops import Loop, _history, load_loops, rank, save_loop
 from archie.llm.prompts import load_prompt
 from archie.llm.shape import F, Shape
@@ -31,8 +32,9 @@ _SHOW_N = re.compile(r"\[(\d+)\]|\b(?:show|open|source|citation|number)\s+(?:me\
 
 UPDATE_SHAPE = Shape("loop_update",
                      fields=(F("loops", "int_list", required=False, hint="item numbers"),
-                             F("until", required=False, hint="ISO date"), F("reason", required=False)),
-                     example="loops: 2; 3\nuntil: 2026-10-05\nreason: -")
+                             F("until", required=False, hint="ISO date"), F("reason", required=False),
+                             F("one", "bool", required=False, hint="yes if they mean a single item")),
+                     example="loops: 2; 3\nuntil: 2026-10-05\nreason: -\none: no")
 WANTS = {"done": "mark them finished", "snooze": "snooze them (hide them until a date)",
          "dismiss": "dismiss them (they were never real items)", "reopen": "reopen them"}
 
@@ -119,12 +121,32 @@ def update_loops(ctx: Ctx, said: str, action: str, until: str | None = None, tar
         return Answer(plain=f"I couldn't tell which item you meant. Your {'closed' if action == 'reopen' else 'open'} "
                             f"items:\n{top}")
     until = next((d for d in (_iso(until), _iso(out.get("until"))) if d and d > local.date().isoformat()), None)
+    if len(picked) > 1 and out.get("one"):
+        options = [{"label": _owned(ctx, lp), "id": lp.loop_id} for lp in picked]
+        return Answer(plain=ask_which([o["label"] for o in options]),
+                      pending={"kind": "loops", "action": action, "until": until, "reason": out.get("reason"),
+                               "options": options})
+    return finish_loops(ctx, action, picked, until, out.get("reason"))
+
+
+def _owned(ctx: Ctx, loop: Loop) -> str:
+    """"Workpersonthree's pizza instructions": the item as an option in a "which one?" question."""
+    m = loop.meta
+    who = str(m.get("counterpart_name") or m.get("counterpart") or "")
+    what = _lower_first(ctx, str(m.get("summary") or "").strip().rstrip("."), (who,))
+    first = who.split()[0].lower() if who.split() else ""
+    return what if not first or what.lower().startswith(first) else f"{who}'s {what}"
+
+
+def finish_loops(ctx: Ctx, action: str, picked: list[Loop], until: str | None, reason: str | None) -> Answer:
+    """Apply the action to the chosen items and say what was done."""
     if action == "snooze" and not until:
         return Answer(plain=UNTIL_WHEN)
     for lp in picked:
-        _apply(ctx, lp, action, until if action == "snooze" else None, out.get("reason"))
+        _apply(ctx, lp, action, until if action == "snooze" else None, reason)
+    today = ctx.now.astimezone().date()
     verb = {"done": "Marked done", "dismiss": "Dismissed", "reopen": "Reopened",
-            "snooze": f"Snoozed until {when(until, local.date())}" if until else ""}[action]
+            "snooze": f"Snoozed until {when(until, today)}" if until else ""}[action]
     text = f"{verb}: " + "; ".join(_label(ctx, lp) for lp in picked) + "."
     if action == "dismiss":
         muted = _maybe_mute(ctx, picked)
