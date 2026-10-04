@@ -30,6 +30,11 @@ remove the mark and set the row to ✅.
 | K | Weekly brag doc              | ledger → journal                                                | M4 | ✅ |
 | L | Someone new                  | Calendar, Gmail → stub dossiers, bootstrap                      | M2 | ✅ |
 | M | Conflicting sources          | all → conflict callout in briefings                             | M3 | ✅ (both sides reach the model) |
+| N | Telling Archie something     | Gmail, questions → understand, told record, ignore list         | M5 | ⬜ |
+| O | Follow-ups                   | ask history → understand, conversation memory, citations        | M5 | ⬜ |
+| P | "I can't do that yet"        | ask → understand, actions, gaps                                 | M5 | ⬜ |
+| Q | "Which one did you mean?"    | loops, people → understand, pending questions                   | M5 | ⬜ |
+| R | Nudges                       | Gmail, loops → audit (waiting_nudge), snooze                    | M5 | ⬜ |
 
 ### Milestones
 
@@ -43,6 +48,7 @@ remove the mark and set the row to ✅.
 - ✅ **M3 Know my work** (done 2026-10-02; tests in `tests/vignettes/test_m3.py`. Live GitHub is verified; Jira has only been tested against fakes so far): GitHub and Jira connectors. Standup briefing, `next`, ledger,
   conflicts, closing loops across channels. *Exit:* A (standup), C, D, E, F and M pass.
 - ✅ **M4 Long arc** (done 2026-10-02; tests in `tests/vignettes/test_m4.py`): projects, handover, catch-up, weekly journal, all-hands. *Exit:* all pass. (2026-10-03: stricter on-screen tests reopened gaps in A, B, C and J; see the Coverage table.)
+- **M5 Understand first** ([spec](superpowers/specs/2026-10-03-understand-first-design.md)): understand each message before acting, conversation memory, the told record, ignoring senders, actions with honest "can't yet" replies, asking which one, nudges. *Exit:* N, O, P, Q and R pass.
 - **Phase 2:** the Slack connector. Then re-run every vignette with Slack data in the fixtures.
 
 ---
@@ -272,3 +278,99 @@ pushed 3 commits to auth-v2 yesterday [4]. Worth asking which is current.
 
 **Acceptance:** both sides are cited and verified. Archie never decides which side is
 true.
+
+## N. Telling Archie something
+
+**Situation.** Today shows "Who is ftbrmktf@sxziiqsov.us?" It's a Goodcompany
+marketing sender.
+
+**User:** `ask "ftbrmktf@sxziiqsov.us is spam, ignore it"`
+
+**Archie shows:**
+```
+Got it. I'll ignore Goodcompany (ftbrmktf@sxziiqsov.us) from now on.
+Say "stop ignoring Goodcompany" to undo.
+```
+
+**What happens.** The sentence is saved word for word in `journal/told.md`. The address
+goes into the `ignore:` list in `config.yaml`, and the "Who is …?" question resolves.
+From then on the sender creates no open items or questions, doesn't appear in Today, and
+isn't cited in answers unless the user asks about them by name.
+
+**Acceptance:** the user's words are in the file. The next sync's checks ask nothing about
+the sender, answers don't cite them, and "stop ignoring Goodcompany" undoes it. The
+user's statement is never checked against the archive.
+
+## O. Follow-ups
+
+**Situation.** The user asks `ask "did Status reply about my earbud?"` and gets an answer
+with citations [1]–[3].
+
+**User:** `ask "do you see the message I sent them?"`, then `ask "show 1"`, then
+`ask "really?"`
+
+**Archie shows:** an answer about the user's own message to HeadphonesRUs about the earbud
+pairing. Then citation [1] of that answer: its source, the quote and the file. Then the
+question checked again, opening with "I checked again", and saying so if the answer
+changed.
+
+**Acceptance:** "them" and the topic are worked out from the last few exchanges.
+Citations from the previous answer can be opened. After 30 quiet minutes, or for an
+unrelated question, the old topic isn't pulled in.
+
+## P. "I can't do that yet"
+
+**User:** `ask "email Workpersonthree that the pizza's picked up"` or
+`ask "only show work stuff on weekdays"`
+
+**Archie shows:**
+```
+I saved that the pizza's picked up. I can't send anything; I only read.
+```
+or
+```
+I can't filter Today by day yet. I've saved that you want it.
+```
+
+**Acceptance:** something the user told Archie never gets the help menu. Archie never
+claims it did something it didn't do: confirmations are written by code from what
+actually ran. The request is recorded as a gap in the usage log.
+
+## Q. "Which one did you mean?"
+
+**Situation.** Workpersonthree (pizza instructions) and Workpersonfour (an IEP form) both have open items
+with the user.
+
+**User:** `ask "she's done with it"`
+
+**Archie shows:**
+```
+Which one: Workpersonthree's pizza instructions or Workpersonfour's IEP form?
+```
+
+**User:** `ask "Workpersonthree's"`
+
+**Archie shows:** `Marked done: Workpersonthree, pizza instructions.`
+
+**Acceptance:** whenever more than one thing fits, Archie asks instead of guessing. The
+short reply is applied to the right item. If the user doesn't answer within 30 minutes,
+nothing happens.
+
+## R. Nudges
+
+**Situation.** Three days ago the user asked HeadphonesRUs about the earbud pairing. There's
+no reply.
+
+**Today shows:**
+```
+Still waiting on HeadphonesRUs about the earbud pairing (3 days). Want to follow up?
+```
+
+**User:** `ask "I'll give them till Monday"`
+
+**Archie shows:** `Snoozed until Monday: HeadphonesRUs, earbud pairing.`
+
+**Acceptance:** nudges come from code (the item's age, and no reply in the thread). They
+count toward the limit of five open questions and go quiet once the user answers. A reply
+from HeadphonesRUs clears the nudge. "Yes, I'll follow up" waits another three days;
+Archie never sends anything.
