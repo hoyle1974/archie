@@ -144,6 +144,7 @@ def ask(ctx: Ctx, question: str) -> Answer:
     try:
         reply = _respond(ctx, question, entry)
         answer = reply.answer
+        answer.at = ctx.now  # stored UTC; render(stamp=True) shows it in local time
         resolve_answered(ctx)  # e.g. closing an item clears "still needed?" about it
         entry.update(nothing_found=answer.nothing_found, dropped=answer.dropped,
                      claims=len(answer.summary) + sum(len(s.items) for s in answer.sections),

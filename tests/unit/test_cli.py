@@ -1,3 +1,4 @@
+import re
 import pytest
 
 from archie import cli
@@ -62,7 +63,9 @@ def test_ask_prints_answer(tmp_path, monkeypatch, capsys):
                            "citations": [{"ref": 1, "quote": "Priya is the PM for auth"}]}], "sections": []}
     monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend(by_schema(understand=route, answer=answer)))
     code, out = run(capsys, "ask", "who", "is", "priya?")
-    assert code == 0 and out.startswith("Priya is the PM for auth. [1]")
+    first, blank, body = out.split("\n", 2)
+    assert code == 0 and re.fullmatch(r"\w{3}, \w{3} \d{1,2} · \d{1,2}:\d{2} [AP]M", first)  # when it answered
+    assert blank == "" and body.startswith("Priya is the PM for auth. [1]")
 
 
 def test_no_args_without_tui_shows_help(tmp_path, monkeypatch, capsys):

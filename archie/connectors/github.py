@@ -17,8 +17,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from archie.connectors.base import SyncCtx, SyncResult
-from archie.index.chunk import Chunk, register_raw_chunker, short_date
+from archie.index.chunk import Chunk, register_raw_chunker
 from archie.store.files import write_raw
+from archie.store.times import when
 
 NAME = "github"
 Runner = Callable[[str], object]
@@ -123,7 +124,7 @@ def chunk_github(path: str, data: dict) -> list[Chunk]:
         text = f"Commit {data['sha'][:7]} in {data['repo']} by {data['author']}, {data['date']}\n{data['message']}\n" \
                f"Files: {', '.join(data.get('files', []))}"
         return [Chunk("c0", path, 0, 0, text, source=NAME, ts=data["date"], people=[f"gh:{data['author']}"],
-                      label=f"Commit {data['sha'][:7]}: {first[:60]} ({data['repo']}, {short_date(data['date'])})")]
+                      label=f"Commit {data['sha'][:7]}: {first[:60]} ({data['repo']}, {when(data['date'])})")]
     kind = "PR" if data["kind"] == "pr" else "Issue"
     label = f"{kind} #{data['number']} {data['title']} ({data['repo']}, by {data['author']})"
     people = sorted({f"gh:{data['author']}"} | {f"gh:{c['author']}" for c in data.get("comments", []) + data.get("reviews", [])})

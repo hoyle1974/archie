@@ -13,20 +13,21 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
 from html import unescape
 
 from archie.connectors.base import SyncCtx, SyncResult
 from archie.connectors.google_retry import execute
-from archie.index.chunk import Chunk, register_raw_chunker, short_date
+from archie.index.chunk import Chunk, register_raw_chunker
 from archie.store.files import read_raw, tombstone, write_raw
+from archie.store.times import utc_iso, when
 
 NAME = "calendar"
 
 
 def _when(t: dict) -> tuple[str, bool]:
     if t.get("dateTime"):
-        return datetime.fromisoformat(t["dateTime"].replace("Z", "+00:00")).isoformat(), False
+        return utc_iso(t["dateTime"]), False  # stored in UTC; shown in local time
     return t.get("date", ""), True
 
 
@@ -52,6 +53,19 @@ def normalize_event(ev: dict, me) -> dict:
         "conference": (ev.get("hangoutLink") or ""), "link": ev.get("htmlLink", ""), "updated": ev.get("updated", ""),
         "status": ev.get("status", "confirmed"),
     }
+
+
+def to_utc(sctx: SyncCtx) -> list:
+    """Rewrite event files saved before times were stored in UTC (they kept Google's local
+    offset, which compares wrongly as text). Returns the files changed."""
+    changed = []
+    for path in sorted(sctx.source_dir(NAME).glob("*.json")):
+        data = read_raw(path)
+        fixed = {k: utc_iso(data[k]) for k in ("start", "end") if data.get(k)}
+        if any(fixed[k] != data[k] for k in fixed):
+            write_raw(path, {**data, **fixed})
+            changed.append(path)
+    return changed
 
 
 class CalendarConnector:
@@ -103,7 +117,7 @@ class CalendarConnector:
         tokens = dict(cursor.get("calendars") or {})
         if cursor.get("sync_token") and "primary" not in tokens:  # cursor from before multi-calendar
             tokens["primary"] = cursor["sync_token"]
-        written, deleted, new_tokens = [], [], {}
+        written, deleted, new_tokens = ([] if cursor.get("utc") else to_utc(sctx)), [], {}
         for cal, cal_name in self._calendars(svc, sctx):
             try:
                 items, token = self._list(svc, sctx, cal, tokens.get(cal))
@@ -125,18 +139,18 @@ class CalendarConnector:
                 data["calendar"] = "primary" if cal == "primary" else cal_name
                 write_raw(path, data)
                 written.append(path)
-        return SyncResult(cursor={"calendars": new_tokens}, written=written, deleted=deleted)
+        return SyncResult(cursor={"calendars": new_tokens, "utc": True}, written=written, deleted=deleted)
 
 
 def chunk_event(path: str, data: dict) -> list[Chunk]:
     names = ", ".join(a.get("name") or a["email"] for a in data.get("attendees", []))
     docs = ", ".join(a["title"] for a in data.get("attachments", []))
     text = "\n".join(filter(None, [
-        f"Event: {data.get('title')}", f"When: {data.get('start')} to {data.get('end')}",
+        f"Event: {data.get('title')}", f"When: {when(data.get('start'))} to {when(data.get('end'))}",
         f"Attendees: {names}" if names else "", f"Location: {data['location']}" if data.get("location") else "",
         f"Attached: {docs}" if docs else "", data.get("description", "")]))
     people = sorted(a["email"] for a in data.get("attendees", []) if a.get("email"))
-    label = f"Event: {data.get('title')} ({short_date(data.get('start'))})"
+    label = f"Event: {data.get('title')} ({when(data.get('start'))})"
     return [Chunk("c0", path, 0, 0, text, source=NAME, ts=data.get("start"), people=people, label=label)]
 
 

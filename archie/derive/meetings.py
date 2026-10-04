@@ -9,8 +9,8 @@ everything else outside the fence is the user's.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -20,6 +20,7 @@ from archie.derive.people import PeopleDirectory, Seen, slug, upsert_person
 from archie.store.fence import set_fence
 from archie.store.files import Note, read_note, read_raw, write_note
 from archie.store.home import Home
+from archie.store.times import utc_iso
 
 OWNED = ("event_id", "series_id", "title", "start", "end", "type", "attendees", "attendee_names", "linked_docs",
          "status", "link")
@@ -68,14 +69,14 @@ def derive_meetings(ctx: Ctx, paths: list[Path]) -> None:
             continue
         ids = []
         for a in people:
-            if data["start"] <= now:  # a meeting that happened counts as an interaction
+            if utc_iso(data["start"]) <= now:  # a meeting that happened counts as an interaction
                 seen = Seen()
                 seen.at(data["start"], a.get("name", ""))
             else:  # an invite to a future meeting only introduces the person
                 seen = Seen(names={a.get("name", "")} - {""}, first=now, last="")
             ids.append(upsert_person(ctx.home, directory, a["email"], seen, via="calendar"))
         meta = {"event_id": data["id"], "series_id": data.get("series_id"), "title": data.get("title"),
-                "start": data["start"], "end": data["end"],
+                "start": utc_iso(data["start"]), "end": utc_iso(data["end"]),
                 "type": classify(data, ctx.config, overrides) if people else "event",
                 "attendees": ids, "attendee_names": [directory.name(i) for i in ids],
                 "linked_docs": [a["file_id"] for a in data.get("attachments", []) if a.get("file_id")],

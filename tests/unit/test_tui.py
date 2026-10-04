@@ -1,5 +1,7 @@
 import asyncio
 
+from textual.widgets import Static
+
 from archie.connectors.base import SyncResult
 from archie.llm.backend import FakeBackend
 from archie.store.files import atomic_write
@@ -203,6 +205,25 @@ def test_sync_shows_googles_token_count_and_warns_when_out_of_step(tmp_path, mon
                     in text_of(app, "#activity"))
             assert app.query_one("#answer-scroll").border_subtitle == \
                 "Gemini: 0¢ of $15 this month · Google: $1.50, out of step"
+
+    asyncio.run(go())
+
+
+def test_a_long_sync_report_scrolls_instead_of_being_cut_off(tmp_path):
+    ctx = make_ctx(tmp_path)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            long = "\n".join(f"line {i}: Google's token count: couldn't check (a long reason)" for i in range(20))
+            app.query_one("#activity", Static).update(long)
+            await pilot.pause()
+            pane = app.query_one("#activity-scroll")
+            assert pane.border_title == "Sync" and pane.max_scroll_y > 0
+            pane.scroll_end(animate=False)
+            await pilot.pause()
+            assert pane.scroll_y == pane.max_scroll_y
 
     asyncio.run(go())
 

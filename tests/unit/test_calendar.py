@@ -29,7 +29,7 @@ def test_first_sync_uses_backfill_window_and_saves_token(tmp_path):
     home, res = sync(fake, tmp_path=tmp_path)
     assert fake.requests[0]["timeMin"].startswith("2026-09-17")
     assert fake.requests[0]["singleEvents"] is True
-    assert res.cursor == {"calendars": {"primary": "tok1"}}
+    assert res.cursor == {"calendars": {"primary": "tok1"}, "utc": True}
     data = read_raw(home / "sources/calendar/ev1.json")
     assert data["title"] == "Design Review: Auth Redesign"
     assert data["start"] == "2026-10-01T21:00:00+00:00"
@@ -42,7 +42,7 @@ def test_incremental_uses_sync_token(tmp_path):
     fake = FakeCalendar([REVIEW], sync_token="tok2")
     home, res = sync(fake, cursor={"sync_token": "tok1"}, tmp_path=tmp_path)
     assert fake.requests[0]["syncToken"] == "tok1" and "timeMin" not in fake.requests[0]
-    assert res.cursor == {"calendars": {"primary": "tok2"}}
+    assert res.cursor == {"calendars": {"primary": "tok2"}, "utc": True}
 
 
 def test_expired_token_does_full_resync(tmp_path):
@@ -88,3 +88,23 @@ def test_old_single_token_cursor_still_works(tmp_path):
     fake = FakeCalendar([REVIEW], sync_token="tok2")
     home, res = sync(fake, cursor={"sync_token": "tok1"}, tmp_path=tmp_path)
     assert fake.requests[0]["syncToken"] == "tok1"
+
+
+def test_times_are_stored_in_utc_and_old_local_offsets_are_rewritten_once(tmp_path):
+    from archie.connectors.calendar import normalize_event
+    from archie.store.files import write_raw
+
+    local = cal_event("ev9", "Cake pickup", "2026-10-03T10:30:00-07:00", "2026-10-03T11:00:00-07:00")
+    data = normalize_event(local, TEST)
+    assert (data["start"], data["end"]) == ("2026-10-03T17:30:00+00:00", "2026-10-03T18:00:00+00:00")
+
+    home = init_home(tmp_path / "h")
+    old = {**data, "id": "old", "start": "2026-10-02T16:00:00-07:00", "end": "2026-10-02T16:30:00-07:00"}
+    write_raw(home / "sources/calendar/old.json", old)
+    fake = FakeCalendar([])
+    res = asyncio.run(CalendarConnector(service_factory=lambda: fake).sync(SyncCtx(home, {}, TEST, NOW, 14), None))
+    assert read_raw(home / "sources/calendar/old.json")["start"] == "2026-10-02T23:00:00+00:00"
+    assert home / "sources/calendar/old.json" in res.written  # so meetings and the index pick it up
+    again = asyncio.run(CalendarConnector(service_factory=lambda: fake).sync(SyncCtx(home, {}, TEST, NOW, 14),
+                                                                             res.cursor))
+    assert again.written == []  # done once

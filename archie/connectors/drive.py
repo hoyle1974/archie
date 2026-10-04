@@ -11,8 +11,9 @@ import asyncio
 
 from archie.connectors.base import SyncCtx, SyncResult
 from archie.connectors.google_retry import execute
-from archie.index.chunk import chunk_windows, register_raw_chunker, short_date
+from archie.index.chunk import chunk_windows, register_raw_chunker
 from archie.store.files import read_raw, tombstone, write_raw
+from archie.store.times import when
 
 NAME = "drive"
 DOC = "application/vnd.google-apps.document"
@@ -112,7 +113,7 @@ class DriveConnector:
 
 
 def chunk_doc(path: str, data: dict) -> list:
-    label = f"Doc: {data.get('title')} (edited {short_date(data.get('modified'))})"
+    label = f"Doc: {data.get('title')} (edited {when(data.get('modified'))})"
     people = sorted({data.get("modified_by", ""), *data.get("owners", [])} - {""})
     head = f"Document: {data.get('title')}\n"
     chunks = chunk_windows(path, head + data.get("text", ""), source=NAME, ts=data.get("modified"))

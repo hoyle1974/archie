@@ -60,7 +60,7 @@ def test_chunks_strip_quotes_and_signatures_and_carry_people(tmp_path):
     assert len(chunks) == 2
     assert "Staff Eng" not in chunks[0].text
     assert "> Hi Test" not in chunks[1].text and "wrote:" not in chunks[1].text
-    assert chunks[0].label == "Email from Sarah Jones: Redis fallback (Oct 1)"
+    assert chunks[0].label == "Email from Sarah Jones: Redis fallback (Thu Oct 1, 2:30 AM)"
     assert "sarah.j@acme.example" in chunks[0].people
     assert chunks[0].ts == "2026-10-01T09:30:00+00:00"
 

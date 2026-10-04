@@ -51,6 +51,11 @@ from a shell.
 9. **Keep everything.** Data is never pruned. The first sync of a source goes back
    only 2 weeks, and everything after that accumulates, so a year-long review becomes
    possible a year from now.
+10. **Store UTC, show local time.** Every stored time (raw files, frontmatter, state,
+    logs) is ISO 8601 in UTC, so times compare correctly. All-day dates stay plain dates.
+    Only what the user reads is converted to the local timezone (`archie/store/times.py`):
+    dates show the weekday and time ("Fri Oct 2, 1:26 PM"), and every answer opens with
+    when Archie gave it ("Sun, Oct 4 · 9:34 AM").
 
 ## 3. Architecture
 

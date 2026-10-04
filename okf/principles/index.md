@@ -12,3 +12,4 @@ description: Rules from DESIGN §2 that every change must respect.
 - [One entry point](one-entry-point.md)
 - [Read-only toward the world](read-only.md)
 - [Keep everything](keep-everything.md)
+- [Store UTC, show local time](utc-stored-local-shown.md)

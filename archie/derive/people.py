@@ -21,6 +21,7 @@ from archie.ask.context import Ctx
 from archie.store.fence import get_fence, set_fence
 from archie.store.files import Note, read_note, read_raw, write_note
 from archie.store.home import Home
+from archie.store.times import utc_iso
 
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+$")
 ROLE_ACCOUNT = re.compile(
@@ -136,6 +137,7 @@ class Seen:
     last: str = ""
 
     def at(self, when: str, name: str = "") -> None:
+        when = utc_iso(when) or ""  # stored UTC, so min/max compare correctly
         if name:
             self.names.add(name)
         self.first = min(filter(None, [self.first, when]))
@@ -221,8 +223,8 @@ def upsert_person(home: Home, directory: PeopleDirectory, email: str, seen: Seen
         if a and a not in aliases and (a == email or a != meta.get("name")):
             aliases.append(a)
     meta["aliases"] = aliases
-    meta["first_seen"] = min(filter(None, [meta.get("first_seen"), seen.first]), default=None)
-    meta["last_interaction"] = max(filter(None, [meta.get("last_interaction"), seen.last]), default=None)
+    meta["first_seen"] = min(filter(None, [utc_iso(meta.get("first_seen")), seen.first]), default=None)
+    meta["last_interaction"] = max(filter(None, [utc_iso(meta.get("last_interaction")), seen.last]), default=None)
     if meta.get("status") == "stub" and via == "email":
         meta["status"] = "active"
     note.body = set_fence(note.body, render_facts(meta, parse_facts(get_fence(note.body))))
@@ -289,10 +291,10 @@ def merge_people(home: Home, keep: str, other: str) -> None:
     for key in ("relationship", "role", "pronouns"):
         if onote.meta.get(key) and not knote.meta.get(key):
             knote.meta[key] = onote.meta[key]
-    knote.meta["first_seen"] = min(filter(None, [knote.meta.get("first_seen"), onote.meta.get("first_seen")]),
+    knote.meta["first_seen"] = min(filter(None, [utc_iso(knote.meta.get("first_seen")), utc_iso(onote.meta.get("first_seen"))]),
                                    default=None)
-    knote.meta["last_interaction"] = max(filter(None, [knote.meta.get("last_interaction"),
-                                                       onote.meta.get("last_interaction")]), default=None)
+    knote.meta["last_interaction"] = max(filter(None, [utc_iso(knote.meta.get("last_interaction")),
+                                                       utc_iso(onote.meta.get("last_interaction"))]), default=None)
     their_notes = onote.body.split("<!-- archie:auto -->")[0].replace("## My notes", "").strip()
     if their_notes and their_notes not in knote.body:
         knote.body = knote.body.replace("## My notes\n", f"## My notes\n{their_notes}\n", 1)

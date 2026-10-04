@@ -15,8 +15,9 @@ from html import unescape
 
 from archie.connectors.base import SyncCtx, SyncResult
 from archie.connectors.google_retry import execute
-from archie.index.chunk import Chunk, register_raw_chunker, short_date
+from archie.index.chunk import Chunk, register_raw_chunker
 from archie.store.files import write_raw
+from archie.store.times import when
 
 NAME = "gmail"
 DEFAULT_EXCLUDE = "-category:promotions -category:social -in:chats"
@@ -168,7 +169,7 @@ def chunk_thread(path: str, data: dict) -> list[Chunk]:
         text = f"{header}\n\n{clean_body(m.get('body', ''))}"
         people = sorted({m.get("from_email", "")} | {a["email"] for a in m.get("to", []) + m.get("cc", [])} - {""})
         verb = "Email you sent" if m.get("from_me") else f"Email from {who}"
-        label = f"{verb}: {m.get('subject') or '(no subject)'} ({short_date(m.get('date'))})"
+        label = f"{verb}: {m.get('subject') or '(no subject)'} ({when(m.get('date'))})"
         chunks.append(Chunk(f"c{i}", path, 0, 0, text, source=NAME, ts=m.get("date"), people=people, label=label,
                             sender=(m.get("from_email") or "").lower()))
     return chunks

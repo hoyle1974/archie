@@ -46,7 +46,7 @@ def cmd_ask(argv: list[str]) -> int:
     home = Home.default()
     ctx = build_ctx(home)
     try:
-        print(render(ask(ctx, question), sources=sources, paths=paths))
+        print(render(ask(ctx, question), sources=sources, paths=paths, stamp=True))
     except LLMError as exc:
         print(f"Archie couldn't write an answer: {exc}")
         return 1

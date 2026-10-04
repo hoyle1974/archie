@@ -38,8 +38,8 @@ def test_who_lists_code_computed_facts_and_cited_summary(tmp_path):
     out = render(ask(ctx, "who is Priya?"))
     assert out.startswith("Priya asked to ship SSO")
     assert "Priya Sharma" in out
-    assert "Last talked: Sep 30" in out
-    assert "Email you sent: Latency (Sep 30)" in out
+    assert "Last talked: Wed Sep 30, 10:00 AM" in out
+    assert "Email you sent: Latency (Wed Sep 30, 10:00 AM)" in out
     assert "2 email threads" in out
 
 

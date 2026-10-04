@@ -15,6 +15,7 @@ from archie.ask.synthesize import synthesize
 from archie.derive.people import PeopleDirectory
 from archie.index.chunk import short_date
 from archie.llm.verify import Claim, Packet
+from archie.store.times import when
 
 INSTRUCTIONS = """- Start with who this person is (role, how {me_name} knows them) if the sources say.
 - Then the most recent thing they discussed or anything still open between them.
@@ -44,7 +45,7 @@ def person_lines(directory: PeopleDirectory, eid: str, history: list[dict], fact
         if meta.get(key):
             lines.append(f"{label}: {meta[key]}")
     if meta.get("last_interaction"):
-        lines.append(f"Last talked: {short_date(meta['last_interaction'])}"
+        lines.append(f"Last talked: {when(meta['last_interaction'])}"
                      f" · first seen {short_date(meta.get('first_seen'))}")
     threads = {h["path"] for h in history if h["source"] == "gmail"}
     if threads:

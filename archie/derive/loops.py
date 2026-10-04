@@ -33,6 +33,7 @@ from archie.llm.verify import Packet, check_quote, normalize
 from archie.store.fence import get_fence, set_fence
 from archie.store.files import Note, atomic_write, read_note, read_raw, write_note
 from archie.store.home import Home
+from archie.store.times import when
 
 KINDS = ("asked_of_me", "i_promised", "waiting_on")
 OPEN = ("open", "maybe_done")
@@ -383,7 +384,7 @@ def rank(loops: list[Loop], now: datetime, config: dict, upcoming_people: set[st
             score += w["to_not_cc"]
         if m.get("kind") == "waiting_on" and m.get("replied"):
             score += w.get("asked_of_me", 0.0)  # the ball is back in your court
-            why.insert(0, f"{m.get('counterpart_name') or 'they'} replied {_local(m['replied']):%b %-d}")
+            why.insert(0, f"{m.get('counterpart_name') or 'they'} replied {when(m['replied'])}")
         if m.get("status") == "maybe_done":
             score -= 2.0
             why.insert(0, 'probably done? say "done with …"')

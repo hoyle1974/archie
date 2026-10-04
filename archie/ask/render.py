@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from archie.ask.answer import Answer
 from archie.llm.verify import Claim
+from archie.store.times import stamp as when_answered
 
 NOTHING = "I couldn't find anything about that in your archive."
 UNVERIFIED = ("I found related material but couldn't verify any answer against it, "
@@ -27,7 +28,14 @@ class _Numberer:
         return "".join(f"[{n}]" for n in nums)
 
 
-def render(answer: Answer, sources: bool = False, paths: bool = False) -> str:
+def render(answer: Answer, sources: bool = False, paths: bool = False, stamp: bool = False) -> str:
+    """The answer as text. `stamp` puts when Archie answered first ("Sun, Oct 4 · 9:34 AM"),
+    for what the user reads; logs and follow-up memory leave it out."""
+    body = _body(answer, sources, paths)
+    return f"{when_answered(answer.at)}\n\n{body}" if stamp and answer.at else body
+
+
+def _body(answer: Answer, sources: bool, paths: bool) -> str:
     if answer.plain is not None:
         return answer.plain
     if answer.nothing_found:

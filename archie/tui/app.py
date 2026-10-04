@@ -59,7 +59,8 @@ class ArchieApp(App):
     CSS = """
     #left { width: 45%; }
     #feed { height: 1fr; border: round $accent; padding: 0 1; }
-    #activity { height: 8; border: round $panel; padding: 0 1; color: $text-muted; }
+    #activity-scroll { height: 8; border: round $panel; padding: 0 1; }
+    #activity { color: $text-muted; }
     #right { width: 55%; }
     #answer-scroll { height: 1fr; border: round $accent; padding: 0 1; }
     #question { dock: bottom; }
@@ -84,7 +85,8 @@ class ArchieApp(App):
         with Horizontal():
             with Vertical(id="left"):
                 yield Static("Loading…", id="feed", markup=False)
-                yield Static("Starting up…", id="activity", markup=False)
+                with VerticalScroll(id="activity-scroll"):
+                    yield Static("Starting up…", id="activity", markup=False)
             with Vertical(id="right"):
                 with VerticalScroll(id="answer-scroll"):
                     yield Static(HINT, id="answer", markup=False)
@@ -100,7 +102,7 @@ class ArchieApp(App):
         self.writer = WriterLock(self.ctx.home.root)
         self.is_writer = self.writer.acquire()
         self.query_one("#feed").border_title = "Today"
-        self.query_one("#activity").border_title = "Sync"
+        self.query_one("#activity-scroll").border_title = "Sync"
         self.query_one("#answer-scroll").border_title = "Ask"
         self.query_one("#question").focus()
         self.refresh_spend()
@@ -175,13 +177,13 @@ class ArchieApp(App):
                                          on_progress=activity.update)
                 stamp = datetime.now().strftime("%-I:%M %p")
                 lines = [f"Last sync {stamp}"]
+                google = self.google_usage_line()
+                if google:
+                    lines.append(google)
                 lines += [f"{n}: ok, {r.written} updated" if r.ok else f"{n}: failed: {r.error[:220]}"
                           for n, r in report.items()]
                 if not report:
                     lines.append("No sources switched on (see config.yaml).")
-                google = self.google_usage_line()
-                if google:
-                    lines.append(google)
                 activity.update("\n".join(lines))
                 self.refresh_spend()
             except Exception as exc:  # the loop must survive anything
@@ -235,7 +237,7 @@ class ArchieApp(App):
         timer = self.set_interval(5, tick)
         try:
             answer = await asyncio.wait_for(asyncio.to_thread(ask, self.ctx, question), ASK_TIMEOUT)
-            out.update(f"> {question}\n\n{render(answer, sources=True)}")
+            out.update(f"> {question}\n\n{render(answer, sources=True, stamp=True)}")
         except asyncio.TimeoutError:
             out.update(f"> {question}\n\nThat took too long, so I stopped waiting. Try asking again.")
         except LLMError as exc:

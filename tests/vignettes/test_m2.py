@@ -20,8 +20,8 @@ def test_A_standard_briefing(tmp_path):
     assert sent == ["Design Review: Auth Redesign"]
     out = w.ask("prep me for the design review")
     assert out.splitlines()[0] == "2:00 PM · Design Review: Auth Redesign · 45 min"
-    assert "Alex Rivera · last talked Oct 1" in out  # the 10 AM standup already happened
-    assert "Priya Sharma · last talked Oct 1" in out
+    assert "Alex Rivera · last talked Thu Oct 1" in out  # the 10 AM standup already happened
+    assert "Priya Sharma · last talked Thu Oct 1" in out
     assert "Alex Rivera: Can you review my fallback logic by today" in out  # code-computed open item
     seen = w.llm.saw("answer")
     assert "Attached Doc: Auth_Migration_Draft" in seen  # the attached doc reached the model
@@ -77,7 +77,7 @@ def test_A_one_on_one_briefing_uses_last_1on1_notes(tmp_path):
 def test_B_who_is_priya(tmp_path):
     w = Week(tmp_path)
     out = w.ask("who is Priya?")
-    assert "Priya Sharma" in out and "Last talked: Sep 30" in out
+    assert "Priya Sharma" in out and "Last talked: Wed Sep 30" in out
     assert "2 email threads together" in out
     assert "Event: Design Review" not in out.split("Recent", 1)[1].split("\n\n", 1)[0]  # future meeting isn't history
     assert "auth migration is paused" in w.llm.saw("answer")

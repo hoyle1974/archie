@@ -20,6 +20,7 @@ from archie.index.chunk import short_date
 from archie.index.search import search
 from archie.llm.verify import Packet
 from archie.store.files import Note, read_note, write_note
+from archie.store.times import when
 
 INSTRUCTIONS = {
     "standard": """- This is a briefing {me_name} reads minutes before a meeting. Summary: what the meeting
@@ -106,7 +107,7 @@ def _people_lines(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> list[str]
         ids = directory.identifiers(eid)
         talked = ctx.index.chunks_with_people(ids, limit=1, before=ctx.now.isoformat()) if ids else []
         if talked:
-            bits.append(f"last talked {short_date(talked[0]['ts'])}")
+            bits.append(f"last talked {when(talked[0]['ts'])}")
         else:
             bits.append(f"New: no history yet ({meta.get('org', 'unknown org')})")
         lines.append(" · ".join(bits))

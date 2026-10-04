@@ -53,7 +53,7 @@ def test_a_reply_after_the_item_opened_is_marked_and_the_name_filled(tmp_path):
     assert m["counterpart_name"] == "HeadphonesRUs"
     assert m["status"] == "open"  # closing stays the user's call
     out = render(ask(ctx, "what am I waiting on?"))
-    assert "HeadphonesRUs replied Sep 30" in out  # 4:47 UTC is the evening before, Pacific
+    assert "HeadphonesRUs replied Wed Sep 30, 9:47 PM" in out  # 4:47 UTC is the evening before, Pacific
     assert "contact@headphonesrus.example" not in out.split("Sources")[0]
 
 
