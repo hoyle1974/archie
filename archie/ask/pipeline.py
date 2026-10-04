@@ -23,6 +23,7 @@ from archie.ask.followup import citation_number, is_recheck, recheck, show
 from archie.ask.intents import HANDLERS, load_all
 from archie.ask.router import quick_route
 from archie.ask.understand import Part, understand
+from archie.ask.which import match, resolve
 
 
 class Reply(NamedTuple):
@@ -101,6 +102,11 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     if n is not None:
         entry.update(quick=True, intent="show_citation", parts=[{"kind": "show", "handler": "show_citation"}])
         return Reply(show(ctx, last, n), _question_of(last), kept)
+    pending = (last or {}).get("pending")
+    chosen = match(question, [o["label"] for o in pending["options"]]) if pending else None
+    if chosen is not None:
+        entry.update(quick=True, intent="which", parts=[{"kind": "answer", "handler": "which"}])
+        return Reply(resolve(ctx, pending, chosen), None, None)
     again = _question_of(last)
     if is_recheck(question) and again and not is_recheck(again):
         entry["recheck"] = again
@@ -111,7 +117,7 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     if any(q["kind"] in YES_NO for q in open_qs) and looks_like_answer(question):
         entry.update(intent="clarify", parts=[{"kind": "answer", "handler": "clarify"}])
         return Reply(answer_yes_no(ctx, question), None, None)
-    parts = understand(ctx, question, recent, open_qs)
+    parts = understand(ctx, question, recent, open_qs, pending)
     handled = [dispatch(ctx, p, question, open_qs, last) for p in parts]
     entry["intent"] = handled[0][0]
     entry["parts"] = [{"kind": p.kind, "handler": label} for p, (label, _) in zip(parts, handled)]
@@ -119,7 +125,9 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     if gaps:
         entry["gaps"] = gaps
     resolved = next((p.resolved for p in parts if p.kind == "question" and p.resolved), None)
+    waiting = next((a.pending for _, a in handled if a.pending), None)
     answer = combine(compose_cant(ctx, [(p, label, a) for p, (label, a) in zip(parts, handled)]))
+    answer.pending = waiting
     if all(label == "show_citation" for label, _ in handled):
         return Reply(answer, _question_of(last), kept)
     return Reply(answer, resolved, None)
@@ -145,7 +153,8 @@ def ask(ctx: Ctx, question: str) -> Answer:
             conversation.append(ctx.home, {
                 "ts": ctx.now.isoformat(), "said": question, "resolved": reply.resolved,
                 "kinds": kinds, "summary": render(answer)[:800],
-                "citations": citations_of(answer) if reply.citations is None else reply.citations})
+                "citations": citations_of(answer) if reply.citations is None else reply.citations,
+                "pending": answer.pending})
         except OSError:
             pass  # a lost exchange only weakens follow-ups; the answer still shows
         return answer

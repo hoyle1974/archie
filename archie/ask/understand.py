@@ -88,7 +88,11 @@ def _squash(text: str | None) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
 
-def prompt_input(message: str, recent: list[dict], open_qs: list[dict]) -> str:
+def _labels(pending: dict | None) -> list[str]:
+    return [o.get("label", "") for o in (pending or {}).get("options") or []]
+
+
+def prompt_input(message: str, recent: list[dict], open_qs: list[dict], pending: dict | None = None) -> str:
     out: list[str] = []
     if recent:
         out.append("Recent conversation (oldest first):")
@@ -103,6 +107,12 @@ def prompt_input(message: str, recent: list[dict], open_qs: list[dict]) -> str:
     if open_qs:
         out.append("Archie's open questions:")
         out += [f"{i}. {q.get('text', '')}" for i, q in enumerate(open_qs, 1)]
+        out.append("")
+    if pending:
+        from archie.ask.which import ask_which
+
+        out.append(f"Archie just asked: {ask_which(_labels(pending))}")
+        out += [f"{i}. {label}" for i, label in enumerate(_labels(pending), 1)]
         out.append("")
     out.append(f"Message: {message}")
     return "\n".join(out)
@@ -131,11 +141,12 @@ def _params(raw: dict, heard: set[str]) -> dict:
     return out
 
 
-def checked(raw: list[dict], message: str, recent: list[dict], open_qs: list[dict]) -> list[Part]:
+def checked(raw: list[dict], message: str, recent: list[dict], open_qs: list[dict],
+            pending: dict | None = None) -> list[Part]:
     said = _squash(message).lower()
     heard = _words(" ".join([message, *(" ".join([e.get("said", ""), e.get("resolved") or "", e.get("summary", ""),
                                                   *(c.get("label", "") for c in e.get("citations") or [])])
-                                        for e in recent), *(q.get("text", "") for q in open_qs)]))
+                                        for e in recent), *(q.get("text", "") for q in open_qs), *_labels(pending)]))
     parts = []
     for r in raw:
         kind = r.get("kind") if r.get("kind") in KINDS else "question"
@@ -146,22 +157,31 @@ def checked(raw: list[dict], message: str, recent: list[dict], open_qs: list[dic
         if resolved and not _grounded(resolved, heard):
             resolved = None
         question = r.get("question")
-        if kind == "answer" and not (isinstance(question, int) and 1 <= question <= len(open_qs)):
+        options = list(dict.fromkeys(o for o in r.get("options") or [] if isinstance(o, int)))
+        picks_pending = len(options) == 1 and 1 <= options[0] <= len(_labels(pending))
+        if kind == "answer" and r.get("options"):  # an answer to the pending "which one?"
+            question = None
+            if not picks_pending:
+                kind, options = "question", []
+        elif kind == "answer" and not (isinstance(question, int) and 1 <= question <= len(open_qs)):
             kind, question = "question", None
+        if kind == "unclear":  # options are open-question numbers
+            options = [o for o in options if 1 <= o <= len(open_qs)]
         ask = r.get("ask") if r.get("ask") and _grounded(r["ask"], heard) else None
         about = r.get("about") if r.get("about") and _said(r["about"], heard) else None
         target = r.get("target") if r.get("target") and _said(r["target"], heard) else None
         parts.append(Part(kind=kind, text=text, resolved=resolved, intent=r.get("intent"), params=_params(r, heard),
                           fact=r.get("fact"), about=about, question=question, action=r.get("action"),
-                          target=target, wanted=r.get("wanted"), options=list(r.get("options") or []),
+                          target=target, wanted=r.get("wanted"), options=options if kind in ("answer", "unclear") else [],
                           ask=ask))
     return parts or [Part(kind="question", text=message.strip(), intent="search", params=_params({}, heard))]
 
 
-def understand(ctx: Ctx, message: str, recent: list[dict], open_qs: list[dict]) -> list[Part]:
+def understand(ctx: Ctx, message: str, recent: list[dict], open_qs: list[dict],
+               pending: dict | None = None) -> list[Part]:
     local = ctx.now.astimezone()
     system = load_prompt("understand", me_name=ctx.me.name or "the user", now=local.isoformat(timespec="minutes"),
                          weekday=local.strftime("%A"),
                          intents="\n".join(f"- {k}: {v}" for k, v in QUESTION_INTENTS.items()))
-    out = ctx.backend.complete(system, prompt_input(message, recent, open_qs), SHAPE, tier="fast")
-    return checked(out.get("parts") or [], message, recent, open_qs)
+    out = ctx.backend.complete(system, prompt_input(message, recent, open_qs, pending), SHAPE, tier="fast")
+    return checked(out.get("parts") or [], message, recent, open_qs, pending)

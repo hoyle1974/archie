@@ -14,6 +14,7 @@ from archie.ask.context import Ctx
 from archie.ask.intents import HANDLERS
 from archie.ask.tell import answer_yes_no, tell
 from archie.ask.understand import FACTS, Part
+from archie.ask.which import ask_which, resolve
 from archie.derive.audit import YES_NO
 
 __all__ = ["EMPTY", "dispatch"]
@@ -39,6 +40,11 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
     if part.kind == "tell":
         fact = _fact(part)
         return ("other->gap" if fact == "other" else f"tell:{fact}"), tell(ctx, fact, part.text, about=part.about)
+    if part.kind == "answer" and part.options:
+        pending = (last or {}).get("pending")
+        if pending and 1 <= part.options[0] <= len(pending.get("options") or []):
+            return "which", resolve(ctx, pending, part.options[0] - 1)
+        return "unclear", Answer(plain=UNCLEAR)
     if part.kind == "answer":
         q = open_qs[part.question - 1]
         if q.get("kind") in YES_NO:
@@ -52,5 +58,16 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
         if part.action == "send":
             return "send->gap", Answer(plain=CANT_SEND)
         return f"{part.action or 'none'}->gap", cant_do(ctx, part)
+    if len(part.options) >= 2:
+        qs = [open_qs[o - 1] for o in part.options]
+        options = [{"label": _question_label(q), "id": q.get("id")} for q in qs]
+        return "unclear", Answer(plain=ask_which([o["label"] for o in options]),
+                                 pending={"kind": "question", "text": part.text, "fact": part.fact, "options": options})
     ask = (part.ask or "").strip()
     return "unclear", Answer(plain=ask if ask.endswith("?") and len(ask) <= 160 else UNCLEAR)
+
+
+def _question_label(q: dict) -> str:
+    """An open question as an option: who it asks about, or its first sentence."""
+    text = q.get("text", "")
+    return _who_is_subject(q) or f"“{text.split('?')[0].strip()}”"

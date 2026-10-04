@@ -20,9 +20,14 @@ Each part is one of:
   gave. `target`: which item, in the user's words.
 - answer: a reply to one of Archie's open questions. `question`: its number. For a reply
   to a "Who is …?" question, also set `fact` as for a telling: "it's spam, ignore it" is
-  ignore, "my plumber" is person.
+  ignore, "my plumber" is person. If Archie just asked "Which one: …?" and the message
+  picks one of its numbered options, write `options:` with that one number instead of
+  `question`.
 - unclear: you can't tell what the user means, or more than one thing fits. `ask`: one
-  short question back.
+  short question back. If it could answer more than one of Archie's open questions, put
+  their numbers in `options`.
+An instruction about an open item ("she's done with it") is an instruct part even when
+you can't tell which item; Archie lists the items and asks.
 
 Intents for questions:
 {intents}

@@ -68,3 +68,94 @@ def test_an_item_closed_meanwhile_is_left_alone(tmp_path):
                "options": [{"label": LABELS[0], "id": "loop-1"}, {"label": LABELS[1], "id": "loop-2"}]}
     assert render(resolve(ctx, pending, 0)) == "That one is already closed, so I left it alone."
     assert loop(ctx, 1)["status"] == "done"
+
+
+def two_items(tmp_path, model):
+    ctx = make_ctx(tmp_path, FakeBackend(model))
+    seed(ctx, ("Workpersonthree", "Pizza instructions", "open"), ("Workpersonfour", "IEP form", "open"))
+    return ctx
+
+
+def asks_which(rest=None):
+    def model(system, user, shape, tier):
+        if shape.name == "loop_update":
+            return picker([1, 2], True)
+        if shape.name == "understand" and user.rstrip().endswith("she's done with it"):
+            return understood(part("instruct", text="she's done with it", action="loop_done"))
+        return rest(system, user, shape, tier) if rest else understood(part("question", intent="help"))
+    return model
+
+
+def test_the_next_message_answers_the_question_with_no_model_call(tmp_path):
+    from archie.ask import conversation
+
+    ctx = two_items(tmp_path, asks_which())
+    ask(ctx, "she's done with it")
+    assert conversation.load(ctx.home)[-1]["pending"]["options"][0]["id"] == "loop-1"
+    calls = len(ctx.backend.calls)
+    assert render(ask(ctx, "Workpersonthree's")) == "Marked done: Workpersonthree, pizza instructions."
+    assert len(ctx.backend.calls) == calls
+    assert [loop(ctx, n)["status"] for n in (1, 2)] == ["done", "open"]
+    assert conversation.load(ctx.home)[-1]["pending"] is None
+
+
+def test_after_thirty_quiet_minutes_the_question_is_gone(tmp_path):
+    from datetime import timedelta
+
+    ctx = two_items(tmp_path, asks_which())
+    ask(ctx, "she's done with it")
+    ctx.now += timedelta(minutes=31)
+    ask(ctx, "Workpersonthree's")
+    assert [loop(ctx, n)["status"] for n in (1, 2)] == ["open", "open"]
+
+
+def test_any_other_message_drops_the_question(tmp_path):
+    ctx = two_items(tmp_path, asks_which())
+    ask(ctx, "she's done with it")
+    ask(ctx, "what can you do?")
+    ask(ctx, "Workpersonthree's")
+    assert [loop(ctx, n)["status"] for n in (1, 2)] == ["open", "open"]
+
+
+def test_the_understanding_call_sees_the_question_and_can_answer_it(tmp_path):
+    seen = []
+
+    def rest(system, user, shape, tier):
+        seen.append(user)
+        return understood(part("answer", text="the school one", options=[2]))
+
+    ctx = two_items(tmp_path, asks_which(rest))
+    ask(ctx, "she's done with it")
+    assert render(ask(ctx, "the school one")) == "Marked done: Workpersonfour, IEP form."
+    assert "Archie just asked: " + QUESTION in seen[0] and "2. Workpersonfour's IEP form" in seen[0]
+
+
+def test_an_answer_to_no_listed_option_is_not_applied(tmp_path):
+    def rest(system, user, shape, tier):
+        if shape.name == "answer":
+            return {"summary": [], "sections": []}
+        return understood(part("answer", text="the other thing", options=[5]))
+
+    ctx = two_items(tmp_path, asks_which(rest))
+    ask(ctx, "she's done with it")
+    ask(ctx, "the other thing")
+    assert [loop(ctx, n)["status"] for n in (1, 2)] == ["open", "open"]
+
+
+def test_unclear_between_two_open_questions_asks_and_applies_the_answer(tmp_path):
+    from archie.derive.dedupe import save_questions
+    from archie.store.files import Note, write_note
+
+    heard = []
+    model = by_schema(understand=understood(part("unclear", text="it's my plumber", fact="person", options=[1, 2])),
+                      remember=lambda s, u, sh, t: (heard.append(u), {"people": []})[1])
+    ctx = make_ctx(tmp_path, FakeBackend(model))
+    for i, who in enumerate(("a@b.co", "c@d.co"), 1):
+        write_note(ctx.home / f"people/p{i}.md", Note(meta={"entity_id": f"p{i}", "name": who, "aliases": [who]}, body=""))
+    save_questions(ctx.home, [
+        {"id": f"q{i}", "kind": "who_is", "person": f"p{i}", "status": "open",
+         "text": f"Who is {who}? Tell me, e.g. \"{who} is my plumber\".", "asked_at": "2026-10-01T00:00:00+00:00"}
+        for i, who in enumerate(("a@b.co", "c@d.co"), 1)])
+    assert render(ask(ctx, "it's my plumber")) == "Which one: a@b.co or c@d.co?"
+    ask(ctx, "the second one")
+    assert heard == ["c@d.co: it's my plumber"]

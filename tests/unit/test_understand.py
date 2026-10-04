@@ -49,6 +49,31 @@ def test_answer_to_a_question_that_does_not_exist_becomes_a_question():
     assert (p.kind, p.question) == ("answer", 1)
 
 
+PENDING = {"kind": "loops", "action": "done", "options": [{"label": "Workpersonthree's pizza instructions", "id": "l1"},
+                                                          {"label": "Workpersonfour's IEP form", "id": "l2"}]}
+
+
+def test_an_answer_to_which_one_must_pick_one_listed_option():
+    said = "the school one"
+    [p] = checked([{"kind": "answer", "text": said, "options": [2]}], said, [], [], PENDING)
+    assert (p.kind, p.options, p.question) == ("answer", [2], None)
+    for bad, pending in (([3], PENDING), ([1, 2], PENDING), ([2], None)):
+        [p] = checked([{"kind": "answer", "text": said, "options": bad}], said, [], [], pending)
+        assert (p.kind, p.options) == ("question", []), (bad, pending)
+
+
+def test_unclear_options_must_be_open_questions():
+    said = "it's my plumber"
+    [p] = checked([{"kind": "unclear", "text": said, "options": [1, 1, 4]}], said, [], WHO)
+    assert p.options == [1]
+
+
+def test_the_pending_question_is_shown_to_the_model():
+    text = prompt_input("the school one", [], [], PENDING)
+    assert ("Archie just asked: Which one: Workpersonthree's pizza instructions or Workpersonfour's IEP form?\n"
+            "1. Workpersonthree's pizza instructions\n2. Workpersonfour's IEP form\n") in text
+
+
 def test_no_parts_means_search_the_whole_message():
     assert checked([], "zebras?", [], []) == [Part(kind="question", text="zebras?", intent="search",
                                                    params={"people": [], "since": None, "until": None,
