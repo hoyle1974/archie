@@ -334,6 +334,10 @@ The reply to an instruction is built only from the sentences the actions returne
 - An answer to the pending question from the understanding call is `PART answer` with
   `options: <n>`; code keeps it only if `n` is one listed option.
 - If the chosen item was closed in the meantime, Archie says so and changes nothing.
+- While a which-one question is pending, the yes/no shortcut is skipped, so "yeah,
+  Workpersonthree's" can't answer a different open question. Yes/no questions are never offered as
+  options (the `clarify` code matches replies to them).
+- A snooze with no date asks "Until when?" before "which one?".
 
 ### 5.2 Nudges
 

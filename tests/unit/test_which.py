@@ -159,3 +159,53 @@ def test_unclear_between_two_open_questions_asks_and_applies_the_answer(tmp_path
     assert render(ask(ctx, "it's my plumber")) == "Which one: a@b.co or c@d.co?"
     ask(ctx, "the second one")
     assert heard == ["c@d.co: it's my plumber"]
+
+
+def test_a_yes_shaped_reply_to_which_one_never_answers_another_question(tmp_path):
+    from archie.derive.dedupe import save_questions
+
+    def rest(system, user, shape, tier):
+        return understood(part("answer", text="yeah, Workpersonthree's", options=[1]))
+
+    ctx = two_items(tmp_path, asks_which(rest))
+    seed(ctx, ("Workpersonthree", "Pizza instructions", "open"), ("Workpersonfour", "IEP form", "open"), ("Bob", "Old thing", "maybe_done"))
+    save_questions(ctx.home, [{"id": "q1", "kind": "loop_done", "loop": "loop-3", "status": "open",
+                               "text": "Did you finish: Old thing (Bob)?", "asked_at": "2026-10-01T00:00:00+00:00"}])
+    ask(ctx, "she's done with it")
+    assert render(ask(ctx, "yeah, Workpersonthree's")) == "Marked done: Workpersonthree, pizza instructions."
+    assert [loop(ctx, n)["status"] for n in (1, 2, 3)] == ["done", "open", "maybe_done"]
+
+
+def test_yes_no_questions_are_not_offered_as_which_one_options():
+    from archie.ask.understand import checked
+
+    qs = [{"id": "q1", "kind": "loop_done", "text": "Did you finish: A?"},
+          {"id": "q2", "kind": "who_is", "text": "Who is a@b.co?"}, {"id": "q3", "kind": "who_is", "text": "Who is c@d.co?"}]
+    [p] = checked([{"kind": "unclear", "text": "finished that", "options": [1, 2, 3]}], "finished that", [], qs)
+    assert p.options == [2, 3]
+
+
+def test_a_snooze_with_no_date_asks_until_when_before_which_one(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(
+        understand=understood(part("instruct", text="snooze hers", action="loop_snooze")),
+        loop_update=picker([1, 2], True))))
+    seed(ctx, ("Workpersonthree", "Pizza instructions", "open"), ("Workpersonfour", "IEP form", "open"))
+    answer = ask(ctx, "snooze hers")
+    assert render(answer).startswith("Until when?") and answer.pending is None
+
+
+def test_options_are_unique_and_in_list_order(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(
+        understand=understood(part("instruct", text="she's done with it", action="loop_done")),
+        loop_update=picker([2, 1, 2], True))))
+    seed(ctx, ("Workpersonthree", "Pizza instructions", "open"), ("Workpersonfour", "IEP form", "open"))
+    assert render(ask(ctx, "she's done with it")) == QUESTION
+
+
+def test_a_snooze_through_which_one_keeps_the_original_date(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(
+        understand=understood(part("instruct", text="snooze hers till Monday", action="loop_snooze", until="2026-10-05")),
+        loop_update=picker([1, 2], True))))
+    seed(ctx, ("Workpersonthree", "Pizza instructions", "open"), ("Workpersonfour", "IEP form", "open"))
+    ask(ctx, "snooze hers till Monday")
+    assert render(ask(ctx, "2")) == "Snoozed until Monday: Workpersonfour, IEP form."

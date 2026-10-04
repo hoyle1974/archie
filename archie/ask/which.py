@@ -19,7 +19,8 @@ _ORDINAL = re.compile(r"^\s*(?:the\s+)?(first|second|third|fourth|fifth|last|1st
 _ORDINALS = {"first": 0, "1st": 0, "second": 1, "2nd": 1, "third": 2, "3rd": 2, "fourth": 3, "4th": 3,
              "fifth": 4, "5th": 4}
 _FILLER = {"the", "a", "an", "one", "ones", "that", "this", "it", "her", "his", "their", "them", "she", "he",
-           "they", "i", "mean", "meant", "of", "with", "about", "is", "was", "please", "s"}
+           "they", "i", "mean", "meant", "of", "with", "about", "is", "was", "please", "s", "yes", "yeah", "yep",
+           "ok", "okay", "sure"}
 _MAX_WORDS = 3
 
 
@@ -77,11 +78,14 @@ def resolve(ctx: Ctx, pending: dict, index: int) -> Answer:
 def _answer_question(ctx: Ctx, pending: dict, qid: str) -> Answer:
     from archie.ask.dispatch import dispatch
     from archie.ask.understand import Part
+    from archie.derive.audit import YES_NO
     from archie.derive.dedupe import open_questions
 
     open_qs = open_questions(ctx.home)
     number = next((i for i, q in enumerate(open_qs, 1) if q.get("id") == qid), None)
     if number is None:
         return Answer(plain="That question has already been answered.")
+    if open_qs[number - 1].get("kind") in YES_NO:  # clarify would match the words against every yes/no question
+        return Answer(plain=f"Please answer “{open_qs[number - 1].get('text', '')}” with yes or no.")
     part = Part(kind="answer", text=pending["text"], question=number, fact=pending.get("fact"))
     return dispatch(ctx, part, pending["text"], open_qs)[1]

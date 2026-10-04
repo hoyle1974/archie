@@ -165,8 +165,10 @@ def checked(raw: list[dict], message: str, recent: list[dict], open_qs: list[dic
                 kind, options = "question", []
         elif kind == "answer" and not (isinstance(question, int) and 1 <= question <= len(open_qs)):
             kind, question = "question", None
-        if kind == "unclear":  # options are open-question numbers
-            options = [o for o in options if 1 <= o <= len(open_qs)]
+        if kind == "unclear":  # options are open questions; yes/no ones are left to clarify
+            from archie.derive.audit import YES_NO
+
+            options = [o for o in options if 1 <= o <= len(open_qs) and open_qs[o - 1].get("kind") not in YES_NO]
         ask = r.get("ask") if r.get("ask") and _grounded(r["ask"], heard) else None
         about = r.get("about") if r.get("about") and _said(r["about"], heard) else None
         target = r.get("target") if r.get("target") and _said(r["target"], heard) else None

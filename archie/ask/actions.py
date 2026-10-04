@@ -115,12 +115,14 @@ def update_loops(ctx: Ctx, said: str, action: str, until: str | None = None, tar
                          weekday=local.strftime("%A"), wants=WANTS[action])
     meant = f"\nThey mean: {target}" if target else ""
     out = ctx.backend.complete(system, f"Items:\n{listing}\n\nThey said: {said}{meant}", UPDATE_SHAPE, tier="fast")
-    picked = [choices[n - 1] for n in out.get("loops") or [] if 1 <= n <= len(choices)]
+    picked = [choices[n - 1] for n in sorted(set(out.get("loops") or [])) if 1 <= n <= len(choices)]
     if not picked:
         top = "\n".join(f"  • {lp.meta.get('counterpart_name')}: {lp.meta.get('summary')}" for lp in choices[:8])
         return Answer(plain=f"I couldn't tell which item you meant. Your {'closed' if action == 'reopen' else 'open'} "
                             f"items:\n{top}")
     until = next((d for d in (_iso(until), _iso(out.get("until"))) if d and d > local.date().isoformat()), None)
+    if action == "snooze" and not until:
+        return Answer(plain=UNTIL_WHEN)
     if len(picked) > 1 and out.get("one"):
         options = [{"label": _owned(ctx, lp), "id": lp.loop_id} for lp in picked]
         return Answer(plain=ask_which([o["label"] for o in options]),
