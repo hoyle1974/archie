@@ -50,7 +50,11 @@ def addresses_for(directory, about: str | None, text: str) -> tuple[list[str], l
         return out, []
     hits = directory.find(about)
     if len(hits) > 1:
-        return [], sorted(directory.name(h) for h in hits)
+        def labelled(eid: str) -> str:
+            email = next((a for a in directory.identifiers(eid) if EMAIL.match(a)), "")
+            return f"{directory.name(eid)} ({email})" if email else directory.name(eid)
+
+        return [], sorted(labelled(h) for h in hits)
     return ([a.lower() for a in directory.identifiers(hits[0]) if EMAIL.match(a)] if hits else []), []
 
 
@@ -67,10 +71,12 @@ def describe(directory, addresses: list[str]) -> tuple[str, str]:
 
 
 def skipped_senders(ctx, asked: str) -> list[str]:
-    """Ignore entries to leave out of an answer: all of them except those the question names."""
+    """Senders to leave out of an answer: the `ignore` entries the question doesn't name.
+    `loops.mute` only stops open items, and the user's own mail is never left out."""
     from archie.derive.people import EMAIL, PeopleDirectory
 
-    entries = ignored(ctx.config)
+    entries = [str(x).lower() for x in ctx.config.get("ignore") or []]
+    entries = [e for e in entries if not any(on_list(m, [e]) for m in ctx.me.emails)]
     if not entries:
         return []
     q = asked.lower()

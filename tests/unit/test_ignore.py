@@ -3,7 +3,7 @@ import yaml
 from archie.config import load_config
 from archie.derive.audit import audit
 from archie.derive.dedupe import open_questions
-from archie.derive.ignore import addresses_for, describe, ignored, on_list, set_ignored
+from archie.derive.ignore import addresses_for, describe, ignored, on_list, set_ignored, skipped_senders
 from archie.derive.loops import Loop, derive_loops, load_loops, save_loop
 from archie.derive.people import PeopleDirectory, derive_people
 from archie.llm.backend import FakeBackend
@@ -97,7 +97,8 @@ def test_a_name_two_people_share_gives_both_names_and_no_addresses(tmp_path):
     for eid, email in (("alex_rivera", "alex@acme.example"), ("alex_kim", "alex.k@other.example")):
         write_note(ctx.home / f"people/{eid}.md",
                    Note(meta={"entity_id": eid, "name": eid.replace("_", " ").title(), "aliases": [email]}, body=""))
-    assert addresses_for(PeopleDirectory.load(ctx.home), "Alex", "ignore Alex") == ([], ["Alex Kim", "Alex Rivera"])
+    assert addresses_for(PeopleDirectory.load(ctx.home), "Alex", "ignore Alex") == (
+        [], ["Alex Kim (alex.k@other.example)", "Alex Rivera (alex@acme.example)"])
 
 
 def test_describe_uses_the_name_when_there_is_one(tmp_path):
@@ -133,3 +134,16 @@ def test_answers_leave_out_ignored_senders_unless_the_question_names_them(tmp_pa
                   "anything from sxziiqsov.us about the Yeti offer?"):
         ask(ctx, named)
         assert "Can you check our Yeti offer" in seen[-1], named
+
+
+def test_answers_keep_mail_from_senders_only_muted_for_open_items(tmp_path):
+    ctx = make_ctx(tmp_path)
+    ctx.config["loops"]["mute"] = ["ken@acme.example"]
+    ctx.config["ignore"] = [SPAM]
+    assert skipped_senders(ctx, "anything new?") == [SPAM]
+
+
+def test_answers_never_skip_your_own_mail_even_if_the_config_says_to(tmp_path):
+    ctx = make_ctx(tmp_path)
+    ctx.config["ignore"] = ["@acme.example", SPAM]
+    assert skipped_senders(ctx, "anything new?") == [SPAM]

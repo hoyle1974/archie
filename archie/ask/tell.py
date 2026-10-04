@@ -12,7 +12,7 @@ from archie.ask.context import Ctx
 from archie.ask.intents import HANDLERS
 from archie.ask.intents.remember import remember_people
 from archie.ask.render import render
-from archie.derive.ignore import addresses_for, describe, ignored, set_ignored
+from archie.derive.ignore import addresses_for, describe, ignored, on_list, set_ignored
 from archie.derive.people import PeopleDirectory
 from archie.store.files import atomic_write
 
@@ -44,10 +44,13 @@ def _ignore(ctx: Ctx, on: bool, about: str | None, text: str) -> tuple[Answer, s
     addresses, which = addresses_for(directory, about, text)
     if which:
         return Answer(plain=f"Which one: {' or '.join(which)}? Say their email address to be sure."), SAVED_ONLY
-    mine = [a for a in addresses if ctx.me.is_me(a)]
-    addresses = [a for a in addresses if a not in mine]
-    if mine and not addresses:
-        return Answer(plain="I won't ignore your own address."), SAVED_ONLY
+    if on:
+        mine = [a for a in addresses if any(on_list(m, [a]) for m in ctx.me.emails)]
+        addresses = [a for a in addresses if a not in mine]
+        if mine and not addresses:
+            domain = next((a for a in mine if a.startswith("@")), None)
+            return (Answer(plain=f"I won't ignore {domain}, because your own address is there." if domain
+                           else "I won't ignore your own address."), SAVED_ONLY)
     if not addresses:
         verb = "ignored" if on else "stopped ignoring"
         return (Answer(plain=f"I couldn't tell which sender you mean, so I haven't {verb} anyone. "
@@ -55,10 +58,15 @@ def _ignore(ctx: Ctx, on: bool, about: str | None, text: str) -> tuple[Answer, s
     who, short = describe(directory, addresses)
     if not on:
         listed = ignored(ctx.config)
-        if not any(a in listed for a in addresses):
+        exact = [a for a in addresses if a in listed]
+        if not exact:
+            domains = [x for x in listed if x.startswith("@") and any(on_list(a, [x]) for a in addresses)]
+            if domains:
+                return (Answer(plain=f"You told me to ignore everything from {domains[0]}, which includes {who}.\n"
+                                     f"Say \"stop ignoring {domains[0]}\" to undo that."), SAVED_ONLY)
             return Answer(plain=f"I wasn't ignoring {who}."), SAVED_ONLY
-        set_ignored(ctx, addresses, on=False)
-        return Answer(plain=f"OK, I'm no longer ignoring {who}."), f"no longer ignoring {', '.join(addresses)}"
+        set_ignored(ctx, exact, on=False)
+        return Answer(plain=f"OK, I'm no longer ignoring {who}."), f"no longer ignoring {', '.join(exact)}"
     closed = set_ignored(ctx, addresses, on=True)
     reply = f"Got it. I'll ignore {who} from now on.\nSay \"stop ignoring {short}\" to undo."
     if closed:

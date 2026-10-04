@@ -63,7 +63,7 @@ def test_a_name_two_people_share_asks_which(tmp_path):
         write_note(ctx.home / f"people/{eid}.md",
                    Note(meta={"entity_id": eid, "name": eid.replace("_", " ").title(), "aliases": [email]}, body=""))
     assert render(tell(ctx, "ignore", "ignore Alex", about="Alex")) == \
-        "Which one: Alex Kim or Alex Rivera? Say their email address to be sure."
+        "Which one: Alex Kim (alex.k@other.example) or Alex Rivera (alex@acme.example)? Say their email address to be sure."
     assert load_config(ctx.home)["ignore"] == []
 
 
@@ -108,3 +108,29 @@ def test_yes_no_answers_are_saved_with_what_they_did(tmp_path):
     audit(ctx)
     assert render(ask(ctx, "yes")) == "Marked done: Do l1."
     assert '"yes" → Marked done: Do l1.' in told(ctx)
+
+
+def test_stop_ignoring_someone_covered_by_a_domain_says_so(tmp_path):
+    ctx = seeded(tmp_path, name="Goodcompany")
+    tell(ctx, "ignore", "ignore everything from @sxziiqsov.us")
+    assert render(tell(ctx, "unignore", "stop ignoring Goodcompany", about="Goodcompany")) == (
+        f"You told me to ignore everything from @sxziiqsov.us, which includes Goodcompany ({SPAM}).\n"
+        "Say \"stop ignoring @sxziiqsov.us\" to undo that.")
+    assert load_config(ctx.home)["ignore"] == ["@sxziiqsov.us"]
+
+
+def test_never_ignores_a_domain_your_own_address_is_at(tmp_path):
+    ctx = seeded(tmp_path)
+    assert render(tell(ctx, "ignore", "ignore everything from @acme.example")) == \
+        "I won't ignore @acme.example, because your own address is there."
+    assert load_config(ctx.home)["ignore"] == []
+
+
+def test_two_people_with_one_name_are_told_apart_by_address(tmp_path):
+    ctx = make_ctx(tmp_path)
+    for eid, email in (("alex_kim", "alex@acme.example"), ("alex_kim_2", "alex.k@other.example")):
+        write_note(ctx.home / f"people/{eid}.md", Note(meta={"entity_id": eid, "name": "Alex Kim", "aliases": [email]},
+                                                       body=""))
+    assert render(tell(ctx, "ignore", "ignore Alex Kim", about="Alex Kim")) == (
+        "Which one: Alex Kim (alex.k@other.example) or Alex Kim (alex@acme.example)? "
+        "Say their email address to be sure.")

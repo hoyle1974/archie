@@ -232,6 +232,11 @@ was). The file is the user's to read and edit; Archie only appends.
 - An answer with no claims, where none were dropped, says "I found related material, but
   none of it answers that." instead of "couldn't verify".
 - When Archie knows a sender only by address, the reply names the address (vignette N).
+- Answers leave out only the explicit `ignore:` entries. `loops.mute` entries are added
+  automatically after two dismissals (possibly a colleague), so they keep stopping open
+  items and questions but don't hide mail from answers.
+- The user's own domain can't be ignored either, and when two people share a name, the
+  "Which one?" question shows each one's address.
 
 ## 4. Instructions
 
