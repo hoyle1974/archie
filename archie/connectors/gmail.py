@@ -149,15 +149,30 @@ class GmailConnector:
 _QUOTE_HEADER = re.compile(r"^On .{5,200}wrote:\s*$", re.MULTILINE)
 
 
-def clean_body(body: str) -> str:
-    """Drop quoted replies and signatures so each message is indexed once."""
+_SIG = re.compile(r"(?m)^-- ?$")
+
+
+def _unquoted(text: str) -> str:
+    return "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith(">")).strip()
+
+
+def split_body(body: str) -> tuple[str, str]:
+    """(the message, its signature), with quoted replies dropped. Line endings are made the
+    same first, so stripping doesn't depend on the sender's mail client."""
+    body = body.replace("\r\n", "\n").replace("\r", "\n")
     m = _QUOTE_HEADER.search(body)
     if m:
         body = body[: m.start()]
-    body = re.split(r"(?m)^-- ?$", body)[0]
-    body = re.split(r"(?m)^-{2,}\s*Original Message\s*-{2,}", body)[0]
-    lines = [ln for ln in body.splitlines() if not ln.lstrip().startswith(">")]
-    return "\n".join(lines).strip()
+    pieces = _SIG.split(body, maxsplit=1)
+    main = pieces[0]
+    sig = pieces[1] if len(pieces) > 1 else ""
+    main = re.split(r"(?m)^-{2,}\s*Original Message\s*-{2,}", main)[0]
+    return _unquoted(main), _unquoted(sig)
+
+
+def clean_body(body: str) -> str:
+    """Drop quoted replies and signatures so each message is indexed once."""
+    return split_body(body)[0]
 
 
 def chunk_thread(path: str, data: dict) -> list[Chunk]:
@@ -166,12 +181,18 @@ def chunk_thread(path: str, data: dict) -> list[Chunk]:
         who = m.get("from_name") or m.get("from_email")
         to = ", ".join(a.get("name") or a["email"] for a in m.get("to", []))
         header = f"From {who} <{m.get('from_email')}> to {to}, {m.get('date', '')[:16]}\nSubject: {m.get('subject', '')}"
-        text = f"{header}\n\n{clean_body(m.get('body', ''))}"
+        text_body, sig = split_body(m.get("body", ""))
+        text = f"{header}\n\n{text_body}"
         people = sorted({m.get("from_email", "")} | {a["email"] for a in m.get("to", []) + m.get("cc", [])} - {""})
         verb = "Email you sent" if m.get("from_me") else f"Email from {who}"
         label = f"{verb}: {m.get('subject') or '(no subject)'} ({when(m.get('date'))})"
         chunks.append(Chunk(f"c{i}", path, 0, 0, text, source=NAME, ts=m.get("date"), people=people, label=label,
                             sender=(m.get("from_email") or "").lower()))
+        if sig:  # its own chunk, so a title in it can be quoted and read by code (derive/titles.py)
+            chunks.append(Chunk(f"s{i}", path, 0, 0, sig, source=NAME, ts=m.get("date"),
+                                people=[(m.get("from_email") or "").lower()],
+                                label=f"Signature of {who} ({when(m.get('date'))})",
+                                sender=(m.get("from_email") or "").lower()))
     return chunks
 
 

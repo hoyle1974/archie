@@ -302,7 +302,7 @@ Derivers are idempotent: running one twice on the same input gives the same file
 
 | Content           | Chunk unit                                              |
 |-------------------|---------------------------------------------------------|
-| Email             | one message, quoted reply text and signatures removed   |
+| Email             | one message, quoted reply text removed; the signature is its own chunk (`s{i}`, people = the sender) |
 | Docs / Markdown   | split at headings, about 300–400 tokens, 50-token overlap |
 | Calendar event    | one chunk: title, time, attendees, description          |
 | Jira issue        | description, then each comment as its own chunk         |

@@ -57,9 +57,9 @@ def test_chunks_strip_quotes_and_signatures_and_carry_people(tmp_path):
     fake = FakeGmail({"t1": [ASK, REPLY]})
     home, _ = sync(fake, tmp_path=tmp_path)
     chunks = chunk_file("sources/gmail/t1.json", (home / "sources/gmail/t1.json").read_text())
-    assert len(chunks) == 2
-    assert "Staff Eng" not in chunks[0].text
-    assert "> Hi Test" not in chunks[1].text and "wrote:" not in chunks[1].text
+    assert [c.chunk_id for c in chunks] == ["c0", "s0", "c1"]  # the first message's signature is its own chunk
+    assert "Staff Eng" not in chunks[0].text and "Staff Eng" in chunks[1].text
+    assert "> Hi Test" not in chunks[2].text and "wrote:" not in chunks[2].text
     assert chunks[0].label == "Email from Sarah Jones: Redis fallback (Thu Oct 1, 2:30 AM)"
     assert "sarah.j@acme.example" in chunks[0].people
     assert chunks[0].ts == "2026-10-01T09:30:00+00:00"
@@ -128,3 +128,36 @@ def test_each_email_excerpt_records_its_sender():
             from_me=True)]}
     assert [c.sender for c in chunk_thread("sources/gmail/t1.json", data)] == ["sarah.j@acme.example",
                                                                              "test@acme.example"]
+
+
+SIG_CRLF = "Thanks,\r\n  Workperson\r\n\r\n-- \r\nWorkperson Acorn\r\nDirector of Engineering\r\n781-526-7220"
+
+
+def test_crlf_and_lf_mail_strip_the_same():
+    from archie.connectors.gmail import clean_body, split_body
+
+    assert clean_body(SIG_CRLF) == clean_body(SIG_CRLF.replace("\r\n", "\n")) == "Thanks,\n  Workperson"
+    assert split_body(SIG_CRLF)[1] == "Workperson Acorn\nDirector of Engineering\n781-526-7220"
+
+
+def test_signature_is_its_own_chunk():
+    from archie.connectors.gmail import chunk_thread
+
+    data = {"id": "t1", "messages": [{"id": "m1", "from_email": "workperson@ow.example", "from_name": "Workperson Acorn",
+                                      "to": [{"email": "test@acme.example", "name": "Test"}], "cc": [],
+                                      "date": "2026-09-22T20:16:16+00:00", "subject": "Incoming Offer",
+                                      "body": SIG_CRLF, "from_me": False}]}
+    chunks = chunk_thread("sources/gmail/t1.json", data)
+    assert [c.chunk_id for c in chunks] == ["c0", "s0"]
+    sig = chunks[1]
+    assert sig.text == "Workperson Acorn\nDirector of Engineering\n781-526-7220"
+    assert sig.people == ["workperson@ow.example"] and sig.sender == "workperson@ow.example"
+    assert sig.label.startswith("Signature of Workperson Acorn (")
+    assert "Director of Engineering" not in chunks[0].text
+
+
+def test_quoted_signatures_make_no_chunk():
+    from archie.connectors.gmail import split_body
+
+    body = "Thanks Workperson!\r\n\r\nOn Tue, Sep 22, 2026 at 1:16 PM Workperson Acorn <k@ow.example> wrote:\r\n> --\r\n> Workperson Acorn\r\n> Director"
+    assert split_body(body) == ("Thanks Workperson!", "")
