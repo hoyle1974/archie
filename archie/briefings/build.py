@@ -140,12 +140,13 @@ def gather(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> tuple[Packet, st
             for c in ctx.index.chunks_of(prev.rel_path):
                 p.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
     if kind != "all_hands" and kind != "standup":
+        from archie.ask.evidence import person_evidence
+
         for eid in m.meta.get("attendees") or []:
             for c in ctx.index.chunks_of(f"people/{eid}.md")[:3]:
                 p.add(c["path"], c["chunk_id"], c["text"], label=c["label"])
-            for c in ctx.index.chunks_with_people(directory.identifiers(eid), limit=12, before=ctx.now.isoformat()):
-                if (c["ts"] or "") >= since and c["source"] not in ("briefings", "loops"):
-                    p.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
+            for c in person_evidence(ctx, eid, max_items=12, since=since):
+                p.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
                 if len(p.items) > 24:
                     break
     if kind == "standup":

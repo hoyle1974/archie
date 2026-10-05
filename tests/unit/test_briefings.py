@@ -140,3 +140,29 @@ def test_standup_has_code_computed_yesterday_today_blockers(tmp_path):
     out = r(build_briefing(ctx, pick_meeting(ctx, None)).answer)
     assert "Yesterday" in out and "Lower token TTL to 15m" in out and "Approved PR #412 Fix redis pool" in out
     assert "Today" in out and "ENG-500 Rotate signing keys (In Progress)" in out
+
+
+def test_attendee_context_puts_their_own_mail_first(tmp_path):
+    seen = {}
+
+    def capture(system, user, schema, tier):
+        seen["user"] = user
+        return {"summary": [], "sections": []}
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(answer=capture)), now=NOW)
+    ev = cal_event("ev9", "Catch up", "2026-10-01T21:00:00Z", "2026-10-01T21:30:00Z",
+                   attendees=[("test@acme.example", "Test"), ("lee@park.example", "Lee Park")])
+    paths = [ctx.home / "sources/calendar/ev9.json"]
+    write_raw(paths[0], normalize_event(ev, TEST))
+    paths.append(write_thread(ctx.home, "plan", [
+        msg("p1", "lee@park.example", "Lee Park", [addr("test@acme.example")], "2026-09-25T17:00:00+00:00",
+            "Here is the rollout plan.", subject="Plan", to_me=True)]))
+    paths += [write_thread(ctx.home, f"hr{i}", [
+        msg(f"h{i}", "hr@acme.example", "HR", [addr("test@acme.example")],
+            f"2026-09-{26 + i % 5:02d}T{10 + i // 5}:00:00+00:00", f"Benefits form {i}.", subject=f"Form {i}",
+            cc=[addr("lee@park.example", "Lee Park")], to_me=True)]) for i in range(15)]
+    derive_people(ctx, paths)
+    derive_meetings(ctx, paths)
+    ctx.index.sync()
+    build_briefing(ctx, pick_meeting(ctx, None))
+    assert "Here is the rollout plan." in seen["user"]
