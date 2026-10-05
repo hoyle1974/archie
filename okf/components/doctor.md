@@ -14,6 +14,7 @@ What it checks:
 - Gemini spend this month against `llm.monthly_budget_usd`; reaching it is a failure that says when calls resume.
 - With `llm.google_project` set: the Google `monitoring` scope was granted, and the last sync's comparison of Google's token count with Archie's log. More than $1 apart, or a failed check, is a failure.
 - Items the [derivers](derivers.md) stopped retrying after 3 unreadable model replies, if any, with the file to delete to retry them.
+- Email threads read for open items by older loop instructions (`check_loop_versions`: the thread's `_versions` stamp in `state/loops_seen.yaml` differs from `loop_version()`), reported as a count. Loops are never re-read automatically, because a re-read could close or reopen items.
 - No sources enabled is reported as a failure.
 - Each enabled source:
   - gmail, calendar, drive: the Google scope was granted.

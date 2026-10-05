@@ -137,6 +137,23 @@ def check_install(pyproject: Path | None = None, installed: Callable | None = No
     return False, f"install is out of date, missing {', '.join(missing)}: run `{fix}`"
 
 
+def check_loop_versions(home: Home) -> Check | None:
+    """Threads read for open items by older instructions (they aren't re-read automatically)."""
+    import yaml
+
+    from archie.derive.loops import loop_version
+
+    path = home / "state/loops_seen.yaml"
+    seen = (yaml.safe_load(path.read_text()) or {}) if path.exists() else {}
+    versions = seen.pop("_versions", None) or {}
+    current = loop_version()
+    n = sum(1 for tid in seen if versions.get(tid) != current)
+    if not n:
+        return None
+    return True, (f"{n} email thread{' was' if n == 1 else 's were'} read for open items by older instructions; "
+                  f"Archie doesn't re-read {'it' if n == 1 else 'them'} automatically.")
+
+
 def run_checks(home: Home) -> list[Check]:
     cfg = load_config(home)
     results = [check_install(), check_me(home), check_gemini()]
@@ -149,6 +166,9 @@ def run_checks(home: Home) -> list[Check]:
     skipped = check_failures(home)
     if skipped:
         results.append(skipped)
+    older = check_loop_versions(home)
+    if older:
+        results.append(older)
     enabled = [n for n, c in cfg["connectors"].items() if (c or {}).get("enabled")]
     if not enabled:
         results.append((False, "no sources switched on: add them under `connectors:` in config.yaml"))

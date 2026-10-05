@@ -199,3 +199,17 @@ def test_first_contacts_are_marked_for_the_model(tmp_path):
     ken = msg("k2", "ken@acme.example", "Ken Ito", [addr(TEST)], "2026-09-30T00:00:00+00:00", "Thanks!", to_me=True)
     derive_loops(ctx, [write_thread(ctx.home, "t9", [ken])])
     assert not any("first contact" in u for u in seen)  # the user has written to Ken before
+
+
+def test_derive_loops_records_the_version_per_thread(tmp_path):
+    import yaml
+
+    from archie.derive.loops import loop_version
+
+    ctx = ctx_with(tmp_path, loops_extract=extraction())
+    path = write_thread(ctx.home, "t1", [ASK])
+    derive_people(ctx, [path])
+    derive_loops(ctx, [path])
+    seen = yaml.safe_load((ctx.home / "state/loops_seen.yaml").read_text())
+    assert seen["_versions"]["t1"] == loop_version()
+    assert seen["t1"] == ASK["date"]

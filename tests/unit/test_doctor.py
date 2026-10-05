@@ -60,3 +60,20 @@ def test_install_check_names_a_missing_package_and_the_fix(tmp_path):
 def test_install_check_passes_in_this_checkout():
     ok, msg = doctor.check_install()
     assert ok, msg
+
+
+def test_loop_versions_reports_older_threads(tmp_path):
+    import yaml
+
+    from archie.derive.loops import loop_version
+    from archie.doctor import check_loop_versions
+    from tests.support.fixtures import make_ctx
+
+    ctx = make_ctx(tmp_path)
+    (ctx.home / "state/loops_seen.yaml").write_text(yaml.safe_dump(
+        {"t1": "2026-09-01T00:00:00+00:00", "t2": "2026-09-02T00:00:00+00:00", "_versions": {"t2": loop_version()}}))
+    assert check_loop_versions(ctx.home) == (
+        True, "1 email thread was read for open items by older instructions; Archie doesn't re-read it automatically.")
+    (ctx.home / "state/loops_seen.yaml").write_text(yaml.safe_dump(
+        {"t2": "2026-09-02T00:00:00+00:00", "_versions": {"t2": loop_version()}}))
+    assert check_loop_versions(ctx.home) is None

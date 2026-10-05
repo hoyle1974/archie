@@ -263,11 +263,21 @@ def refresh_waiting(ctx: Ctx) -> None:
             save_loop(ctx.home, lp)
 
 
+def loop_version() -> str:
+    """Changes whenever the extract or close instructions change (see doctor's check)."""
+    from archie.derive.versions import stamp
+    from archie.llm.prompts import load_prompt
+
+    return stamp("loops", load_prompt("loops_extract"), load_prompt("loops_close"))
+
+
 def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
     import threading
     from concurrent.futures import ThreadPoolExecutor
 
     seen = (yaml.safe_load(_seen_file(ctx.home).read_text()) or {}) if _seen_file(ctx.home).exists() else {}
+    versions = seen.pop("_versions", None) or {}  # thread id -> loop_version() it was read with
+    version = loop_version()
     directory = PeopleDirectory.load(ctx.home)
     loops = load_loops(ctx.home)
     known = {lp.loop_id for lp in loops}
@@ -323,11 +333,12 @@ def derive_loops(ctx: Ctx, paths: list[Path]) -> None:
             if not result:
                 continue
             seen[result[0]] = result[1]
+            versions[result[0]] = version
             finished += 1
             if finished % 10 == 0:  # save progress during long backfills
-                atomic_write(_seen_file(ctx.home), yaml.safe_dump(seen, sort_keys=True))
+                atomic_write(_seen_file(ctx.home), yaml.safe_dump({**seen, "_versions": versions}, sort_keys=True))
     if finished:
-        atomic_write(_seen_file(ctx.home), yaml.safe_dump(seen, sort_keys=True))
+        atomic_write(_seen_file(ctx.home), yaml.safe_dump({**seen, "_versions": versions}, sort_keys=True))
     failures.save()
     refresh_waiting(ctx)
 
