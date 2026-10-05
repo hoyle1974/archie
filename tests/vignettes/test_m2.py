@@ -93,10 +93,25 @@ def test_B_full_name_and_email_find_the_same_person(tmp_path):
         assert _glance(w.ask(q)).splitlines()[1].strip() == "Priya Sharma", q
 
 
-@pytest.mark.xfail(strict=True, reason="DESIGN §4.2: a first name plus initial doesn't resolve yet")
 def test_B_name_with_initial_finds_the_person(tmp_path):
     w = Week(tmp_path)
     assert _glance(w.ask("who is Priya S.?")).splitlines()[1].strip() == "Priya Sharma"
+
+
+def test_B_possessive_question_finds_the_person(tmp_path):
+    w = Week(tmp_path)
+    for q in ("what is Priya's role?", "what is Priyas role?", "what is priyas role"):
+        assert _glance(w.ask(q)).splitlines()[1].strip() == "Priya Sharma", q
+
+
+def test_B_unknown_or_misspelled_name_gets_a_search_answer(tmp_path):
+    w = Week(tmp_path)
+    out = w.ask("who is Priyaa?")
+    assert out.startswith("I didn't recognise anyone called Priyaa, so I searched everything instead.")
+    assert "answer" in w.llm.calls  # the answer came from search
+    out = w.ask("what is Zed's role?")
+    assert "anyone called role" not in out and "anyone called Zed's" not in out
+    assert out.startswith("I didn't recognise anyone called Zed")
 
 
 def test_B_ambiguous_name_gets_a_question_not_a_guess(tmp_path):

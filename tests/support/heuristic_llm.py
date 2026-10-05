@@ -19,13 +19,14 @@ ROUTES = [
     (r"\b(done with|snooze|not a loop|reopen)\b", "loop_update"), (r"\bwho is\b|history with", "who"),
     (r"while i was (out|away)|catch me up", "catchup"), (r"\bhandover\b", "handover"),
     (r"get done|accomplish|did i (do|ship)", "ledger"), (r"\bowe\b|waiting on|open items|\bloops?\b", "loops"), (r"work on next|what next|what should i do", "next"),
-    (r"\bis a (1:1|standup|all-hands)\b| is the ", "correct"), (r"what can you do|\bhelp\b", "help"),
+    (r"\b(role|title|job)\b", "who"), (r"\bis a (1:1|standup|all-hands)\b| is the ", "correct"), (r"what can you do|\bhelp\b", "help"),
 ]
 
 
 def _params(question: str) -> dict:
     people = re.findall(r"\b(?:who is|history with|with)\s+([\w.+-]+@[\w-]+(?:\.[\w-]+)+|"
                         r"[A-Z][a-z]+(?: [A-Z][a-z]*\.?)?)", question)
+    people += re.findall(r"\b([A-Z][a-z]+)(?:'s|’s|s)\s+(?:role|title|job)\b", question)
     meeting = None
     m = re.search(r"(?:prep me for|brief me for|notes from)(?: my| the)?\s+([\w: ]+?)(?:[:?]|$)", question, re.I)
     if m:

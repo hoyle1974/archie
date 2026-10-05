@@ -166,6 +166,10 @@ class PeopleDirectory:
                 out.append(eid)
         return out
 
+    def names_in(self, text: str) -> list[str]:
+        """People named in the user's message, any case, possessive allowed ("priyas role")."""
+        return self.mentioned_in(text, any_case=True)
+
     @staticmethod
     def _named(name: str, text: str, any_case: bool = False) -> bool:
         if " " in name.strip() or any_case:

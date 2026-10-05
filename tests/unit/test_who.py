@@ -52,10 +52,51 @@ def test_ambiguous_name_asks_back_without_llm_synthesis(tmp_path):
     assert [c["shape"].name for c in fb.calls] == ["understand"]
 
 
-def test_unknown_person_says_so(tmp_path):
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["Zed"])))))
+def _cited_answer(system, user, shape, tier):
+    ref = next(line for line in user.splitlines() if line.startswith("[") and "SSO dates" in line)[1]
+    quote = "Can we ship SSO before the Redis migration?"
+    return {"summary": [{"text": "Priya asked about SSO.", "citations": [{"ref": int(ref), "quote": quote}]}],
+            "sections": []}
+
+
+def test_unknown_person_falls_back_to_search(tmp_path):
+    fb = FakeBackend(by_schema(understand=understood(question("who", people=["Zed"], topic="SSO")),
+                               answer=_cited_answer))
+    ctx = make_ctx(tmp_path, fb)
     seed(ctx)
-    assert "don't know anyone called Zed" in render(ask(ctx, "who is Zed?"))
+    out = render(ask(ctx, "who is Zed? something about SSO"))
+    assert out.startswith("I didn't recognise anyone called Zed, so I searched everything instead.")
+    assert "don't know anyone called" not in out
+    assert "answer" in [c["shape"].name for c in fb.calls]  # search really ran
+
+
+def test_a_topic_word_is_never_taken_for_a_name(tmp_path):
+    fb = FakeBackend(by_schema(understand=understood(question("who", topic="SSO")), answer=_cited_answer))
+    ctx = make_ctx(tmp_path, fb)
+    seed(ctx)
+    out = render(ask(ctx, "who handles SSO?"))
+    assert "anyone called SSO" not in out
+    assert out.startswith("I couldn't tell who you meant, so I searched everything instead.")
+
+
+def test_search_finding_nothing_says_so(tmp_path):
+    fb = FakeBackend(by_schema(understand=understood(question("who", people=["Zed"])),
+                               answer={"summary": [], "sections": []}))
+    ctx = make_ctx(tmp_path, fb)
+    seed(ctx)
+    assert render(ask(ctx, "who is Zed?")).strip() == \
+        "I didn't recognise anyone called Zed, and a search found nothing about it."
+
+
+def test_code_finds_a_known_name_the_model_missed(tmp_path):
+    def answer(system, user, shape, tier):
+        return {"summary": [], "sections": []}
+
+    fb = FakeBackend(by_schema(understand=understood(question("who", topic="title")), answer=answer))
+    ctx = make_ctx(tmp_path, fb)
+    seed(ctx)
+    out = render(ask(ctx, "what is priyas title?"))
+    assert "Priya Sharma" in out.split("At a glance", 1)[1]
 
 
 EMPTY = {"summary": [], "sections": []}

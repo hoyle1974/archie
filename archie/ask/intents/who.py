@@ -22,14 +22,36 @@ INSTRUCTIONS = """- Start with who this person is (role, how {me_name} knows the
 - Keep the summary to 2-3 sentences."""
 
 
+_ASKED = re.compile(r"(?:who is|who's|history with)\s+([\w@.\-'’ ]+)", re.I)
+
+
 def resolve(ctx: Ctx, params: dict, question: str) -> tuple[PeopleDirectory, list[str], str]:
+    """(directory, matching ids, the name the user used). A topic is never used as a name."""
     directory = PeopleDirectory.load(ctx.home)
-    names = params.get("people") or []
-    query = names[0] if names else (params.get("topic") or "")
-    if not query:
-        m = re.search(r"(?:who is|who's|history with)\s+([\w@.\- ]+)", question, re.I)
-        query = m.group(1).strip(" ?") if m else ""
-    return directory, directory.find(query) if query else [], query
+    names = list(params.get("people") or [])
+    m = _ASKED.search(question)
+    if not names and m:
+        names = [m.group(1).strip(" ?")]
+    for name in names:
+        hits = directory.find(name)
+        if hits:
+            return directory, hits, name
+    found = directory.names_in(question)
+    if found:
+        return directory, found, directory.name(found[0]).split(" ")[0]
+    return directory, [], names[0] if names else ""
+
+
+def unknown_person(ctx: Ctx, question: str, params: dict, name: str) -> Answer:
+    """No known person: search the whole question instead of giving up (spec §4c)."""
+    from archie.ask.intents.search import search_intent
+
+    lead = f"I didn't recognise anyone called {name}" if name else "I couldn't tell who you meant"
+    answer = search_intent(ctx, question, {**params, "people": []})
+    if answer.nothing_found or not (answer.summary or answer.sections):
+        return Answer(plain=f"{lead}, and a search found nothing about it.")
+    answer.summary.insert(0, Claim(f"{lead}, so I searched everything instead.", []))
+    return answer
 
 
 def person_lines(directory: PeopleDirectory, eid: str, history: list[dict], facts: list[dict] | None = None) -> list[str]:
@@ -90,7 +112,7 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         return family_answer(ctx)
     directory, matches, query = resolve(ctx, params, question)
     if not matches:
-        return Answer(plain=f"I don't know anyone called {query or 'that'} yet.")
+        return unknown_person(ctx, question, params, query)
     if len(matches) > 1:
         options = "\n".join(f"  • {directory.name(e)}" + (f" ({org(directory.meta[e])})" if org(directory.meta[e]) else "")
                             for e in matches)

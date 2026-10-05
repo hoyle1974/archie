@@ -506,6 +506,13 @@ What changed
 | `help`        | "what can you do?", "how do I …?"                         | (all) |
 | fallback      | anything else: hybrid search plus a cited answer          | — |
 
+`who` finds the person by code as well as from the model: a known name in the message
+counts in any case and with a possessive ("priyas role"), and the topic is never taken for
+a name. With no known person, `who` searches the whole question and says so first, in
+words written by code: "I didn't recognise anyone called Dana, so I searched everything
+instead." (or "I couldn't tell who you meant, …"), and "…, and a search found nothing
+about it." when search finds nothing either.
+
 Tellings, instructions and answers are not intents. Every telling, and every answer to
 one of Archie's questions, is saved word for word in `journal/told.md`, then applied:
 facts about a person (the `remember` code), ignoring or un-ignoring a sender (the
