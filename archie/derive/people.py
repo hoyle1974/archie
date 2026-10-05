@@ -24,7 +24,8 @@ from archie.store.home import Home
 from archie.store.times import utc_iso
 
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+$")
-_POSS = r"(?:['’]s|s['’]?)?"  # a possessive after a name: "Workperson's", "Workperson’s", "Workpersons", "Workpersons'"
+_POSS = r"(?:['’]s?)?"  # a possessive after a name: "Workperson's", "Workperson’s", "Workperson'"
+_LOOSE = r"(?:['’]s|s['’]?)?"  # also "Workpersons": a guess, since "Andreas" isn't Andrea's
 ROLE_ACCOUNT = re.compile(
     r"^(no-?reply|do-?not-?reply|support|help|info|hello|contact|team|news|newsletter|updates?|alerts?|"
     r"notifications?|account|accounts|service|customerservice|custserv|care|orders?|billing|receipts?|"
@@ -111,9 +112,10 @@ class PeopleDirectory:
         name, full = self.name(entity_id), str((self.meta.get(entity_id) or {}).get("full_name") or "").strip()
         return f"{name} ({full})" if full and full.lower() != name.lower() else name
 
-    def find(self, query: str) -> list[str]:
+    def find(self, query: str, loose: bool = False) -> list[str]:
         """Entity ids matching an email, a full name/alias, or a first name. Ambiguity is
-        returned, not resolved: the caller asks the user."""
+        returned, not resolved: the caller asks the user. `loose` also drops a bare trailing s
+        ("Workpersons" -> Workperson); that is a guess, so callers that write never use it."""
         q = query.strip().lower()
         if q.startswith("gh:"):  # a GitHub login, linked by alias ("alexr" or "gh:alexr")
             return [e for e, m in self.meta.items()
@@ -130,21 +132,24 @@ class PeopleDirectory:
                 first.append(eid)
         if exact or first:
             return exact or first
-        from archie.names import name_forms
+        from archie.names import name_forms, name_key
 
-        for form in sorted(name_forms(query), key=len, reverse=True):  # "workperson's" / "workpersons" -> "workperson"
+        forms = name_forms(query) if loose else {name_key(query)}
+        for form in sorted(forms, key=len, reverse=True):  # "workperson's" -> "workperson"; loose: "workpersons" -> "workperson"
             if form != q:
                 hits = self.find(form)
                 if hits:
                     return hits
         return []
 
-    def mentioned_in(self, text: str, any_case: bool = False) -> list[str]:
+    def mentioned_in(self, text: str, any_case: bool = False, loose: bool = False) -> list[str]:
         """Entity ids whose name, a name alias, or a first name (3+ letters) appears in text,
         possessives included ("Workperson's", "Workpersons").
 
         A name inside another person's longer name doesn't count ("Acorn" in "Workperson Acorn" is
-        not Acorn). A one-word name must be capitalized ("a acorn" is nobody) unless any_case."""
+        not Acorn). A one-word name must be capitalized ("a acorn" is nobody) unless any_case.
+        `loose` also accepts a bare s ("Workpersons"), unless that word is someone else's name."""
+        poss = _LOOSE if loose else _POSS
         full: list[tuple[str, str]] = []  # (multi-word name, entity id), longest first
         for eid, meta in self.meta.items():
             for n in [meta.get("name"), *(meta.get("aliases") or [])]:
@@ -161,20 +166,32 @@ class PeopleDirectory:
             for other, owner in full:  # blank out other people's longer names that contain ours
                 if owner != eid and any(re.search(rf"(?<!\w){re.escape(n.lower())}(?!\w)", other.lower())
                                         for n in names):
-                    seen = re.sub(rf"(?<!\w){re.escape(other)}{_POSS}(?!\w)", " ", seen, flags=re.IGNORECASE)
-            if any(self._named(n, seen, any_case) for n in names):
+                    seen = re.sub(rf"(?<!\w){re.escape(other)}{poss}(?!\w)", " ", seen, flags=re.IGNORECASE)
+            if loose:  # "Andreas" is Andreas Klein's, not Andrea's possessive
+                for other in self._all_names() - {n.lower() for n in names}:
+                    if any(other == n.lower() + "s" for n in names):
+                        seen = re.sub(rf"(?<!\w){re.escape(other)}(?!\w)", " ", seen, flags=re.IGNORECASE)
+            if any(self._named(n, seen, any_case, poss) for n in names):
                 out.append(eid)
         return out
 
-    def names_in(self, text: str) -> list[str]:
-        """People named in the user's message, any case, possessive allowed ("priyas role")."""
-        return self.mentioned_in(text, any_case=True)
+    def names_in(self, text: str, loose: bool = False) -> list[str]:
+        """People named in the user's message, any case, possessive allowed ("priya's role";
+        with `loose`, "priyas role")."""
+        return self.mentioned_in(text, any_case=True, loose=loose)
+
+    def _all_names(self) -> set[str]:
+        out = set()
+        for meta in self.meta.values():
+            names = [str(n).lower() for n in [meta.get("name"), *(meta.get("aliases") or [])] if n and "@" not in str(n)]
+            out |= set(names) | {n.split(" ")[0] for n in names if n}
+        return out
 
     @staticmethod
-    def _named(name: str, text: str, any_case: bool = False) -> bool:
+    def _named(name: str, text: str, any_case: bool = False, poss: str = _POSS) -> bool:
         if " " in name.strip() or any_case:
-            return bool(re.search(rf"(?<!\w){re.escape(name)}{_POSS}(?!\w)", text, re.IGNORECASE))
-        return bool(re.search(rf"(?<!\w){re.escape(name[:1].upper() + name[1:])}{_POSS}(?!\w)", text))
+            return bool(re.search(rf"(?<!\w){re.escape(name)}{poss}(?!\w)", text, re.IGNORECASE))
+        return bool(re.search(rf"(?<!\w){re.escape(name[:1].upper() + name[1:])}{poss}(?!\w)", text))
 
     def avoided_words(self, entity_ids: list[str]) -> set[str]:
         """Words the user said never to use for any of these people."""

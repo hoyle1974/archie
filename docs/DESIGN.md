@@ -521,8 +521,11 @@ What changed
 | fallback      | anything else: hybrid search plus a cited answer          | — |
 
 `who` finds the person by code as well as from the model: a known name in the message
-counts in any case and with a possessive ("priyas role"), and the topic is never taken for
-a name. When the model completes a name from the conversation ("Acorn" to "Workperson Acorn"
+counts in any case and with a possessive ("priya's role"), and neither the topic nor a
+description ("who is the PM for auth?") is taken for a name. A name typed with a bare
+trailing s ("priyas role") is only a guess, since "Andreas" isn't Andrea's: `who` tries it
+last and says so ("I took priyas to mean Priya Sharma."), and code that writes never
+guesses. When the model completes a name from the conversation ("Acorn" to "Workperson Acorn"
 after questions about Workperson), the words the user typed win if they are someone's whole
 name or alias. With no known person, `who` searches the whole question and says so first, in
 words written by code: "I didn't recognise anyone called Dana, so I searched everything

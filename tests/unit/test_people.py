@@ -166,11 +166,28 @@ def test_find_and_mentioned_in_accept_possessives(tmp_path):
                    Note(meta={"entity_id": eid, "name": name, "aliases": aliases}, body="## My notes\n"))
     d = PeopleDirectory.load(ctx.home)
     assert d.find("Workperson's") == ["workperson_acorn"]
-    assert d.find("Workpersons") == ["workperson_acorn"]
+    assert d.find("Workpersons") == []  # without an apostrophe it may be someone else's name: only a guess
+    assert d.find("Workpersons", loose=True) == ["workperson_acorn"]
     assert d.find("James") == ["james_lee"]  # a name ending in s still matches exactly
     assert d.find("Jame") == []
-    assert d.mentioned_in("Can you ship Workpersons laptop?") == ["workperson_acorn"]
+    assert d.mentioned_in("Can you ship Workpersons laptop?") == []
+    assert d.mentioned_in("Can you ship Workpersons laptop?", loose=True) == ["workperson_acorn"]
     assert d.mentioned_in("Workperson's laptop") == ["workperson_acorn"]
     assert "acorn" not in d.mentioned_in("Workperson Acorn's laptop")  # Acorn inside a longer name still isn't Acorn
     assert d.mentioned_in("tell me about workperson") == []  # one-word names still need a capital
     assert d.mentioned_in("tell me about workperson", any_case=True) == ["workperson_acorn"]
+
+
+def test_a_dropped_s_never_picks_someone_else(tmp_path):
+    from archie.derive.people import PeopleDirectory
+    from archie.store.files import Note, write_note
+    from tests.support.fixtures import make_ctx
+
+    ctx = make_ctx(tmp_path)
+    for eid, name in (("andrea_moretti", "Andrea Moretti"), ("andreas_klein", "Andreas Klein")):
+        write_note(ctx.home / f"people/{eid}.md", Note(meta={"entity_id": eid, "name": name}, body=""))
+    d = PeopleDirectory.load(ctx.home)
+    assert d.find("Andreas") == ["andreas_klein"]
+    assert d.mentioned_in("Andreas sent the deck") == ["andreas_klein"]
+    assert d.mentioned_in("Andreas sent the deck", loose=True) == ["andreas_klein"]
+    assert d.find("Lucas") == []

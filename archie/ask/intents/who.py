@@ -23,6 +23,15 @@ INSTRUCTIONS = """- Start with who this person is (role, how {me_name} knows the
 
 
 _ASKED = re.compile(r"(?:who is|who's|history with)\s+([\w@.\-'’ ]+)", re.I)
+# words that make "who is …" a description, not a name ("who is the PM for auth?")
+_NOT_A_NAME = {"the", "a", "an", "my", "our", "your", "his", "her", "their", "this", "that", "for", "of", "in",
+               "on", "at", "to", "with", "from", "about", "and", "or", "responsible", "charge", "running",
+               "handling", "doing", "working", "leading", "new", "going", "coming", "it", "there", "here"}
+
+
+def _looks_like_name(text: str) -> bool:
+    words = text.split()
+    return 0 < len(words) <= 3 and not any(w.lower() in _NOT_A_NAME for w in words)
 
 
 def _said_part(name: str, question: str) -> str:
@@ -45,7 +54,7 @@ def resolve(ctx: Ctx, params: dict, question: str) -> tuple[PeopleDirectory, lis
     directory = PeopleDirectory.load(ctx.home)
     names = list(params.get("people") or [])
     m = _ASKED.search(question)
-    if not names and m:
+    if not names and m and _looks_like_name(m.group(1).strip(" ?")):
         names = [m.group(1).strip(" ?")]
     for name in names:
         said = _said_part(name, params.get("said") or question)
@@ -58,7 +67,27 @@ def resolve(ctx: Ctx, params: dict, question: str) -> tuple[PeopleDirectory, lis
     found = directory.names_in(question)
     if found:
         return directory, found, directory.name(found[0]).split(" ")[0]
+    for name in names:  # guesses from a dropped s ("workpersons"); who_intent says it guessed
+        hits = directory.find(name, loose=True)
+        if hits:
+            return directory, hits, name
+    found = directory.names_in(question, loose=True)
+    if found:
+        return directory, found, directory.name(found[0]).split(" ")[0]
     return directory, [], names[0] if names else ""
+
+
+def guessed_from(directory: PeopleDirectory, eid: str, typed: str) -> str | None:
+    """The word the user typed, if they named this person only with a bare trailing s
+    ("priyas" for Priya), which might have been someone else's name."""
+    from archie.names import name_key
+
+    if eid in directory.names_in(typed) or eid not in directory.names_in(typed, loose=True):
+        return None
+    names = {n.lower() for n in [directory.name(eid), *(directory.meta[eid].get("aliases") or [])] if n}
+    names |= {n.split(" ")[0] for n in names}
+    return next((w.strip(".,?!") for w in typed.split() if name_key(w).endswith("s") and name_key(w)[:-1] in names),
+                None)
 
 
 def unknown_person(ctx: Ctx, question: str, params: dict, name: str) -> Answer:
@@ -191,4 +220,7 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
                                                                        directory.facts(ctx.home, eid), ts)))
     if recent:
         answer.sections.insert(1, Section("Recent", lines=recent))
+    word = guessed_from(directory, eid, params.get("said") or question)
+    if word:
+        answer.summary.insert(0, Claim(f"I took {word} to mean {directory.name(eid)}.", []))
     return answer

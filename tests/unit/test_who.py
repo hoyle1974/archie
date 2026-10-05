@@ -177,3 +177,19 @@ def test_recent_lists_each_thing_once(tmp_path):
     ctx.index.sync()
     out = render(ask(ctx, "who is Priya?"))
     assert out.count("Team sync") == 1
+
+
+def test_a_guess_from_a_dropped_s_is_said(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", topic="title")),
+                                                   answer=EMPTY)))
+    seed(ctx)
+    out = render(ask(ctx, "what is priyas title?"))
+    assert out.startswith("I took priyas to mean Priya Sharma.")
+
+
+def test_a_description_is_never_taken_for_a_name(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who")), answer=EMPTY)))
+    seed(ctx)
+    for q in ("who is the PM for auth?", "who is responsible for SSO?"):
+        out = render(ask(ctx, q))
+        assert "anyone called" not in out and out.startswith("I couldn't tell who you meant"), out
