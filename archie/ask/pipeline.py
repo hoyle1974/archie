@@ -121,7 +121,8 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     parts = understand(ctx, question, recent, open_qs, pending)
     handled = [dispatch(ctx, p, question, open_qs, last) for p in parts]
     entry["intent"] = handled[0][0]
-    entry["parts"] = [{"kind": p.kind, "handler": label} for p, (label, _) in zip(parts, handled)]
+    entry["parts"] = [{"kind": p.kind, "handler": label, "people": p.params.get("people") or [],
+                       "topic": p.params.get("topic")} for p, (label, _) in zip(parts, handled)]
     gaps = [p.text for p, (label, _) in zip(parts, handled) if label.endswith("->gap")]
     if gaps:
         entry["gaps"] = gaps
@@ -148,6 +149,7 @@ def ask(ctx: Ctx, question: str) -> Answer:
         resolve_answered(ctx)  # e.g. closing an item clears "still needed?" about it
         entry.update(nothing_found=answer.nothing_found, dropped=answer.dropped,
                      claims=len(answer.summary) + sum(len(s.items) for s in answer.sections),
+                     sources=[f"{it.path}#{it.chunk_id}" for it in answer.packet.items],
                      answer=render(answer, sources=True, paths=True)[:6000])
         parts = entry.get("parts", [])
         kinds = ["show"] if parts and all(p["handler"] == "show_citation" for p in parts) else [p["kind"] for p in parts]

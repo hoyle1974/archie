@@ -179,7 +179,7 @@ def test_each_exchange_is_remembered_with_its_numbered_sources(tmp_path):
     assert entry["summary"].startswith("Priya is the PM for auth. [1]")
     assert entry["shown"] == render(ans, sources=True, stamp=True)  # what the TUI shows again on launch
     log = [json.loads(x) for x in (ctx.home / "logs/usage.jsonl").read_text().splitlines()]
-    assert log[0]["parts"] == [{"kind": "question", "handler": "search"}]
+    assert log[0]["parts"] == [{"kind": "question", "handler": "search", "people": [], "topic": "Priya"}]
 
 
 def _with_handlers(**fns):
@@ -306,3 +306,25 @@ def test_an_empty_answer_says_nothing_answered_it_unless_claims_were_dropped():
 
     assert render(Answer()) == EMPTY_ANSWER
     assert render(Answer(dropped=2)) == UNVERIFIED
+
+
+def test_usage_line_records_people_topic_and_sources(tmp_path):
+    import json
+
+    from archie.ask.pipeline import ask
+    from archie.derive.people import derive_people
+    from archie.llm.backend import FakeBackend
+    from tests.support.fixtures import by_schema, make_ctx, question, understood
+    from tests.support.raw import addr, msg, write_thread
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(
+        understand=understood(question("search", people=["Priya"], topic="SSO")),
+        answer={"summary": [], "sections": []})))
+    p = write_thread(ctx.home, "t1", [msg("m1", "priya@acme.example", "Priya Sharma", [addr("test@acme.example")],
+                                          "2026-09-22T17:00:00+00:00", "Can we ship SSO first?", to_me=True)])
+    derive_people(ctx, [p])
+    ctx.index.sync()
+    ask(ctx, "what did Priya say about SSO?")
+    line = json.loads((ctx.home / "logs/usage.jsonl").read_text().splitlines()[-1])
+    assert line["parts"][0]["people"] == ["Priya"] and line["parts"][0]["topic"] == "SSO"
+    assert "sources/gmail/t1.json#c0" in line["sources"]
