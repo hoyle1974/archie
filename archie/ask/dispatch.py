@@ -36,7 +36,7 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
     if part.kind == "question":
         name = part.intent if part.intent in HANDLERS else "search"
         label = name if name == part.intent else f"{part.intent}->search"
-        return label, HANDLERS[name](ctx, part.resolved or part.text, {**EMPTY, **part.params})
+        return label, HANDLERS[name](ctx, part.resolved or part.text, {**EMPTY, **part.params, "said": part.text})
     if part.kind == "tell":
         fact = _fact(part)
         return ("other->gap" if fact == "other" else f"tell:{fact}"), tell(ctx, fact, part.text, about=part.about)

@@ -311,3 +311,15 @@ Made by default in this draft, since they weren't discussed:
    questions.yaml`). The 14 already in `scripts/prompt_eval.py` stay where they are unless
    the user wants them moved too.
 5. **Loops aren't replayed** (§1d).
+
+## Added while building
+
+- **The user's typed name beats the model's completion (§4c).** Live, "Tell me about Acorn"
+  after two questions about Workperson Acorn was rewritten by the understanding call to "Tell me
+  about Workperson Acorn", and `who` answered about Workperson although Acorn (the user's son) is a
+  known person. `resolve` now checks the words the user typed (passed to handlers as
+  `params["said"]`): if they are someone's whole name or alias, that person wins. A typed
+  first name the model completed ("Priya" to "Priya Sharma") still resolves as before.
+  Test: `test_who.py::test_a_whole_name_the_user_said_beats_the_models_completion`.
+- **`REVIEW.md` ground rule (§5b).** "Write one file only" now also allows appending asks to
+  `reviews/evals/questions.yaml` and the eval run's results, which the new steps need.

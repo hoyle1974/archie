@@ -521,7 +521,9 @@ What changed
 
 `who` finds the person by code as well as from the model: a known name in the message
 counts in any case and with a possessive ("priyas role"), and the topic is never taken for
-a name. With no known person, `who` searches the whole question and says so first, in
+a name. When the model completes a name from the conversation ("Acorn" to "Workperson Acorn"
+after questions about Workperson), the words the user typed win if they are someone's whole
+name or alias. With no known person, `who` searches the whole question and says so first, in
 words written by code: "I didn't recognise anyone called Dana, so I searched everything
 instead." (or "I couldn't tell who you meant, …"), and "…, and a search found nothing
 about it." when search finds nothing either.

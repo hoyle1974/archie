@@ -102,6 +102,27 @@ def test_code_finds_a_known_name_the_model_missed(tmp_path):
 EMPTY = {"summary": [], "sections": []}
 
 
+def test_a_whole_name_the_user_said_beats_the_models_completion(tmp_path):
+    from archie.ask.remember import apply_facts
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["Alex Rivera"],
+                                                                     resolved="tell me about Alex Rivera")),
+                                                   answer=EMPTY)))
+    seed(ctx)
+    apply_facts(ctx, "Rivera is my dog.", [{"name": "Rivera", "relationship": "dog",
+                                             "statement": "Rivera is my dog."}])
+    ctx.index.sync()
+    glance = render(ask(ctx, "tell me about Rivera")).split("At a glance", 1)[1]
+    assert "Your dog" in glance and "Alex Rivera" not in glance
+
+
+def test_a_completed_first_name_still_finds_the_person(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["Priya Sharma"])),
+                                                   answer=EMPTY)))
+    seed(ctx)
+    assert "Priya Sharma" in render(ask(ctx, "who is Priya?")).split("At a glance", 1)[1]
+
+
 def test_someone_known_only_from_a_telling_gets_a_sentence(tmp_path):
     from archie.ask.remember import apply_facts
 

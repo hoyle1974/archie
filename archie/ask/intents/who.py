@@ -25,6 +25,21 @@ INSTRUCTIONS = """- Start with who this person is (role, how {me_name} knows the
 _ASKED = re.compile(r"(?:who is|who's|history with)\s+([\w@.\-'’ ]+)", re.I)
 
 
+def _said_part(name: str, question: str) -> str:
+    """The words of `name` the user typed, when the model added others; else ""."""
+    from archie.names import name_forms, name_key
+
+    typed = {f for w in re.findall(r"[\w'’-]+", question) for f in name_forms(w)}
+    words = name.split()
+    kept = [w for w in words if name_key(w) in typed]
+    return " ".join(kept) if kept and len(kept) < len(words) else ""
+
+
+def _names(directory: PeopleDirectory, eid: str) -> set[str]:
+    meta = directory.meta[eid]
+    return {str(n).lower() for n in [meta.get("name"), *(meta.get("aliases") or [])] if n}
+
+
 def resolve(ctx: Ctx, params: dict, question: str) -> tuple[PeopleDirectory, list[str], str]:
     """(directory, matching ids, the name the user used). A topic is never used as a name."""
     directory = PeopleDirectory.load(ctx.home)
@@ -33,6 +48,10 @@ def resolve(ctx: Ctx, params: dict, question: str) -> tuple[PeopleDirectory, lis
     if not names and m:
         names = [m.group(1).strip(" ?")]
     for name in names:
+        said = _said_part(name, params.get("said") or question)
+        whole = [e for e in directory.find(said) if said.lower() in _names(directory, e)] if said else []
+        if whole:  # the model completed "Acorn" to "Workperson Acorn" from the conversation; Acorn is someone
+            return directory, whole, said
         hits = directory.find(name)
         if hits:
             return directory, hits, name
