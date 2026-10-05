@@ -20,6 +20,7 @@ ROUTES = [
     (r"while i was (out|away)|catch me up", "catchup"), (r"\bhandover\b", "handover"),
     (r"get done|accomplish|did i (do|ship)", "ledger"), (r"\bowe\b|waiting on|open items|\bloops?\b", "loops"), (r"work on next|what next|what should i do", "next"),
     (r"\b(role|title|job)\b", "who"), (r"\bis a (1:1|standup|all-hands)\b| is the ", "correct"), (r"what can you do|\bhelp\b", "help"),
+    (r"\btell me about\b", "who"),
 ]
 
 
@@ -27,6 +28,10 @@ def _params(question: str) -> dict:
     people = re.findall(r"\b(?:who is|history with|with)\s+([\w.+-]+@[\w-]+(?:\.[\w-]+)+|"
                         r"[A-Z][a-z]+(?: [A-Z][a-z]*\.?)?)", question)
     people += re.findall(r"\b([A-Z][a-z]+)(?:'s|’s|s)\s+(?:role|title|job)\b", question)
+    topic = None
+    about = re.search(r"tell me about ([A-Z][a-z]+) and (\w+)", question, re.I)
+    if about:
+        people, topic = [about.group(1)], about.group(2)
     meeting = None
     m = re.search(r"(?:prep me for|brief me for|notes from)(?: my| the)?\s+([\w: ]+?)(?:[:?]|$)", question, re.I)
     if m:
@@ -36,7 +41,7 @@ def _params(question: str) -> dict:
     d = re.search(r"since (Sep|Oct) (\d{1,2})", question)
     if d:
         since = f"2026-{'09' if d.group(1) == 'Sep' else '10'}-{int(d.group(2)):02d}"
-    return {"people": people, "since": since, "until": None, "topic": None, "meeting": meeting, "text": text}
+    return {"people": people, "since": since, "until": None, "topic": topic, "meeting": meeting, "text": text}
 
 
 def _items(user: str) -> list[tuple[int, str, str]]:

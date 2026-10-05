@@ -114,6 +114,26 @@ def test_B_unknown_or_misspelled_name_gets_a_search_answer(tmp_path):
     assert out.startswith("I didn't recognise anyone called Zed")
 
 
+def test_B_topic_in_a_long_history_reaches_the_answer(tmp_path):
+    from archie.derive.people import derive_people
+    from tests.support.raw import addr, msg, write_thread
+
+    w = Week(tmp_path)
+    lee = "lee@park.example"
+    paths = [write_thread(w.ctx.home, "lee_old", [msg("l0", lee, "Lee Park", [addr(ME)], "2026-08-01T10:00:00+00:00",
+                                                     "The CPS report was false.", subject="School", to_me=True)])]
+    paths += [write_thread(w.ctx.home, f"lee{i}", [msg(f"l{i}", lee, "Lee Park", [addr(ME)],
+                                                       f"2026-09-{1 + i % 28:02d}T{10 + i // 28}:00:00+00:00",
+                                                       f"Swim practice note {i}.", subject="Swim", to_me=True)])
+              for i in range(50)]
+    derive_people(w.ctx, paths)
+    w.ctx.index.sync()
+    w.ctx.config["ask"]["max_sources"] = 10
+    w.llm.prompts.clear()
+    w.ask("Tell me about Lee and CPS")
+    assert "The CPS report was false." in w.llm.saw("answer")
+
+
 def test_B_ambiguous_name_gets_a_question_not_a_guess(tmp_path):
     w = Week(tmp_path)
     write_note(w.ctx.home / "people/alex_chen.md",

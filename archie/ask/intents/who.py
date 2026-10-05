@@ -126,12 +126,10 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
 
     k, room = limits(ctx)
     room -= sum(len(it.text) for it in packet.items)
-    for c in history:  # newest first, as many as fit
-        if len(packet.items) >= k:
-            break
-        if len(c["text"]) <= room:
-            packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
-            room -= len(c["text"])
+    from archie.ask.evidence import person_evidence
+
+    for c in person_evidence(ctx, eid, topic=params.get("topic"), max_items=k - len(packet.items), max_chars=room):
+        packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
     meta = directory.meta[eid]
     about = f"The person asked about is {directory.name(eid)}."
     if meta.get("full_name"):

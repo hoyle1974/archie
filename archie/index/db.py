@@ -151,9 +151,9 @@ class Index:
             where = f"({where}) AND (ts IS NULL OR ts <= ?)"
             args.append(before)
         rows = self.query(
-            f"SELECT path, chunk_id, text, source, ts, label FROM chunks WHERE {where} ORDER BY ts DESC LIMIT ?",
+            f"SELECT path, chunk_id, text, source, ts, label, sender FROM chunks WHERE {where} ORDER BY ts DESC LIMIT ?",
             args + [limit])
-        return [dict(zip(("path", "chunk_id", "text", "source", "ts", "label"), r)) for r in rows]
+        return [dict(zip(("path", "chunk_id", "text", "source", "ts", "label", "sender"), r)) for r in rows]
 
     def chunks_of(self, path: str) -> list[dict]:
         rows = self.query("SELECT path, chunk_id, text, source, ts, label FROM chunks WHERE path = ? ORDER BY id", (path,))
