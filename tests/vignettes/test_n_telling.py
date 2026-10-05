@@ -1,5 +1,7 @@
 """Vignette N (docs/VIGNETTES.md): telling Archie something."""
 
+import asyncio
+
 import yaml
 
 from archie.ask.pipeline import ask
@@ -9,9 +11,11 @@ from archie.derive.dedupe import open_questions
 from archie.derive.loops import Loop, derive_loops, load_loops, save_loop
 from archie.derive.people import PeopleDirectory, derive_people
 from archie.llm.backend import FakeBackend
-from archie.store.files import Note
+from archie.derive.registry import post_index_steps
+from archie.store.files import Note, read_note, write_note
+from archie.sync import run_cycle
 from archie.tui.feed import build_feed
-from tests.support.fixtures import make_ctx, part, question, understood
+from tests.support.fixtures import by_schema, make_ctx, part, question, understood
 from tests.support.raw import addr, msg, write_thread
 
 SPAM = "ftbrmktf@sxziiqsov.us"
@@ -96,3 +100,19 @@ def test_N_a_description_and_full_name_land_in_the_persons_file(tmp_path):
     acorn = read_note(ctx.home / "people/acorn.md")
     assert acorn.meta["name"] == "Acorn" and acorn.meta["full_name"] == "Acorn Testerson"
     assert "Acorn is full of energy and is 3 and a half years old." in acorn.body
+
+
+def test_N_telling_saved_before_a_fix_reaches_the_person(tmp_path):
+    energy = "Acorn is full of energy and is 3 and a half years old."
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(
+        remember={"people": [{"name": "Acorn", "statement": energy}]},
+        people_facts={"facts": []})))
+    write_note(ctx.home / "people/acorn.md", Note(meta={"entity_id": "acorn", "name": "Acorn", "aliases": [],
+                                                        "relationship": "kid"}, body="## My notes\n"))
+    (ctx.home / "journal").mkdir(exist_ok=True)
+    (ctx.home / "journal/told.md").write_text(
+        "# What you told Archie\n\n" f'- 2026-10-04 · "{energy}" → saved only\n')
+    notes: list[str] = []
+    asyncio.run(run_cycle(ctx, [], post_index=post_index_steps(), notes=notes))
+    assert energy in read_note(ctx.home / "people/acorn.md").body
+    assert "Re-applied 1 thing you told me earlier: Acorn" in notes

@@ -149,3 +149,11 @@ def test_progress_says_what_sync_is_waiting_on(tmp_path):
     assert "Waiting on gmail…" in said
     assert said[said.index("Waiting on gmail…") + 1:] == [
         "Reading what's new: loops…", "Updating the search index…", "Final checks…"]
+
+
+def test_post_index_sentences_reach_notes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    notes: list[str] = []
+    asyncio.run(run_cycle(ctx, [], post_index=[lambda c: ["Re-applied 1 thing you told me earlier: Acorn"],
+                                               lambda c: None], notes=notes))
+    assert notes == ["Re-applied 1 thing you told me earlier: Acorn"]

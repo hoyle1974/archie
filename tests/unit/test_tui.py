@@ -404,3 +404,17 @@ def test_today_pane_refreshes_after_an_answer(tmp_path, monkeypatch):
             assert "after" in text_of(app, "#feed")
 
     asyncio.run(go())
+
+
+def test_sync_report_shows_what_post_index_steps_say(tmp_path):
+    ctx = make_ctx(tmp_path)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[Counting()], derivers=[], ticker=lambda c: [],
+                        post_index=[lambda c: ["Re-applied 1 thing you told me earlier: Acorn"]])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.pause()
+            assert "Re-applied 1 thing you told me earlier: Acorn" in text_of(app, "#activity")
+
+    asyncio.run(go())

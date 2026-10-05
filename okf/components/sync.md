@@ -12,7 +12,7 @@ tags: [component]
 - Connectors run in parallel, ordered by `graphlib.TopologicalSorter`: one declaring `after = ("calendar",)` waits until calendar is done because it reads that connector's mirror. Chains of any depth work.
 - Connector failures are isolated. A failed connector keeps its old cursor and its error is recorded in `state/sync_status.yaml`, while the others carry on. `last_error` clears on the next success, but `last_failure_error` keeps the last failure's message, and the traceback goes to `logs/errors.log` (`--- <ts> sync: <connector>`).
 - Derivers then receive every changed path. Each runs in a worker thread, because they call the model and the TUI must keep redrawing.
-- Then `Index.sync()` runs in a worker thread, followed by `post_index` steps (people [enrichment](enrich.md)) and a second index sync.
+- Then `Index.sync()` runs in a worker thread, followed by `post_index` steps (replaying tellings, people [enrichment](enrich.md), the audit) and a second index sync. A step may return a list of plain sentences; `run_cycle(notes=…)` collects them and the TUI and `archie admin sync` add them to the sync report ("Re-applied 1 thing you told me earlier: Acorn").
 - Last, when `llm.google_project` is set, Google's own Gemini token count is compared with Archie's log ([llm](llm.md) `google_usage.py`). A failed check is recorded and never stops the cycle.
 - `on_progress` gets a plain sentence whenever what the cycle is waiting on changes: "Waiting on gmail, drive…" (shrinking as each source finishes), then "Reading what's new: loops…", "Updating the search index…", "Final checks…" and "Checking Google's token count…". The TUI shows it in the Sync pane; `archie admin sync` prints it to stderr.
 

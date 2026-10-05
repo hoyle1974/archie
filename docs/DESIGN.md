@@ -102,7 +102,8 @@ from a shell.
 ├── me.yaml                  # the user's identities (see §4.1)
 ├── state/
 │   ├── cursors.yaml         # per-source sync cursors (tracked in git)
-│   └── conversation.jsonl   # recent ask exchanges, for follow-ups and the TUI (last 200)
+│   ├── conversation.jsonl   # recent ask exchanges, for follow-ups and the TUI (last 200)
+│   └── told_applied.yaml    # which remember version last applied each telling in journal/told.md
 ├── sources/                 # RAW: written only by connectors
 │   ├── calendar/<eventId>.json
 │   ├── gmail/<threadId>.json
@@ -201,7 +202,12 @@ A "no" is remembered. The user can also tell Archie about people directly ("Good
 wife", "Acorn is my youngest"). That sets relationship, role, pronouns, full name and
 aliases, saves anything else said about them in their notes, and creates dossiers for
 people who never email. News that finishes an open item ("I got the earbuds to pair")
-marks it done.
+marks it done. When the code or prompt that applies tellings about people changes, every
+person telling in `journal/told.md` (result "saved only" or "remembered: …") is applied
+again, in the order it was told, so a later correction still wins; the sync report says
+who changed ("Re-applied 2 things you told me earlier: Acorn, Childone"). `told.md` itself
+is never rewritten, and ignore lines and anything that could close an item are never
+replayed.
 
 **Unknown people:** a new email address in a meeting or thread creates a `status: stub`
 dossier with `org` inferred from the email domain (none for personal mail like gmail.com). A background job searches the index

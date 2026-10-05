@@ -7,6 +7,8 @@ role, pronouns, full name and other names go in frontmatter, where the user can 
 
 from __future__ import annotations
 
+import copy
+
 from archie.ask.context import Ctx
 from archie.derive.people import PeopleDirectory, best_name
 from archie.llm.prompts import load_prompt
@@ -14,6 +16,7 @@ from archie.llm.shape import F, Record, Shape
 from archie.llm.verify import normalize
 from archie.store.files import Note, read_note, write_note
 
+REMEMBER_VERSION = 1  # bump when apply_facts or the remember instructions change
 SHAPE = Shape("remember", records=(Record("PERSON", "people", F("name"), (
     F("relationship", required=False), F("role", required=False), F("pronouns", required=False),
     F("identity", required=False), F("avoid", "list", required=False), F("full_name", required=False),
@@ -44,7 +47,11 @@ def _add_note(note: Note, statement: str, when: str) -> None:
         note.body = f"## My notes\n{line}\n{note.body}"
 
 
-def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
+def _content(note: Note) -> tuple[dict, str]:
+    return {k: v for k, v in note.meta.items() if k != "facts_stale"}, note.body
+
+
+def apply_facts(ctx: Ctx, question: str, people: list[dict], changed_only: bool = False) -> list[str]:
     directory = PeopleDirectory.load(ctx.home)
     when = ctx.now.astimezone().strftime("%b %-d")
     done, asks = [], []
@@ -65,6 +72,7 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
         # the name the user uses stays the name; a full name is kept beside it and shown in brackets
         path = ctx.home / f"people/{eid}.md"
         note = read_note(path)
+        before = copy.deepcopy(_content(note))
         for key in ("relationship", "role", "pronouns", "identity"):
             if p.get(key):
                 note.meta[key] = p[key].strip()
@@ -81,6 +89,8 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
         statement = p.get("statement") or ""
         if statement and normalize(statement) in normalize(question):  # only the user's real words
             _add_note(note, statement, when)
+        if changed_only and _content(note) == before:  # a replay that changes nothing writes nothing
+            continue
         write_note(path, note)
         directory.add(eid, note.meta)
         bits = [b for b in (p.get("relationship"), p.get("identity"), p.get("role"), p.get("pronouns")) if b]
@@ -88,7 +98,8 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict]) -> list[str]:
     return done + asks
 
 
-def remember_people(ctx: Ctx, said: str) -> list[str]:
-    """Apply what the user said about people; one line per person changed (or a "Which …?")."""
+def remember_people(ctx: Ctx, said: str, changed_only: bool = False) -> list[str]:
+    """Apply what the user said about people; one line per person changed (or a "Which …?").
+    `changed_only` (replays): skip people the sentence no longer changes."""
     out = ctx.backend.complete(load_prompt("remember", me_name=ctx.me.name or "the user"), said, SHAPE)
-    return apply_facts(ctx, said, out.get("people") or [])
+    return apply_facts(ctx, said, out.get("people") or [], changed_only=changed_only)

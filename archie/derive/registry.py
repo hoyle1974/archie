@@ -24,8 +24,9 @@ def post_index_steps() -> list:
     """Run after indexing, because they read the index."""
     from archie.derive.audit import audit
     from archie.derive.enrich import enrich_people
+    from archie.derive.replay import replay_tellings
 
-    return [enrich_people, audit]
+    return [replay_tellings, enrich_people, audit]
 
 
 def all_raw_paths(ctx: Ctx) -> list[Path]:

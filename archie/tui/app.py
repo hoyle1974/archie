@@ -251,8 +251,9 @@ class ArchieApp(App):
             await self.start_sync_report("Syncing…")
             self.ctx.now = datetime.now(timezone.utc)
             try:
+                notes: list[str] = []
                 report = await run_cycle(self.ctx, self.connectors, self.derivers, post_index=self.post_index,
-                                         on_progress=activity.update)
+                                         on_progress=activity.update, notes=notes)
                 stamp = datetime.now().strftime("%-I:%M %p")
                 lines = [f"Last sync {stamp}"]
                 google = self.google_usage_line()
@@ -262,6 +263,7 @@ class ArchieApp(App):
                           for n, r in report.items()]
                 if not report:
                     lines.append("No sources switched on (see config.yaml).")
+                lines += notes
                 self.finish_sync_report("\n".join(lines))
                 self.refresh_spend()
             except Exception as exc:  # the loop must survive anything

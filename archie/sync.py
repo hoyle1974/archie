@@ -79,8 +79,9 @@ def _what(step: Callable) -> str:
 
 async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Deriver] | None = None,
                     index: bool = True, post_index: list | None = None,
-                    on_progress: Progress | None = None) -> dict[str, ConnectorReport]:
-    """on_progress gets a plain sentence each time what the cycle is waiting on changes."""
+                    on_progress: Progress | None = None, notes: list[str] | None = None) -> dict[str, ConnectorReport]:
+    """on_progress gets a plain sentence each time what the cycle is waiting on changes.
+    `notes` collects the sentences post-index steps return (e.g. "Re-applied 1 thing …")."""
     say = on_progress or (lambda text: None)
     cursors = _load_yaml(ctx.home.cursors_file)
     status_file = ctx.home / "state/sync_status.yaml"
@@ -134,7 +135,9 @@ async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Derive
         if post_index:
             say("Final checks…")
         for step in post_index or []:  # steps that read the index (e.g. people enrichment)
-            await asyncio.to_thread(step, ctx)
+            out = await asyncio.to_thread(step, ctx)
+            if notes is not None and isinstance(out, list):
+                notes += [str(x) for x in out]
         if post_index:
             await asyncio.to_thread(ctx.index.sync)
     project = (ctx.config.get("llm") or {}).get("google_project")
