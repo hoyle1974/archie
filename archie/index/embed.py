@@ -59,7 +59,12 @@ class SentenceTransformerEmbedder:
             from sentence_transformers import SentenceTransformer
 
             _thread_lock_for_tqdm()
-            self._model = SentenceTransformer(self.name, device=self.device)
+            # A downloaded model loads from the cache: asking the Hub on every start needs the
+            # network and prints an "unauthenticated requests" warning. Download only once.
+            try:
+                self._model = SentenceTransformer(self.name, device=self.device, local_files_only=True)
+            except OSError:
+                self._model = SentenceTransformer(self.name, device=self.device)
         return self._model
 
     def embed(self, texts: list[str], query: bool = False) -> list[list[float]]:

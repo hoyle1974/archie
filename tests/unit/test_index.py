@@ -165,7 +165,7 @@ def _fake_sentence_transformers(monkeypatch):
     guard = threading.Lock()
 
     class FakeModel:
-        def __init__(self, name, device=None):
+        def __init__(self, name, device=None, local_files_only=False):
             time.sleep(0.02)
             seen["models"].append(device)
 
@@ -189,6 +189,39 @@ def test_local_model_runs_on_the_cpu_unless_configured(monkeypatch):
     make_embedder({"index": {"embed_model": "BAAI/bge-small-en-v1.5"}}).embed(["x"])
     make_embedder({"index": {"embed_model": "BAAI/bge-small-en-v1.5", "embed_device": "mps"}}).embed(["x"])
     assert seen["models"] == ["cpu", "mps"]
+
+
+def test_a_downloaded_model_loads_without_asking_the_hub(monkeypatch):
+    """Asking Hugging Face on every start printed an "unauthenticated requests" warning and
+    needed the network; only a model that isn't downloaded yet should go online."""
+    import sys
+    import types
+
+    import numpy as np
+
+    from archie.index.embed import SentenceTransformerEmbedder
+
+    tries = []
+
+    def model(cached):
+        class FakeModel:
+            def __init__(self, name, device=None, local_files_only=False):
+                tries.append(local_files_only)
+                if local_files_only and not cached:
+                    raise OSError("not in the local cache")
+
+            def encode(self, texts, **kw):
+                return np.zeros((len(texts), 384))
+        return FakeModel
+
+    monkeypatch.setitem(sys.modules, "sentence_transformers", types.SimpleNamespace(SentenceTransformer=model(True)))
+    SentenceTransformerEmbedder().embed(["x"])
+    assert tries == [True]
+
+    tries.clear()
+    monkeypatch.setitem(sys.modules, "sentence_transformers", types.SimpleNamespace(SentenceTransformer=model(False)))
+    SentenceTransformerEmbedder().embed(["x"])
+    assert tries == [True, False]
 
 
 def test_embeds_from_many_threads_never_overlap(monkeypatch):
