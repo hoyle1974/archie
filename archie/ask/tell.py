@@ -19,6 +19,7 @@ from archie.store.files import atomic_write
 TOLD = "journal/told.md"
 HEAD = "# What you told Archie\n\nArchie adds a line each time you tell it something. You can edit this file.\n\n"
 SAVED_ONLY = "saved only"
+NOTHING_CHANGED = "nothing changed"  # an ignore request that ignored no one; never replayed
 OTHER = "Saved. I don't use that for anything yet."
 
 
@@ -43,18 +44,18 @@ def _ignore(ctx: Ctx, on: bool, about: str | None, text: str) -> tuple[Answer, s
     directory = PeopleDirectory.load(ctx.home)
     addresses, which = addresses_for(directory, about, text)
     if which:
-        return Answer(plain=f"Which one: {' or '.join(which)}? Say their email address to be sure."), SAVED_ONLY
+        return Answer(plain=f"Which one: {' or '.join(which)}? Say their email address to be sure."), NOTHING_CHANGED
     if on:
         mine = [a for a in addresses if any(on_list(m, [a]) for m in ctx.me.emails)]
         addresses = [a for a in addresses if a not in mine]
         if mine and not addresses:
             domain = next((a for a in mine if a.startswith("@")), None)
             return (Answer(plain=f"I won't ignore {domain}, because your own address is there." if domain
-                           else "I won't ignore your own address."), SAVED_ONLY)
+                           else "I won't ignore your own address."), NOTHING_CHANGED)
     if not addresses:
         verb = "ignored" if on else "stopped ignoring"
         return (Answer(plain=f"I couldn't tell which sender you mean, so I haven't {verb} anyone. "
-                             "Try their email address."), SAVED_ONLY)
+                             "Try their email address."), NOTHING_CHANGED)
     who, short = describe(directory, addresses)
     if not on:
         listed = ignored(ctx.config)
@@ -63,8 +64,8 @@ def _ignore(ctx: Ctx, on: bool, about: str | None, text: str) -> tuple[Answer, s
             domains = [x for x in listed if x.startswith("@") and any(on_list(a, [x]) for a in addresses)]
             if domains:
                 return (Answer(plain=f"You told me to ignore everything from {domains[0]}, which includes {who}.\n"
-                                     f"Say \"stop ignoring {domains[0]}\" to undo that."), SAVED_ONLY)
-            return Answer(plain=f"I wasn't ignoring {who}."), SAVED_ONLY
+                                     f"Say \"stop ignoring {domains[0]}\" to undo that."), NOTHING_CHANGED)
+            return Answer(plain=f"I wasn't ignoring {who}."), NOTHING_CHANGED
         set_ignored(ctx, exact, on=False)
         return Answer(plain=f"OK, I'm no longer ignoring {who}."), f"no longer ignoring {', '.join(exact)}"
     closed = set_ignored(ctx, addresses, on=True)
@@ -81,7 +82,8 @@ def tell(ctx: Ctx, fact: str, text: str, about: str | None = None, subject: str 
         if fact in ("ignore", "unignore"):
             answer, result = _ignore(ctx, fact == "ignore", about or subject, text)
         elif fact == "person":
-            answer, result = _person(ctx, f"{subject}: {text}" if subject else text)
+            text = f"{subject}: {text}" if subject else text  # saved with who it's about, for replays
+            answer, result = _person(ctx, text)
         else:
             answer = Answer(plain=OTHER)
         return answer

@@ -54,7 +54,7 @@ def test_an_unknown_sender_ignores_nobody(tmp_path):
     ctx = seeded(tmp_path)
     assert render(tell(ctx, "ignore", "ignore the pizza place", about="the pizza place")) == \
         "I couldn't tell which sender you mean, so I haven't ignored anyone. Try their email address."
-    assert told(ctx).endswith("→ saved only\n") and load_config(ctx.home)["ignore"] == []
+    assert told(ctx).endswith("→ nothing changed\n") and load_config(ctx.home)["ignore"] == []
 
 
 def test_a_name_two_people_share_asks_which(tmp_path):
@@ -134,3 +134,9 @@ def test_two_people_with_one_name_are_told_apart_by_address(tmp_path):
     assert render(tell(ctx, "ignore", "ignore Alex Kim", about="Alex Kim")) == (
         "Which one: Alex Kim (alex.k@other.example) or Alex Kim (alex@acme.example)? "
         "Say their email address to be sure.")
+
+
+def test_an_answer_about_someone_is_saved_with_who_it_is_about(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(remember={"people": []})))
+    tell(ctx, "person", "my cousin", subject="Sam")
+    assert '"Sam: my cousin" → saved only' in told(ctx)

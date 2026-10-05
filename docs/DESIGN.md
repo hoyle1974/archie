@@ -214,8 +214,10 @@ marks it done. When the code or prompt that applies tellings about people change
 person telling in `journal/told.md` (result "saved only" or "remembered: …") is applied
 again, in the order it was told, so a later correction still wins; the sync report says
 who changed ("Re-applied 2 things you told me earlier: Acorn, Childone"). `told.md` itself
-is never rewritten, and ignore lines and anything that could close an item are never
-replayed.
+is never rewritten, and ignore requests and anything that could close an item are never
+replayed. A replayed note keeps the day it was told, and a failed call stops the replay
+there, so the next sync picks up in order. An answer to "Who is Sam?" is saved as
+"Sam: my cousin", so it still says who it's about when replayed.
 
 **Unknown people:** a new email address in a meeting or thread creates a `status: stub`
 dossier with `org` inferred from the email domain (none for personal mail like gmail.com). A background job searches the index

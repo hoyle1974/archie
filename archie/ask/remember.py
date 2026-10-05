@@ -8,6 +8,7 @@ role, pronouns, full name and other names go in frontmatter, where the user can 
 from __future__ import annotations
 
 import copy
+from datetime import date
 
 from archie.ask.context import Ctx
 from archie.derive.people import PeopleDirectory, best_name
@@ -51,9 +52,10 @@ def _content(note: Note) -> tuple[dict, str]:
     return {k: v for k, v in note.meta.items() if k != "facts_stale"}, note.body
 
 
-def apply_facts(ctx: Ctx, question: str, people: list[dict], changed_only: bool = False) -> list[str]:
+def apply_facts(ctx: Ctx, question: str, people: list[dict], changed_only: bool = False,
+                said_on: date | None = None) -> list[str]:
     directory = PeopleDirectory.load(ctx.home)
-    when = ctx.now.astimezone().strftime("%b %-d")
+    when = (said_on or ctx.now.astimezone()).strftime("%b %-d")
     done, asks = [], []
     for p in people:
         name = (p.get("name") or "").strip()
@@ -98,8 +100,9 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict], changed_only: bool 
     return done + asks
 
 
-def remember_people(ctx: Ctx, said: str, changed_only: bool = False) -> list[str]:
+def remember_people(ctx: Ctx, said: str, changed_only: bool = False, said_on: date | None = None) -> list[str]:
     """Apply what the user said about people; one line per person changed (or a "Which …?").
-    `changed_only` (replays): skip people the sentence no longer changes."""
+    Replays pass `changed_only` (skip people the sentence no longer changes) and `said_on`, the
+    day it was told, which dates the note."""
     out = ctx.backend.complete(load_prompt("remember", me_name=ctx.me.name or "the user"), said, SHAPE)
-    return apply_facts(ctx, said, out.get("people") or [], changed_only=changed_only)
+    return apply_facts(ctx, said, out.get("people") or [], changed_only=changed_only, said_on=said_on)

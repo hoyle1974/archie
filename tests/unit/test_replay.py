@@ -74,3 +74,34 @@ def test_unchanged_people_are_not_reported(tmp_path):
     acorn(ctx)
     told(ctx, f'- 2026-10-04 · "{ENERGY}" → saved only', f'- 2026-10-05 · "{ENERGY} " → saved only')
     assert replay_tellings(ctx) == ["Re-applied 1 thing you told me earlier: Acorn"]
+
+
+def test_old_ignore_requests_saved_only_are_not_replayed(tmp_path):
+    fb = FakeBackend([])
+    ctx = make_ctx(tmp_path, fb)
+    told(ctx, '- 2026-10-03 · "ignore the pizza place" → saved only',
+         '- 2026-10-03 · "stop ignoring Workperson" → saved only')
+    assert replay_tellings(ctx) == [] and fb.calls == []
+
+
+def test_a_failure_stops_the_replay_so_told_order_holds(tmp_path):
+    from archie.llm.backend import LLMError
+
+    def reply(system, user, shape, tier):
+        if "neighbor" in user:
+            raise LLMError("timeout")
+        return person("Sam", user.strip(), relationship="cousin")
+
+    fb = FakeBackend(by_schema(remember=reply))
+    ctx = make_ctx(tmp_path, fb)
+    told(ctx, '- 2026-10-03 · "Sam is my neighbor." → remembered: Sam, new',
+         '- 2026-10-04 · "Sam is my cousin." → remembered: Sam')
+    assert replay_tellings(ctx) == [] and len(fb.calls) == 1
+
+
+def test_a_replayed_note_keeps_the_day_it_was_said(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(remember=person("Acorn", ENERGY))))
+    acorn(ctx)
+    told(ctx, f'- 2026-06-01 · "{ENERGY}" → saved only')
+    replay_tellings(ctx)
+    assert f"{ENERGY} _(you said, Jun 1)_" in read_note(ctx.home / "people/acorn.md").body

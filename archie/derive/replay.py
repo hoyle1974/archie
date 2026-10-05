@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from datetime import date
 
 import yaml
 
@@ -27,8 +28,8 @@ def remember_version() -> str:
     return stamp("remember", REMEMBER_VERSION, load_prompt("remember"), repr(SHAPE))
 
 
-def told_lines(home) -> list[tuple[str, str, str]]:
-    """(key, words, result) for each line Archie wrote; anything else in the file is skipped."""
+def told_lines(home) -> list[tuple[str, str, str, str]]:
+    """(key, day, words, result) for each line Archie wrote; anything else in the file is skipped."""
     from archie.ask.tell import TOLD
 
     path = home / TOLD
@@ -39,14 +40,18 @@ def told_lines(home) -> list[tuple[str, str, str]]:
         m = LINE.match(line.strip())
         if m:
             day, text, result = m.groups()
-            out.append((hashlib.sha1(f"{day}|{text}".encode()).hexdigest()[:12], text, result))
+            out.append((hashlib.sha1(f"{day}|{text}".encode()).hexdigest()[:12], day, text, result))
     return out
 
 
-def _replayable(result: str) -> bool:
+# before ignore requests that changed nothing were recorded as such, they were "saved only" too
+_IGNORE = re.compile(r"\b(un-?ignore|ignor(e|ing)|mute|unmute)\b", re.I)
+
+
+def _replayable(text: str, result: str) -> bool:
     from archie.ask.tell import SAVED_ONLY
 
-    return result == SAVED_ONLY or result.startswith("remembered:")
+    return (result == SAVED_ONLY and not _IGNORE.search(text)) or result.startswith("remembered:")
 
 
 def replay_tellings(ctx: Ctx) -> list[str]:
@@ -58,14 +63,14 @@ def replay_tellings(ctx: Ctx) -> list[str]:
     applied = dict(state.get("applied") or {})
     failures = Failures(ctx.home)
     changed: list[str] = []
-    for key, text, result in told_lines(ctx.home):
-        if not _replayable(result) or applied.get(key) == version or failures.gave_up(f"told:{key}", version):
+    for key, day, text, result in told_lines(ctx.home):
+        if not _replayable(text, result) or applied.get(key) == version or failures.gave_up(f"told:{key}", version):
             continue
         try:
-            lines = remember_people(ctx, text, changed_only=True)
+            lines = remember_people(ctx, text, changed_only=True, said_on=date.fromisoformat(day))
         except LLMError as exc:
             failures.failed(f"told:{key}", version, exc)
-            continue
+            break  # a later line applied now would be undone when this one is retried
         failures.ok(f"told:{key}")
         applied[key] = version
         changed += [x.split(":")[0].removesuffix(", new") for x in lines if not x.startswith("Which ")]
