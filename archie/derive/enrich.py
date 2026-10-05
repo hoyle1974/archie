@@ -8,7 +8,6 @@ each with a verified quote. They live inside the fence; the user's notes are unt
 
 from __future__ import annotations
 
-import hashlib
 import re
 from datetime import datetime
 
@@ -17,6 +16,7 @@ import yaml
 from archie.ask.context import Ctx
 from archie.derive.failures import Failures
 from archie.derive.people import PeopleDirectory, parse_facts, render_facts
+from archie.derive.versions import stamp
 from archie.llm.backend import LLMError
 from archie.llm.prompts import load_prompt
 from archie.llm.shape import F, Record, Shape
@@ -34,8 +34,19 @@ SHAPE = Shape("people_facts", records=(Record("FACT", "facts", F("text", hint="s
 
 def prompt_version() -> str:
     """Changes whenever people_facts.md, the reply shape or INSTRUCTIONS_VERSION changes."""
-    text = f"{INSTRUCTIONS_VERSION}\n{load_prompt('people_facts')}\n{SHAPE!r}"
-    return hashlib.sha256(text.encode()).hexdigest()[:12]
+    return stamp("people_facts", INSTRUCTIONS_VERSION, load_prompt("people_facts"), repr(SHAPE))
+
+
+def _batches(chunks: list[dict], max_chars: int) -> list[list[dict]]:
+    """Oldest first, each batch within max_chars (a single bigger chunk gets its own batch)."""
+    out, cur, used = [], [], 0
+    for c in sorted(chunks, key=lambda c: c["ts"] or ""):
+        if cur and used + len(c["text"]) > max_chars:
+            out.append(cur)
+            cur, used = [], 0
+        cur.append(c)
+        used += len(c["text"])
+    return out + ([cur] if cur else [])
 
 
 def _uses(text: str, words: set[str]) -> bool:
@@ -45,24 +56,24 @@ def _uses(text: str, words: set[str]) -> bool:
 def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str, failures: Failures,
                 fresh: bool = False) -> str | None:
     """Update one dossier; returns the newest chunk time considered, or None if skipped.
-    `fresh`: the facts were written by older instructions, so redo them from scratch."""
-    if fresh or directory.meta.get(eid, {}).get("facts_stale"):
-        since = ""  # the user told us something, or the instructions changed: redo from scratch
-    recent = [c for c in ctx.index.chunks_with_people(directory.identifiers(eid), limit=12, before=ctx.now.isoformat())
-              if c["source"] not in ("briefings", "loops", "people")]
-    if not recent:
-        return None
-    packet = Packet()
-    for c in recent:
-        packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
-    from archie.ask.synthesize import describe, packet_text, people_context
+    A redo (new instructions, something the user told us, or an old fact using a ruled-out word)
+    reads all of the person's material in batches; otherwise only what's newer than `since`.
+    Nothing is written unless every batch succeeds."""
+    from archie.ask.evidence import person_evidence
+    from archie.ask.synthesize import describe, people_context
 
-    avoid = directory.avoided_words([eid, *directory.mentioned_in(packet_text(packet))])
     path = ctx.home / f"people/{eid}.md"
+    redo = fresh or bool(directory.meta.get(eid, {}).get("facts_stale"))
+    everything = person_evidence(ctx, eid, max_items=100_000, max_chars=10**12)
+    if not everything:
+        return None
+    avoid = directory.avoided_words(
+        [eid, *directory.mentioned_in(" ".join(f"{c['label']} {c['text']}" for c in everything))])
     if any(_uses(f["text"], avoid) for f in parse_facts(get_fence(read_note(path).body))):
-        since = ""  # an old fact uses a word the user ruled out: redo against what they said
-    newest = max((c["ts"] or "" for c in recent), default="")
-    if newest <= since or failures.gave_up(f"people:{eid}", newest):
+        redo = True
+    chunks = everything if redo else [c for c in everything if (c["ts"] or "") > since]
+    newest = max((c["ts"] or "" for c in everything), default="")
+    if not chunks or failures.gave_up(f"people:{eid}", newest):
         return None
     name = directory.name(eid)
     system = load_prompt("people_facts", person=name, me_name=ctx.me.name or "the user")
@@ -77,23 +88,27 @@ def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str, fail
     if newest and (ctx.now - datetime.fromisoformat(newest).replace(tzinfo=ctx.now.tzinfo)).days > OLD_DAYS:
         system += (f"\n\nThe newest source is from {newest[:4]}, over a year ago. Write each fact in the past "
                    f"tense with its year (\"In {newest[:4]}, handled your app issue\"), never as if it's current.")
-    user = f"{people_context(ctx, packet)}\n\nSources about {name}:\n\n{packet.render()}".lstrip()
-    try:
-        out = ctx.backend.complete(system, user, SHAPE, tier="fast")
-    except LLMError as exc:
-        failures.failed(f"people:{eid}", newest, exc)
-        return None
-    failures.ok(f"people:{eid}")
     note = read_note(path)
-    stale = note.meta.pop("facts_stale", None)
-    facts = [] if stale or fresh else [f for f in parse_facts(get_fence(note.body)) if not _uses(f["text"], avoid)]
-    for f in out.get("facts") or []:
-        cite = check_quote(packet, int(f.get("ref", 0)), f.get("quote", ""))
-        if cite is None or not f.get("text") or _uses(f["text"], avoid):
-            continue
-        new = {"text": f["text"].strip().rstrip("."), "file": cite.path, "chunk": cite.chunk_id,
-               "quote": cite.quote.replace('"', "'")}
-        facts = [x for x in facts if normalize(x["text"]) != normalize(new["text"])] + [new]
+    facts = [] if redo else [f for f in parse_facts(get_fence(note.body)) if not _uses(f["text"], avoid)]
+    for batch in _batches(chunks, int(ctx.config["people"]["facts_max_chars"])):
+        packet = Packet()
+        for c in batch:
+            packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
+        user = f"{people_context(ctx, packet)}\n\nSources about {name}:\n\n{packet.render()}".lstrip()
+        try:
+            out = ctx.backend.complete(system, user, SHAPE, tier="fast")
+        except LLMError as exc:
+            failures.failed(f"people:{eid}", newest, exc)
+            return None
+        for f in out.get("facts") or []:
+            cite = check_quote(packet, int(f.get("ref", 0)), f.get("quote", ""))
+            if cite is None or not f.get("text") or _uses(f["text"], avoid):
+                continue
+            new = {"text": f["text"].strip().rstrip("."), "file": cite.path, "chunk": cite.chunk_id,
+                   "quote": cite.quote.replace('"', "'")}
+            facts = [x for x in facts if normalize(x["text"]) != normalize(new["text"])] + [new]
+    failures.ok(f"people:{eid}")
+    note.meta.pop("facts_stale", None)
     note.body = set_fence(note.body, render_facts(note.meta, facts[-MAX_FACTS:]))
     write_note(path, note)
     return newest

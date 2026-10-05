@@ -193,3 +193,68 @@ def test_new_instructions_redo_every_dossier_from_scratch(tmp_path, monkeypatch)
     assert len(calls) == 2
     texts = [f["text"] for f in parse_facts(get_fence(read_note(ctx.home / "people/workperson_acorn.md").body))]
     assert texts == ["Runs people ops at Overwatch"]  # the old instructions' fact is gone
+
+
+def test_rebuild_reads_old_material_beyond_the_newest_dozen(tmp_path):
+    seen = []
+
+    def reply(s, u, sc, t):
+        seen.append(u)
+        if "Director of Engineering" in u:
+            ref = next(line for line in u.splitlines() if line.startswith("[") and "Intro" in line)[1]
+            return {"facts": [{"text": "Director of Engineering", "ref": int(ref), "quote": "Director of Engineering"}]}
+        return {"facts": []}
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(people_facts=reply)))
+    paths = [write_thread(ctx.home, "intro", [msg("i1", "workperson@ow.example", "Workperson Acorn", [addr(TEST)],
+                                                  "2026-09-01T00:00:00+00:00", "Meet Mike. I am the Director of Engineering here.",
+                                                  subject="Intro", to_me=True)])]
+    paths += [write_thread(ctx.home, f"cc{i}", [msg(f"c{i}", "hr@ow.example", "HR", [addr(TEST)],
+                                                    f"2026-09-{10 + i:02d}T00:00:00+00:00", f"Form {i}.",
+                                                    cc=[addr("workperson@ow.example", "Workperson Acorn")], to_me=True)])
+              for i in range(15)]
+    derive_people(ctx, paths)
+    ctx.index.sync()
+    enrich_people(ctx)
+    assert "Director of Engineering" in get_fence(read_note(ctx.home / "people/workperson_acorn.md").body)
+
+
+def test_batches_are_oldest_first_and_within_budget():
+    from archie.derive.enrich import _batches
+
+    chunks = [{"ts": f"2026-09-0{i}", "text": "x" * 40} for i in (3, 1, 2)]
+    out = _batches(chunks, 90)
+    assert [[c["ts"] for c in b] for b in out] == [["2026-09-01", "2026-09-02"], ["2026-09-03"]]
+
+
+def test_a_failed_batch_writes_nothing(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend([]))  # every call raises LLMError
+    seed(ctx)
+    before = read_note(ctx.home / "people/workperson_acorn.md").body
+    enrich_people(ctx)
+    assert read_note(ctx.home / "people/workperson_acorn.md").body == before
+
+
+def test_a_failure_in_a_later_batch_writes_nothing(tmp_path):
+    calls = []
+
+    def reply(s, u, sc, t):
+        calls.append(u)
+        if len(calls) > 1:
+            from archie.llm.backend import LLMError
+
+            raise LLMError("quota")
+        return facts(("Runs people ops at Overwatch", "I run people ops at Overwatch"))
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(people_facts=reply)))
+    ctx.config["people"] = {"facts_max_chars": 60}
+    paths = [write_thread(ctx.home, f"t{i}", [msg(f"m{i}", "workperson@ow.example", "Workperson Acorn", [addr(TEST)],
+                                                  f"2026-09-0{i + 1}T00:00:00+00:00",
+                                                  "Welcome aboard! I run people ops at Overwatch.", to_me=True)])
+             for i in range(3)]
+    derive_people(ctx, paths)
+    ctx.index.sync()
+    before = read_note(ctx.home / "people/workperson_acorn.md").body
+    enrich_people(ctx)
+    assert len(calls) == 2  # the first batch succeeded, the second failed
+    assert read_note(ctx.home / "people/workperson_acorn.md").body == before
