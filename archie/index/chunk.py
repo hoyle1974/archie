@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Callable
 
-CHUNKER_VERSION = "3"
+CHUNKER_VERSION = "4"
 MAX_WORDS = 280  # ≈ 360 tokens, inside bge-small's 512-token window
 OVERLAP_WORDS = 40
 

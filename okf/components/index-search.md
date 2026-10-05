@@ -19,7 +19,7 @@ tags: [component]
   - `make_embedder(config)` picks one from the config.
 - `db.py`: `Index(home, embedder)`.
   - Tables: `files` (the sha256 list), `chunks`, `chunks_fts`, `chunks_vec`, and `meta`.
-  - Any mismatch in the meta table (schema, chunker version, model or dimension) wipes and rebuilds the index. `CHUNKER_VERSION` 3 (email signatures as their own chunks) rebuilds it once.
+  - Any mismatch in the meta table (schema, chunker version, model or dimension) wipes and rebuilds the index. `CHUNKER_VERSION` 3 (email signatures as their own chunks) and 4 (a quoted "Original Message" kept out of the signature) each rebuild it once.
   - `sync()` re-indexes changed files and drops deleted ones. It embeds each file outside the lock and writes that file's rows in one short locked transaction, so questions never wait behind a long sync.
   - Worker threads share one SQLite connection, so every read goes through `query()` under an `RLock`, and `sync()` holds the same lock.
   - Only `sources/` and the folders of derived notes are indexed; config, state and logs never are.
