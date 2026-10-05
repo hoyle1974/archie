@@ -6,7 +6,7 @@ import pytest
 
 from archie.derive.loops import load_loops
 from archie.connectors.jira import JiraConnector
-from tests.vignettes.week import SARAH, ME, Week, at, jira, mail
+from tests.vignettes.week import PRIYA, SARAH, ME, Week, at, jira, mail
 
 
 def test_A_standup_briefing(tmp_path):
@@ -71,3 +71,16 @@ def test_M_conflicting_sources_reach_the_briefing(tmp_path):
     seen = w.llm.saw("answer")
     assert "auth migration is paused pending security review" in seen  # Priya's email
     assert "Fix redis connection pool drop" in seen and "auth-v2 migration needs this" in seen  # Alex's PR
+
+
+def test_M_two_titles_are_both_shown(tmp_path):
+    from tests.vignettes.test_m2 import _glance
+
+    w = Week(tmp_path)
+    w.add_message("t_paused", mail("p3", "t_paused", f"Priya Sharma <{PRIYA}>", f"Test Testerson <{ME}>", "Re: Auth migration",
+                                   "Update soon.\n\n-- \nPriya Sharma\nSenior Product Manager", at(1, 15)), "501")
+    w.ctx.now = datetime(2026, 10, 1, 16, 0, tzinfo=timezone.utc)
+    w.sync()
+    w.ctx.index.sync()
+    glance = _glance(w.ask("who is Priya?"))
+    assert "Role: signs as Senior Product Manager (Oct 1) and Product Manager, Auth (Sep 30)" in glance

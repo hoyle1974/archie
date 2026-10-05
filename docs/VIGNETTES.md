@@ -18,7 +18,7 @@ remove the mark and set the row to ✅.
 | # | Vignette                     | Needs (sources → capabilities)                                  | Milestone | Status |
 |---|------------------------------|-----------------------------------------------------------------|-----------|--------|
 | A | Pre-meeting briefing         | Calendar, Gmail, Drive → meetings, people, loops, brief         | M2 (standard, 1:1), M3 (standup), M4 (all-hands) | 🟨 no "refreshed" time |
-| B | Who is this? (memory assist) | Calendar, Gmail → people, entity resolution                     | M2 | 🟨 no role from signatures |
+| B | Who is this? (memory assist) | Calendar, Gmail → people, entity resolution                     | M2 | ✅ |
 | C | The open loop I forgot       | Gmail (+Jira, GitHub) → loops detect/close                      | M2 (email), M3 (Jira/GitHub) | 🟨 email+Jira not merged |
 | D | What should I work on next?  | loops + calendar + Jira/GitHub → ranking                        | M3 | ✅ |
 | E | Performance review ledger    | GitHub, Jira, Drive, meetings → ledger                          | M3 | ✅ |

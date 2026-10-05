@@ -179,6 +179,13 @@ Prefers code snippets over high-level summaries. Ask about their kid's soccer.
 -->
 ```
 
+**Role and titles:** `role` is the user's. Without one, the `who` glance shows titles code
+reads from the person's own email signatures (each signature is its own chunk, §5.3), with
+the date signed: "Role: Director of Engineering (signed Sep 22)". Two different titles
+are shown side by side, newest first: "Role: signs as Director of Engineering (Sep 22)
+and VP of Engineering (Sep 17)". Titles are computed when asked, never stored; the
+model's context and briefings get them too.
+
 **Entity resolution:** an exact match on email or handle aliases is deterministic. A
 fuzzy name match ("Alex", "the backend lead") produces a *suggested* alias that the user
 confirms through `ask`. Archie never silently merges two people.

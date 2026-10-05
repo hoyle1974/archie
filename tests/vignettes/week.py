@@ -44,7 +44,8 @@ def threads() -> dict:
                         "Merged PR 412, the redis connection pool fix. Can you review my fallback logic by today?",
                         at(30, 18))],
         "t_paused": [mail("p2", "t_paused", f"Priya Sharma <{PRIYA}>", f"Test Testerson <{ME}>", "Auth migration",
-                          "Heads up: the auth migration is paused pending security review.", at(30, 20))],
+                          "Heads up: the auth migration is paused pending security review.\n\n-- \nPriya Sharma\n"
+                          "Product Manager, Auth\nAcme", at(30, 20))],
         "t_news": [mail("n1", "t_news", "Weekly Digest <noreply@digest.example>", ME, "This week",
                         "Ten things you missed. Can you believe it?", at(30, 12), personal=False,
                         headers={"List-Unsubscribe": "<mailto:u@x>"})],

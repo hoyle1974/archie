@@ -102,8 +102,14 @@ def _people_lines(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> list[str]
             bits.append(f"your {meta['relationship']}")
         if meta.get("role"):
             bits.append(meta["role"])
-        elif facts:
-            bits.append(facts[0]["text"])
+        else:
+            from archie.derive.titles import titles
+
+            ts = titles(ctx, eid)
+            if ts:
+                bits.append(ts[0].text + (f" (also signed as {ts[1].text})" if len(ts) > 1 else ""))
+            elif facts:
+                bits.append(facts[0]["text"])
         ids = directory.identifiers(eid)
         talked = ctx.index.chunks_with_people(ids, limit=1, before=ctx.now.isoformat()) if ids else []
         if talked:

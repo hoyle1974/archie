@@ -25,7 +25,7 @@ Keywords come before structure, so a 2-person "Daily Standup" is still a standup
   - `build_briefing(ctx, meeting)`:
     - Builds a packet from the event chunk plus a template for the meeting type. 1:1s add the previous occurrence's note and limit everything to activity since then. Standard meetings and 1:1s add attendee dossiers and up to 12 of each attendee's passages since the window start from the evidence selector ([ask](ask.md) `person_evidence`), so mail they sent comes before newer threads they were only copied on. Standups use the last 3 days of activity. Every type adds a hybrid search on the title, but only when the title has at least 2 real words, because a one-word title like "Test" matched unrelated commits.
     - The LLM writes a cited summary and sections using per-type `INSTRUCTIONS` (conflicts become a "⚠️ Conflict" item).
-    - Code adds the header line ("2:00 PM · Title · 45 min"), a People section (role, last talked, or "New: no history yet (org)"), and "Open with these people", the attendees' loops ranked with the in-meeting boost.
+    - Code adds the header line ("2:00 PM · Title · 45 min"), a People section (role, else their newest signature title ("also signed as …" for a second), else a fact; last talked, or "New: no history yet (org)"), and "Open with these people", the attendees' loops ranked with the in-meeting boost.
     - The result is saved to `briefings/<date>/<HHMM>-<slug>.md` with a `packet_hash`. If the inputs haven't changed, the saved briefing is reused without an LLM call.
 - `schedule.py`: `tick(ctx, notify)` runs every minute in the TUI and after every sync.
   - It builds any of today's briefings that are missing, which acts as the morning batch.

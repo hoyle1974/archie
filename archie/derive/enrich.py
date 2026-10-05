@@ -88,6 +88,9 @@ def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str, fail
     if newest and (ctx.now - datetime.fromisoformat(newest).replace(tzinfo=ctx.now.tzinfo)).days > OLD_DAYS:
         system += (f"\n\nThe newest source is from {newest[:4]}, over a year ago. Write each fact in the past "
                    f"tense with its year (\"In {newest[:4]}, handled your app issue\"), never as if it's current.")
+    from archie.derive.titles import signature_context, titles
+
+    system += signature_context(titles(ctx, eid))
     note = read_note(path)
     facts = [] if redo else [f for f in parse_facts(get_fence(note.body)) if not _uses(f["text"], avoid)]
     for batch in _batches(chunks, int(ctx.config["people"]["facts_max_chars"])):

@@ -21,7 +21,7 @@ def test_A_standard_briefing(tmp_path):
     out = w.ask("prep me for the design review")
     assert out.splitlines()[0] == "2:00 PM · Design Review: Auth Redesign · 45 min"
     assert "Alex Rivera · last talked Thu Oct 1" in out  # the 10 AM standup already happened
-    assert "Priya Sharma · last talked Thu Oct 1" in out
+    assert "Priya Sharma · Product Manager, Auth · last talked Thu Oct 1" in out
     assert "Alex Rivera: Can you review my fallback logic by today" in out  # code-computed open item
     seen = w.llm.saw("answer")
     assert "Attached Doc: Auth_Migration_Draft" in seen  # the attached doc reached the model
@@ -132,6 +132,11 @@ def test_B_topic_in_a_long_history_reaches_the_answer(tmp_path):
     w.llm.prompts.clear()
     w.ask("Tell me about Lee and CPS")
     assert "The CPS report was false." in w.llm.saw("answer")
+
+
+def test_B_role_comes_from_the_signature(tmp_path):
+    w = Week(tmp_path)
+    assert "Role: Product Manager, Auth (signed Sep 30)" in _glance(w.ask("who is Priya?"))
 
 
 def test_B_ambiguous_name_gets_a_question_not_a_guess(tmp_path):

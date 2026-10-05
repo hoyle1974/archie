@@ -54,17 +54,22 @@ def unknown_person(ctx: Ctx, question: str, params: dict, name: str) -> Answer:
     return answer
 
 
-def person_lines(directory: PeopleDirectory, eid: str, history: list[dict], facts: list[dict] | None = None) -> list[str]:
+def person_lines(directory: PeopleDirectory, eid: str, history: list[dict], facts: list[dict] | None = None,
+                 titles: list | None = None) -> list[str]:
     meta = directory.meta[eid]
     lines = [directory.label(eid)]
     personal = [b for b in (f"Your {meta['relationship']}" if meta.get("relationship") else None,
                             meta.get("identity"), meta.get("pronouns")) if b]
     if personal:
         lines.append(" · ".join(personal))
-    if facts and not meta.get("role"):
+    if facts and not meta.get("role") and not titles:
         lines.append("Known for: " + "; ".join(f["text"] for f in facts[:3]))
     if meta.get("role"):
         lines.append(f"Role: {meta['role']}")
+    elif titles:
+        from archie.derive.titles import role_line
+
+        lines.append(role_line(titles))
     if org(meta):
         lines.append(f"Org: {org(meta)}")
     if meta.get("last_interaction"):
@@ -142,6 +147,10 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         about += f" Pronouns: {meta['pronouns']}; use them."
     if meta.get("avoid"):
         about += f" Never call them: {', '.join(meta['avoid'])}."
+    from archie.derive.titles import signature_context, titles
+
+    ts = titles(ctx, eid)
+    about += signature_context(ts)
     answer = synthesize(ctx, question, packet, INSTRUCTIONS.replace("{me_name}", ctx.me.name or "the user"),
                         extra_context=about)
     told = told_sentence(directory, eid)
@@ -160,7 +169,7 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         if len(recent) == 5:
             break
     answer.sections.insert(0, Section("At a glance", lines=person_lines(directory, eid, history,
-                                                                       directory.facts(ctx.home, eid))))
+                                                                       directory.facts(ctx.home, eid), ts)))
     if recent:
         answer.sections.insert(1, Section("Recent", lines=recent))
     return answer
