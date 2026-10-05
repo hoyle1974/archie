@@ -18,7 +18,7 @@ remove the mark and set the row to ✅.
 | # | Vignette                     | Needs (sources → capabilities)                                  | Milestone | Status |
 |---|------------------------------|-----------------------------------------------------------------|-----------|--------|
 | A | Pre-meeting briefing         | Calendar, Gmail, Drive → meetings, people, loops, brief         | M2 (standard, 1:1), M3 (standup), M4 (all-hands) | 🟨 no "refreshed" time |
-| B | Who is this? (memory assist) | Calendar, Gmail → people, entity resolution                     | M2 | 🟨 "Priya S." not found |
+| B | Who is this? (memory assist) | Calendar, Gmail → people, entity resolution                     | M2 | 🟨 "Priya S." not found; no role from signatures |
 | C | The open loop I forgot       | Gmail (+Jira, GitHub) → loops detect/close                      | M2 (email), M3 (Jira/GitHub) | 🟨 email+Jira not merged |
 | D | What should I work on next?  | loops + calendar + Jira/GitHub → ranking                        | M3 | ✅ |
 | E | Performance review ledger    | GitHub, Jira, Drive, meetings → ledger                          | M3 | ✅ |
@@ -118,6 +118,10 @@ where she pushed to ship SSO before the Redis migration [1].
 
 **Acceptance:** "Priya", "priya.s@company.com" and "Priya S." all resolve to one
 dossier. Ambiguous names ("Alex" with two Alexes) get a question back, not a guess.
+"What's Priya's role?" (also "Priyas", without the apostrophe) answers from the archive.
+A title in someone's email signature becomes their role, cited and dated, even when it's
+in an older email behind newer threads they were only copied on. If their emails give two
+different titles, both are shown with dates, as in M.
 
 ## C. The open loop I forgot
 
