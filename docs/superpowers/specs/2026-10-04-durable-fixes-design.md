@@ -1,6 +1,6 @@
 # Fixes that last: design
 
-**Status:** drafted 2026-10-04 from the fifth usage review; waiting on spec review. No code yet.
+**Status:** built 2026-10-04 and checked live (see `okf/log.md`). Drafted the same day from the fifth usage review.
 **Date:** 2026-10-04
 **Builds on:** [Understand first](2026-10-03-understand-first-design.md)
 
