@@ -163,10 +163,10 @@ def split_body(body: str) -> tuple[str, str]:
     m = _QUOTE_HEADER.search(body)
     if m:
         body = body[: m.start()]
+    body = re.split(r"(?m)^-{2,}\s*Original Message\s*-{2,}", body)[0]
     pieces = _SIG.split(body, maxsplit=1)
     main = pieces[0]
     sig = pieces[1] if len(pieces) > 1 else ""
-    main = re.split(r"(?m)^-{2,}\s*Original Message\s*-{2,}", main)[0]
     return _unquoted(main), _unquoted(sig)
 
 

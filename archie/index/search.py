@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 import sqlite_vec
 
 from archie.derive.ignore import on_list
+from archie.index.chunk import signature_key
 from archie.index.db import Index
 
 POOL = 50  # candidates taken from each side before filtering and fusing (at least 2×k)
@@ -72,7 +73,7 @@ def search(idx: Index, query: str, k: int = 10, source: str | None = None, since
            senders: list[str] | None = None) -> list[Hit]:
     pool = max(POOL, 2 * k)
     scores = rrf_scores([_fts_ids(idx, query, pool), _vec_ids(idx, query, pool)])
-    hits = []
+    hits, signatures = [], set()
     for rowid in sorted(scores, key=lambda x: -scores[x]):
         rows = idx.query(
             "SELECT path, chunk_id, text, source, ts, char_start, char_end, people, label, sender"
@@ -94,6 +95,11 @@ def search(idx: Index, query: str, k: int = 10, source: str | None = None, since
             continue
         if senders and not on_list(hit.sender, senders):
             continue
+        sig = signature_key(hit.source, hit.chunk_id, hit.sender, hit.text)
+        if sig in signatures:
+            continue
+        if sig:
+            signatures.add(sig)
         hits.append(hit)
         if len(hits) == k:
             break

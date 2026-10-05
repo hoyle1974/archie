@@ -184,7 +184,8 @@ reads from the person's own email signatures (each signature is its own chunk, Â
 the date signed: "Role: Director of Engineering (signed Sep 22)". Two different titles
 are shown side by side, newest first: "Role: signs as Director of Engineering (Sep 22)
 and VP of Engineering (Sep 17)". Titles are computed when asked, never stored; the
-model's context and briefings get them too.
+model's context and briefings get them too. Only a line that names a job counts as a title,
+so a company, city, motto or mail-app footer never becomes a role.
 
 **Entity resolution:** an exact match on email or handle aliases is deterministic. A
 fuzzy name match ("Alex", "the backend lead") produces a *suggested* alias that the user
@@ -309,7 +310,7 @@ Derivers are idempotent: running one twice on the same input gives the same file
 
 | Content           | Chunk unit                                              |
 |-------------------|---------------------------------------------------------|
-| Email             | one message, quoted reply text removed; the signature is its own chunk (`s{i}`, people = the sender) |
+| Email             | one message, quoted reply text removed; the signature is its own chunk (`s{i}`, people = the sender; search and evidence keep one per sender and text) |
 | Docs / Markdown   | split at headings, about 300â€“400 tokens, 50-token overlap |
 | Calendar event    | one chunk: title, time, attendees, description          |
 | Jira issue        | description, then each comment as its own chunk         |

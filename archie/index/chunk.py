@@ -36,6 +36,16 @@ class Chunk:
     sender: str = ""  # the sender's address, lower case (email excerpts only)
 
 
+def is_signature(source: str, chunk_id: str) -> bool:
+    """An email signature chunk (`s{i}`, connectors/gmail.py): the same text recurs in every
+    message someone signs, so search and evidence keep one per sender and text."""
+    return source == "gmail" and chunk_id.startswith("s")
+
+
+def signature_key(source: str, chunk_id: str, sender: str, text: str) -> tuple[str, str] | None:
+    return (sender.lower(), " ".join(text.split()).lower()) if is_signature(source, chunk_id) else None
+
+
 RawChunker = Callable[[str, dict], list[Chunk]]
 _RAW: dict[str, RawChunker] = {}
 

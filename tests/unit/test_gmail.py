@@ -161,3 +161,11 @@ def test_quoted_signatures_make_no_chunk():
 
     body = "Thanks Workperson!\r\n\r\nOn Tue, Sep 22, 2026 at 1:16 PM Workperson Acorn <k@ow.example> wrote:\r\n> --\r\n> Workperson Acorn\r\n> Director"
     assert split_body(body) == ("Thanks Workperson!", "")
+
+
+def test_an_original_message_after_the_signature_stays_out_of_it():
+    from archie.connectors.gmail import split_body
+
+    body = ("Sounds good.\n-- \nWorkperson Acorn\nDirector of Engineering\n\n-----Original Message-----\n"
+            "From: Test\nMy private reply.")
+    assert split_body(body) == ("Sounds good.", "Workperson Acorn\nDirector of Engineering")

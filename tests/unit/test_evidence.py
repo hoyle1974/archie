@@ -46,3 +46,30 @@ def test_person_without_addresses_has_no_evidence(tmp_path):
     write_note(ctx.home / "people/acorn.md", Note(meta={"entity_id": "acorn", "name": "Acorn", "aliases": []},
                                                   body="## My notes\n- Acorn is three. _(you said, Oct 4)_\n"))
     assert person_evidence(ctx, "acorn") == []
+
+
+def _signed(ctx, n=8):
+    sig = "\n-- \nLee Park\nDirector of Engineering\nPark Data"
+    paths = [write_thread(ctx.home, f"s{i}", [msg(f"s{i}", LEE, "Lee Park", [addr(ME)],
+                                                  f"2026-09-{10 + i:02d}T10:00:00+00:00",
+                                                  f"Engineering update number {i}.{sig}", to_me=True)])
+             for i in range(n)]
+    derive_people(ctx, paths)
+    ctx.index.sync()
+    return PeopleDirectory.load(ctx.home).by_email(LEE)
+
+
+def test_the_same_signature_takes_one_slot(tmp_path):
+    ctx = make_ctx(tmp_path)
+    got = person_evidence(ctx, _signed(ctx), max_items=6)
+    assert [c["chunk_id"] for c in got].count("s0") == 1 and len(got) == 6
+    assert got[0]["path"] == "sources/gmail/s7.json"
+
+
+def test_search_shows_the_same_signature_once(tmp_path):
+    from archie.index.search import search
+
+    ctx = make_ctx(tmp_path)
+    _signed(ctx)
+    hits = search(ctx.index, "Lee engineering", k=8)
+    assert sum(h.chunk_id.startswith("s") for h in hits) <= 1

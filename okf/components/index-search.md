@@ -26,7 +26,7 @@ tags: [component]
   - `chunks_with_people(emails, limit, before)` returns a person's chunks newest first, each with its `sender`, for the evidence selector ([ask](ask.md) `evidence.py`).
 - `search.py`: `search(idx, q, k, source, since, until, people, skip_senders, senders)`.
   - Takes the top 50 FTS hits (each token quoted and OR'ed) and the top 50 vector hits, then merges them with RRF (k=60) before filtering.
-  - `skip_senders` drops hits from those senders (addresses or `@domain`s); `senders`, when not empty, keeps only hits from them. Each `Hit` carries its `sender`.
+  - `skip_senders` drops hits from those senders (addresses or `@domain`s); `senders`, when not empty, keeps only hits from them. Each `Hit` carries its `sender`. The same email signature (same sender and text, `signature_key`) is returned once, so a frequent signer's signatures don't crowd out their messages.
   - Schema version 3 added the `sender` column, so an older index rebuilds itself.
 
 The database is disposable ([principle](../principles/disposable-index.md)), and a test proves a rebuild returns the same results. Design: [DESIGN §5.3–5.4](../../docs/DESIGN.md#53-chunking).

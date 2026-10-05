@@ -2,12 +2,14 @@
 
 Order: chunks matching the topic (if any), then chunks the person sent, then the rest of
 their chunks, each newest first, within an item count and a character budget. A chunk too
-big for the room left is skipped, not the rest. Archie's own notes (dossiers, loops,
+big for the room left is skipped, not the rest. A signature repeated across messages
+counts once (the newest). Archie's own notes (dossiers, loops,
 briefings) are left out; future meetings too."""
 
 from __future__ import annotations
 
 from archie.ask.context import Ctx
+from archie.index.chunk import signature_key
 
 SKIP = ("briefings", "loops", "people")
 
@@ -34,11 +36,12 @@ def person_evidence(ctx: Ctx, entity_id: str, *, topic: str | None = None, max_i
     out, seen, used = [], set(), 0
     for c in ordered:
         key = (c["path"], c["chunk_id"])
-        if key in seen or len(out) >= max_items:
+        sig = signature_key(c["source"], c["chunk_id"], c.get("sender") or "", c["text"])
+        if key in seen or (sig and sig in seen) or len(out) >= max_items:
             continue
         if used + len(c["text"]) > max_chars:
             continue
-        seen.add(key)
+        seen |= {key, sig} - {None}
         out.append(c)
         used += len(c["text"])
     return out
