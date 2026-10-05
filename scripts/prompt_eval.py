@@ -45,6 +45,15 @@ QUESTIONS = [
 ]
 
 
+def load_questions(home: Path) -> list[dict]:
+    """The built-in questions, then the ones reviews added (real words, never committed)."""
+    import yaml
+
+    extra = home / "reviews/evals/questions.yaml"
+    added = (yaml.safe_load(extra.read_text()) or []) if extra.exists() else []
+    return QUESTIONS + [q for q in added if isinstance(q, dict) and q.get("q")]
+
+
 def _hit(text: str, group: str) -> bool:
     import re
 
@@ -104,7 +113,7 @@ def main() -> None:
 
     out = real / "reviews/evals" / f"{datetime.now():%Y%m%d-%H%M}-{args.label}"
     (out / "prompts").mkdir(parents=True)
-    picked = [(i, case) for i, case in enumerate(QUESTIONS, 1) if not args.only or i in args.only]
+    picked = [(i, case) for i, case in enumerate(load_questions(real), 1) if not args.only or i in args.only]
     rows, answers = [], [f"# Eval {args.label}\n\nOverrides: {args.set or 'none'}\n"]
     for i, case in picked:
         q = case["q"]

@@ -9,6 +9,7 @@ from archie.briefings.schedule import tick
 from archie.derive.loops import load_loops
 from archie.derive.meetings import find_meeting
 from archie.store.files import Note, read_note, write_note
+from tests.vignettes.variants import variants
 from tests.vignettes.week import ME, SARAH, Week, at, mail
 
 
@@ -98,10 +99,17 @@ def test_B_name_with_initial_finds_the_person(tmp_path):
     assert _glance(w.ask("who is Priya S.?")).splitlines()[1].strip() == "Priya Sharma"
 
 
-def test_B_possessive_question_finds_the_person(tmp_path):
+def test_B_questions_in_every_phrasing(tmp_path):
     w = Week(tmp_path)
-    for q in ("what is Priya's role?", "what is Priyas role?", "what is priyas role"):
-        assert _glance(w.ask(q)).splitlines()[1].strip() == "Priya Sharma", q
+    for base in ("who is Priya?", "what is Priya's role?"):
+        for q in variants(base):
+            assert _glance(w.ask(q)).splitlines()[1].strip() == "Priya Sharma", q
+
+
+def test_J_history_in_every_phrasing(tmp_path):
+    w = Week(tmp_path)
+    for q in variants("what's my history with Ken?"):
+        assert _glance(w.ask(q)).splitlines()[1].strip() == "Ken Ito", q
 
 
 def test_B_unknown_or_misspelled_name_gets_a_search_answer(tmp_path):

@@ -7,9 +7,12 @@ does not make them.
 
 ## Ground rules
 
-- **Write one file only:** `~/.archie/reviews/YYYY-MM-DD.md` (add `-2`, `-3` for a second
-  review the same day). Don't change code, docs, or anything else under `~/.archie`. Never
-  copy the report into the repo or commit it: it quotes the user's real mail and people.
+- **Write one report:** `~/.archie/reviews/YYYY-MM-DD.md` (add `-2`, `-3` for a second
+  review the same day). The only other writes are new asks appended to
+  `~/.archie/reviews/evals/questions.yaml` (§5) and the eval run's results under
+  `~/.archie/reviews/evals/` (§7). Don't change code, docs, or anything else under
+  `~/.archie`. Never copy the report or the questions into the repo or commit them: they
+  quote the user's real mail and people.
 - **Nothing made up.** Every finding cites the log entry it comes from (its `ts` and the
   user's exact words). Counts come from running code over the logs, not from reading and
   estimating. If the logs don't show something, say so.
@@ -114,6 +117,10 @@ how bad it is when it does. For each:
 - what went wrong, with the asks it affected;
 - the likely cause, pointing to the code (`graphify query "…"` first, then read the file);
 - the smallest change that would fix it, and the vignette test that should cover it.
+- **turn it into tests:** add the ask to `~/.archie/reviews/evals/questions.yaml` (`q`, `handlers`, `has`,
+  `lacks`, as in `scripts/prompt_eval.py`); never to the repo. In the suggested fix, describe the fictional
+  fixture that reproduces it (for example "a person with 15 newer copied-on passages and one older signed
+  email"), so the fix's vignette test covers what the live data had.
 
 Don't claim a root cause you haven't traced; write "likely" and say what would confirm it.
 
@@ -141,7 +148,10 @@ if known, the model (for example "**Reviewer:** Claude Code (Claude Opus 5.5)" o
    and its outcome.
 5. **Suggested fixes.** Ranked, as in §5.
 6. **Proposed vignettes.** As in §6.
-7. **Since last review.** Fixed, still open, new.
+7. **Since last review.** Fixed, still open, new. Run
+   `uv run python scripts/prompt_eval.py --label review` and report which earlier failures
+   still fail (it runs the built-in questions and those in `reviews/evals/questions.yaml`
+   on a copy of the home, about 5¢).
 
 Then tell the user, in chat, the summary and where the report is. Ask which fixes and
 vignettes they want to act on.
