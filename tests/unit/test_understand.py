@@ -130,3 +130,16 @@ def test_mine_is_read_as_a_yes_or_no():
     assert p.params["mine"] is True
     [p] = checked([{"kind": "question", "text": "zebras?", "intent": "search", "mine": None}], "zebras?", [], [])
     assert p.params["mine"] is False
+
+
+def test_possessive_names_stay_grounded():
+    raw = [{"kind": "question", "text": "x", "intent": "who", "people": ["Workperson"], "topic": "title"}]
+    for message in ("What is Workpersons title?", "What is Workperson's title?", "What is Workperson’s title?"):
+        [p] = checked(raw, message, [], [])
+        assert p.params["people"] == ["Workperson"], message
+
+
+def test_names_nobody_said_are_still_dropped():
+    raw = [{"kind": "question", "text": "x", "intent": "who", "people": ["Bose"]}]
+    [p] = checked(raw, "What is Workpersons title?", [], [])
+    assert p.params["people"] == []

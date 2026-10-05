@@ -143,7 +143,9 @@ def prompt_input(message: str, recent: list[dict], open_qs: list[dict], pending:
 
 
 def _words(text: str) -> set[str]:
-    return {w.lower().strip(".'-") for w in _WORD.findall(text or "")}
+    from archie.names import name_forms
+
+    return {f for w in _WORD.findall(text or "") for f in name_forms(w)}
 
 
 def _grounded(text: str, heard: set[str]) -> bool:

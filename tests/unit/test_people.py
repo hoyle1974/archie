@@ -151,3 +151,26 @@ def test_github_login_linked_by_exact_profile_name(tmp_path):
                   "author_name": "Sarah Jones", "me": "ttesterson"})
     derive_people(ctx, [p])
     assert PeopleDirectory.load(ctx.home).find("gh:sjones") == ["sarah_jones"]
+
+
+def test_find_and_mentioned_in_accept_possessives(tmp_path):
+    from archie.derive.people import PeopleDirectory
+    from archie.store.files import Note, write_note
+    from tests.support.fixtures import make_ctx
+
+    ctx = make_ctx(tmp_path)
+    for eid, name, aliases in (("workperson_acorn", "Workperson Acorn", ["workperson@ow.example"]),
+                               ("james_lee", "James Lee", ["james@x.example"]),
+                               ("acorn", "Acorn", [])):
+        write_note(ctx.home / f"people/{eid}.md",
+                   Note(meta={"entity_id": eid, "name": name, "aliases": aliases}, body="## My notes\n"))
+    d = PeopleDirectory.load(ctx.home)
+    assert d.find("Workperson's") == ["workperson_acorn"]
+    assert d.find("Workpersons") == ["workperson_acorn"]
+    assert d.find("James") == ["james_lee"]  # a name ending in s still matches exactly
+    assert d.find("Jame") == []
+    assert d.mentioned_in("Can you ship Workpersons laptop?") == ["workperson_acorn"]
+    assert d.mentioned_in("Workperson's laptop") == ["workperson_acorn"]
+    assert "acorn" not in d.mentioned_in("Workperson Acorn's laptop")  # Acorn inside a longer name still isn't Acorn
+    assert d.mentioned_in("tell me about workperson") == []  # one-word names still need a capital
+    assert d.mentioned_in("tell me about workperson", any_case=True) == ["workperson_acorn"]

@@ -24,6 +24,7 @@ from archie.store.home import Home
 from archie.store.times import utc_iso
 
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+$")
+_POSS = r"(?:['’]s|s['’]?)?"  # a possessive after a name: "Workperson's", "Workperson’s", "Workpersons", "Workpersons'"
 ROLE_ACCOUNT = re.compile(
     r"^(no-?reply|do-?not-?reply|support|help|info|hello|contact|team|news|newsletter|updates?|alerts?|"
     r"notifications?|account|accounts|service|customerservice|custserv|care|orders?|billing|receipts?|"
@@ -127,13 +128,23 @@ class PeopleDirectory:
                 exact.append(eid)
             elif any(n.split()[0] == q for n in names if n.split()):
                 first.append(eid)
-        return exact or first
+        if exact or first:
+            return exact or first
+        from archie.names import name_forms
 
-    def mentioned_in(self, text: str) -> list[str]:
-        """Entity ids whose name, a name alias, or a first name (3+ letters) appears in text.
+        for form in sorted(name_forms(query), key=len, reverse=True):  # "workperson's" / "workpersons" -> "workperson"
+            if form != q:
+                hits = self.find(form)
+                if hits:
+                    return hits
+        return []
+
+    def mentioned_in(self, text: str, any_case: bool = False) -> list[str]:
+        """Entity ids whose name, a name alias, or a first name (3+ letters) appears in text,
+        possessives included ("Workperson's", "Workpersons").
 
         A name inside another person's longer name doesn't count ("Acorn" in "Workperson Acorn" is
-        not Acorn), and a one-word name must be capitalized ("a acorn" is nobody)."""
+        not Acorn). A one-word name must be capitalized ("a acorn" is nobody) unless any_case."""
         full: list[tuple[str, str]] = []  # (multi-word name, entity id), longest first
         for eid, meta in self.meta.items():
             for n in [meta.get("name"), *(meta.get("aliases") or [])]:
@@ -150,16 +161,16 @@ class PeopleDirectory:
             for other, owner in full:  # blank out other people's longer names that contain ours
                 if owner != eid and any(re.search(rf"(?<!\w){re.escape(n.lower())}(?!\w)", other.lower())
                                         for n in names):
-                    seen = re.sub(rf"(?<!\w){re.escape(other)}(?!\w)", " ", seen, flags=re.IGNORECASE)
-            if any(self._named(n, seen) for n in names):
+                    seen = re.sub(rf"(?<!\w){re.escape(other)}{_POSS}(?!\w)", " ", seen, flags=re.IGNORECASE)
+            if any(self._named(n, seen, any_case) for n in names):
                 out.append(eid)
         return out
 
     @staticmethod
-    def _named(name: str, text: str) -> bool:
-        if " " in name.strip():
-            return bool(re.search(rf"(?<!\w){re.escape(name)}(?!\w)", text, re.IGNORECASE))
-        return bool(re.search(rf"(?<!\w){re.escape(name[:1].upper() + name[1:])}(?!\w)", text))
+    def _named(name: str, text: str, any_case: bool = False) -> bool:
+        if " " in name.strip() or any_case:
+            return bool(re.search(rf"(?<!\w){re.escape(name)}{_POSS}(?!\w)", text, re.IGNORECASE))
+        return bool(re.search(rf"(?<!\w){re.escape(name[:1].upper() + name[1:])}{_POSS}(?!\w)", text))
 
     def avoided_words(self, entity_ids: list[str]) -> set[str]:
         """Words the user said never to use for any of these people."""

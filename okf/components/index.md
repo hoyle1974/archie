@@ -17,6 +17,7 @@ Data flows top to bottom:
 - [loops](loops.md): open-loop detection, closure and ranking
 - [briefings](briefings.md): meeting type, templates and timing
 - [ask](ask.md): understanding, intents and rendering, the one user entry point
+- [names](names.md): one way to compare names, possessives included
 - [tui](tui.md): Textual app hosting the sync loop
 - [store](store.md): file I/O, frontmatter, fences, atomic writes
 - [config](config.md): config.yaml, me.yaml, cursors
