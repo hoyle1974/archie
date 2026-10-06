@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from archie.config import Me
 from archie.index.db import Index
@@ -19,3 +20,4 @@ class Ctx:
     index: Index
     backend: Backend
     now: datetime
+    web: Any = None  # an httpx.Client-like for the dig loop's web pages; None: a real one (connectors/web.py)

@@ -84,7 +84,93 @@ def _question_of(last: dict | None) -> str | None:
     return last.get("resolved") if kinds == ["show"] else None
 
 
-def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
+def _dig_where_needed(ctx: Ctx, message: str, parts: list[Part], handled: list[tuple[str, Answer]],
+                      last: dict | None, entry: dict, progress) -> list[tuple[str, Answer]]:
+    """Question parts whose answer hit a dead end, or that the check says didn't help, are dug
+    further (spec: dig-deeper §1.3). A dig that verifies nothing keeps the first answer and says so.
+    Then one offer to start a file on someone asked about who has none (§4)."""
+    out, dug = _dig(ctx, message, parts, handled, last, entry, progress)
+    _offer(ctx, parts, out, dug, entry)
+    return out
+
+
+def _offer(ctx: Ctx, parts: list[Part], handled: list[tuple[str, Answer]], dug: dict, entry: dict) -> None:
+    from archie.ask.check import enabled
+    from archie.ask.dispatch import REBUILDING
+    from archie.ask.offer import make_offer, offer_names
+
+    if not enabled(ctx) or any(a.pending for _, a in handled):
+        return
+    for i, (part, (_, a)) in enumerate(zip(parts, handled)):
+        if part.kind != "question" or a.plain == REBUILDING:
+            continue
+        result = dug.get(i)
+        items = [*a.packet.items, *(result.packet.items if result else [])]
+        made = make_offer(ctx, offer_names(part, result.new_person if result else None),
+                          [{"path": it.path, "text": it.text, "label": it.label} for it in items])
+        if made:
+            line, pending = made
+            _add_line(a, line)
+            a.pending = pending
+            entry["offered"] = pending["name"]
+            return
+
+
+def _dig(ctx: Ctx, message: str, parts: list[Part], handled: list[tuple[str, Answer]],
+         last: dict | None, entry: dict, progress) -> tuple[list[tuple[str, Answer]], dict]:
+    from archie.ask.check import answer_check, enabled
+    from archie.ask.dig import dig
+    from archie.ask.dispatch import REBUILDING
+    from archie.ask.render import render
+    from archie.llm.backend import LLMError
+
+    out, dug = list(handled), {}
+    for i, (part, (label, a)) in enumerate(zip(parts, handled)):
+        if part.kind != "question":
+            continue
+        if a.plain is None and not a.nothing_found and not (a.summary or a.sections) and a.dropped and not a.dead_end:
+            a.dead_end = "every cited point was dropped"
+        if not enabled(ctx) or a.pending or a.plain == REBUILDING:
+            continue
+        asked = part.resolved or part.text
+        reason = a.dead_end
+        if reason:
+            entry["dead_end"] = reason
+        else:
+            try:
+                reason = answer_check(ctx, message, asked, render(a), _brief_of(last))
+            except LLMError:
+                continue  # e.g. the budget is spent: the first answer stands
+            entry["check"] = "unhelpful" if reason else "helpful"
+            if not reason:
+                continue
+        result = dig(ctx, asked, reason, a.packet, progress)
+        entry["dig"] = result.log()
+        dug[i] = result
+        if result.answer is not None:
+            out[i] = (label, result.answer)
+        elif result.nothing_more():
+            _add_line(a, result.nothing_more())
+    return out, dug
+
+
+def _add_line(a: Answer, line: str) -> None:
+    """A code-written line after the answer; plain and "nothing found" answers render no notes."""
+    from archie.ask.render import NOTHING
+
+    if a.plain is None and a.nothing_found:
+        a.plain = NOTHING
+    if a.plain is not None:
+        a.plain = f"{a.plain}\n\n{line}"
+    else:
+        a.notes.append(line)
+
+
+def _brief_of(last: dict | None) -> str:
+    return " ".join(((last or {}).get("summary") or "").split())[:300]
+
+
+def _respond(ctx: Ctx, question: str, entry: dict, progress=None) -> Reply:
     from archie.ask.clarify import looks_like_answer
     from archie.ask.render import citations_of
     from archie.ask.tell import answer_yes_no
@@ -103,6 +189,15 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
         entry.update(quick=True, intent="show_citation", parts=[{"kind": "show", "handler": "show_citation"}])
         return Reply(show(ctx, last, n), _question_of(last), kept)
     pending = (last or {}).get("pending")
+    offer = None
+    if pending and pending.get("kind") == "offer_person":  # before match(), which treats "yes" as filler
+        from archie.ask.offer import answer_offer, yes_no
+
+        yes = yes_no(question)
+        if yes is not None:
+            entry.update(quick=True, intent="offer_person", parts=[{"kind": "answer", "handler": "offer_person"}])
+            return Reply(answer_offer(ctx, pending, yes, question), None, None)
+        offer, pending = pending, None  # anything else drops the offer; understand still sees what was asked
     chosen = match(question, [o["label"] for o in pending["options"]]) if pending else None
     if chosen is not None:
         entry.update(quick=True, intent="which", parts=[{"kind": "answer", "handler": "which"}])
@@ -110,7 +205,7 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     again = _question_of(last)
     if is_recheck(question) and again and not is_recheck(again):
         entry["recheck"] = again
-        reply = _respond(ctx, again, entry)
+        reply = _respond(ctx, again, entry, progress)
         new = citations_of(reply.answer)
         return Reply(recheck(last, reply.answer, new), again, new)
     open_qs = open_questions(ctx.home)
@@ -118,8 +213,9 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     if not pending and not nudging and any(q["kind"] in YES_NO for q in open_qs) and looks_like_answer(question):
         entry.update(intent="clarify", parts=[{"kind": "answer", "handler": "clarify"}])
         return Reply(answer_yes_no(ctx, question), None, None)
-    parts = understand(ctx, question, recent, open_qs, pending)
+    parts = understand(ctx, question, recent, open_qs, pending or offer)
     handled = [dispatch(ctx, p, question, open_qs, last) for p in parts]
+    handled = _dig_where_needed(ctx, question, parts, handled, last, entry, progress)
     entry["intent"] = handled[0][0]
     entry["parts"] = [{"kind": p.kind, "handler": label, "people": p.params.get("people") or [],
                        "topic": p.params.get("topic")} for p, (label, _) in zip(parts, handled)]
@@ -135,7 +231,8 @@ def _respond(ctx: Ctx, question: str, entry: dict) -> Reply:
     return Reply(answer, resolved, None)
 
 
-def ask(ctx: Ctx, question: str) -> Answer:
+def ask(ctx: Ctx, question: str, progress=None) -> Answer:
+    """`progress(line)` hears what Archie is doing while it digs further ("Looking further…")."""
     from archie.ask.render import citations_of, render
     from archie.derive.audit import resolve_answered
 
@@ -143,7 +240,7 @@ def ask(ctx: Ctx, question: str) -> Answer:
     started = time.monotonic()
     entry = {"ts": datetime.now(UTC).isoformat(timespec="seconds"), "question": question, "quick": False}
     try:
-        reply = _respond(ctx, question, entry)
+        reply = _respond(ctx, question, entry, progress)
         answer = reply.answer
         answer.at = ctx.now  # stored UTC; render(stamp=True) shows it in local time
         resolve_answered(ctx)  # e.g. closing an item clears "still needed?" about it

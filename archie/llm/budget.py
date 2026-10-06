@@ -24,6 +24,7 @@ PRICES = {  # model: [(from date, input $/1M, output $/1M), ...] newest first
     "gemini-3.1-pro-preview": [("", 2.00, 12.00)],
 }
 UNKNOWN = (4.00, 18.00)
+GROUNDED_CALL_USD = 0.035  # Google Search grounding is billed per search on top of tokens; this errs high
 LOG = "logs/llm_usage.jsonl"
 
 
@@ -100,11 +101,12 @@ class Budget:
                            f"{self.resets()}. Raise llm.monthly_budget_usd in config.yaml to continue sooner")
 
     def record(self, model: str, tier: str, prompt_tokens: int, output_tokens: int, thinking_tokens: int,
-               call: str = "", cached: int = 0) -> None:
+               call: str = "", cached: int = 0, extra_usd: float = 0.0) -> None:
         """`call`: which prompt (its shape name). `cached`: input tokens Google served from its cache;
-        they are still counted at the full input price here, so the budget never undercounts."""
+        they are still counted at the full input price here, so the budget never undercounts.
+        `extra_usd`: a fee not charged by the token (a grounded search)."""
         now = self.clock()
-        usd = cost_usd(model, prompt_tokens, output_tokens + thinking_tokens, now)
+        usd = cost_usd(model, prompt_tokens, output_tokens + thinking_tokens, now) + extra_usd
         entry = {"ts": now.isoformat(), "model": model, "tier": tier, "call": call, "in": prompt_tokens,
                  "cached": cached, "out": output_tokens, "thinking": thinking_tokens, "usd": round(usd, 6)}
         with self.lock:

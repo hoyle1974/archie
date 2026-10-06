@@ -5,6 +5,12 @@ description: Chronological history of design decisions and structural changes, n
 ---
 
 ## 2026-10-05
+- Dig deeper when an answer doesn't help (new component [dig](components/dig.md), vignette W, [spec](../docs/superpowers/specs/2026-10-05-dig-deeper-design.md)). Live, "Can you prep me for that meeting" about Workpersontwo got "I don't know anyone called Workpersontwo" and "no meetings", though she was in four of the user's sources; she had no people file because she never wrote from her own address.
+  - Intents mark dead ends in code (`Answer.dead_end`); other question answers get one fast-tier check (`answer_check`). `brief` now says "I don't know anyone called X." even when no one named is known.
+  - The dig loop: code runs up to 5 rounds (and $0.25) in which the fast model picks one read-only step (search, open, person, calendar, web, answer). The answer comes from one verified packet. The CLI and TUI show each step as it runs.
+  - The web step: `GeminiBackend.web_links` (Google Search grounding, links only), with pages fetched by code into `sources/web/` and indexed. DESIGN §2.3 and §2.8 now name it as the one raw writer and outside read that isn't a connector or the model.
+  - Offering a people file for a name in 2+ source files; yes and no matched in code; `origin: mentioned` dossiers found by full name (`Index.chunks_naming`); the `start_person` action; `enrich_person`.
+  - Gmail's HTML-to-text moved to `connectors/pagetext.py`, shared with web pages.
 - Fixes from the seventh usage review (`~/.archie/reviews/2026-10-05.md`):
   - Getting ready for people, not a meeting (new vignette V): `brief` with named people briefs a meeting with all of them in the next 14 days, else builds a people briefing (their files, their own messages, People and "Open with these people"). A name one typo from a known person is matched and said (`archie/names.py` `near`). Without people, `brief` looks 36 hours then 14 days ahead and never says "in the next day and a half". Live, "I will have a meeting with Arjun, Zara and Workperson next week, tell me what I should prepare for" had got "You have no upcoming meetings in the next day and a half." twice.
   - A telling re-indexes the person file it changed (`Index.update_files`), so "tell me about Acorn" right after "Acorn is full of energy…" includes it, and the reply quotes what was saved.

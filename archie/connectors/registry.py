@@ -8,6 +8,7 @@ from archie.connectors.drive import DriveConnector
 from archie.connectors.github import GitHubConnector
 from archie.connectors.gmail import GmailConnector
 from archie.connectors.jira import JiraConnector
+from archie.connectors import web  # noqa: F401  (not synced; registers the chunker for pages the dig loop saves)
 
 ALL = {"gmail": GmailConnector, "calendar": CalendarConnector, "drive": DriveConnector,
        "github": GitHubConnector, "jira": JiraConnector}

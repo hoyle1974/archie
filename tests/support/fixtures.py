@@ -17,10 +17,13 @@ TEST = Me(name="Test Testerson", legal_name="Harold Test Testerson III", aliases
           emails=["test.testerson@example.com", "test@acme.example"], github="ttesterson")
 
 
-def make_ctx(tmp_path, backend=None, now=NOW) -> Ctx:
+def make_ctx(tmp_path, backend=None, now=NOW, dig=False) -> Ctx:
+    """`dig`: check answers and dig further (dig.py). Off by default: canned backends script
+    every call, and the check would be one more."""
     home = init_home(tmp_path / "home")
     cfg = load_config(home)
     cfg["index"]["embed_model"] = "hash"
+    cfg["ask"]["dig"]["enabled"] = dig
     import copy
 
     return Ctx(home=home, config=cfg, me=copy.deepcopy(TEST), index=Index(home, HashEmbedder()),

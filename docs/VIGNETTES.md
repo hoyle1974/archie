@@ -37,6 +37,7 @@ remove the mark and set the row to ✅.
 | R | Nudges                       | Gmail, loops → audit (waiting_nudge), snooze                    | M5 | ✅ |
 | U | News that finishes an item   | loops → understand (open items), loop_done, told record         | M5 | ✅ |
 | V | Getting ready for people     | Gmail, people → understand (people), brief, evidence, names     | M5 | ✅ |
+| W | Someone I only mentioned     | Gmail, Calendar, web → answer check, dig loop, file offer       | M5 | ✅ |
 
 ### Milestones
 
@@ -449,3 +450,41 @@ is briefed instead. A misspelt name ("WorkPersoon") is matched to the one person
 away from, and the answer says so ("I took WorkPersoon to mean Workperson Acorn."). A name Archie
 doesn't know is said ("I don't know anyone called Zebulon."), not dropped. Each fact
 traces to fixture data.
+
+## W. Someone I only mentioned
+
+**Situation.** The user booked a call with Workpersontwo through Koalendar, so the only mail
+"from" her came from `notifications@koalendar.com` as "Workpersontwo Birch (via Koalendar)".
+She is also in a self-sent "Updated video conference: Test Testerson & Workpersontwo Birch", a
+calendar event with that title and no attendees, and Workperson's "Thanks for pinging
+Workpersontwo!". She never wrote from an address of her own, so there is no people file.
+
+**User:** `ask "I will meet with Workpersontwo next week"`, then `ask "Can you prep me for that meeting"`
+
+**Archie shows:**
+```
+Workpersontwo Birch booked a 30 minute video call with you for Wed, Sep 23 [1]. The call was
+on your calendar as "Test Testerson & Workpersontwo Birch" [2], and Workperson thanked you for
+pinging her on Oct 1 [3].
+
+I looked further: 1 people lookup, 2 searches.
+
+I don't have a file on Workpersontwo Birch yet. The name is in 4 of your sources. Want me to start one?
+```
+
+**User:** `ask "yes"` → `Started a file on Workpersontwo Birch with 3 facts from your mail and calendar.`
+
+**What happens.** `brief` doesn't know Workpersontwo and says so in code, which marks the answer
+as a dead end. Archie digs further: the fast model picks one step at a time (look her up,
+search her name, search the fuller name a result shows, check the calendar, search the
+web), code runs each step, and the answer is written from what was found and verified
+like any other. Because two or more source files name her, Archie offers to start a file,
+using the fullest form of the name. Yes writes `people/workpersontwo_birch.md` (`origin:
+mentioned`, `status: stub`) and fills in cited facts; later questions find her by her full
+name in the text. No is remembered and never asked again.
+
+**Acceptance:** the prep answer has verified claims from the Sep 23 call and Workperson's
+thread, never says "no meetings", and ends with the offer naming Workpersontwo Birch. "yes"
+creates her file and "tell me about Workpersontwo" then resolves to it. With the web on, a web
+step saves the page under `sources/web/` and the answer's sources include a "Web:" label.
+"no" writes `state/people_declined.yaml` and the same question makes no second offer.

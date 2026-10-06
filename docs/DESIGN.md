@@ -31,6 +31,8 @@ from a shell.
    reindex` rebuilds it from files. No fact may exist only in SQLite.
 3. **Raw and derived files are separate.** Connectors write only `sources/`. Everything
    else (people, meetings, loops, briefings) is derived and may be edited by the user.
+   `sources/web/` is the one raw folder not filled by a connector cycle: the dig loop's
+   web step (§8) saves the public pages it reads there.
 4. **The fence rule.** In derived files the user edits, Archie writes only inside
    `<!-- archie:auto -->` … `<!-- /archie:auto -->` fences. Archie may rewrite a fence's
    contents but never touches text outside a fence. Frontmatter keys Archie owns are listed
@@ -48,6 +50,9 @@ from a shell.
    `ask`, not a new command.
 8. **Read-only toward the world.** Connectors only read (for example the
    `gmail.readonly` scope). Archie never sends, posts, comments or changes remote state.
+   The only outside calls are the model, the connectors, and the dig loop's web step,
+   which reads public pages (§8). A web query is names, organisations and topics only,
+   never text from the user's mail.
 9. **Keep everything.** Data is never pruned. The first sync of a source goes back
    only 2 weeks, and everything after that accumulates, so a year-long review becomes
    possible a year from now.
@@ -103,8 +108,10 @@ from a shell.
 ├── state/
 │   ├── cursors.yaml         # per-source sync cursors (tracked in git)
 │   ├── conversation.jsonl   # recent ask exchanges, for follow-ups and the TUI (last 200)
-│   └── told_applied.yaml    # which remember version last applied each telling in journal/told.md
-├── sources/                 # RAW: written only by connectors
+│   ├── told_applied.yaml    # which remember version last applied each telling in journal/told.md
+│   └── people_declined.yaml # names the user said no to a people file for (§4.2)
+├── sources/                 # RAW: written only by connectors (and the dig loop's web step)
+│   ├── web/<sha1 of url>.json       # public pages the dig loop read: url, title, fetched_at, text
 │   ├── calendar/<eventId>.json
 │   ├── gmail/<threadId>.json
 │   ├── drive/<fileId>.json          # metadata + exported plain text
@@ -222,6 +229,20 @@ there, so the next sync picks up in order. An answer to "Who is Sam?" is saved a
 **Unknown people:** a new email address in a meeting or thread creates a `status: stub`
 dossier with `org` inferred from the email domain (none for personal mail like gmail.com). A background job searches the index
 for mentions and fills in the fenced section.
+
+**Mentioned people:** someone the user asks about who has no dossier and no address of
+their own (booked through a service, named in a calendar title, thanked in someone else's
+mail) can still get one. When an answer about them draws on at least two source files that
+name them, Archie offers: "I don't have a file on Workpersontwo Birch yet. The name is in 4 of
+your sources. Want me to start one?" It uses the fullest form of the name two files share,
+and never offers for the user, a role account's display name, an ignored sender, or a name
+the user declined (`state/people_declined.yaml`). A plain yes (matched in code) writes the
+dossier with `status: stub` and `origin: mentioned` (an Archie-owned key), adds any address
+written next to the name in a mail header, and runs the facts pass for that person; a no
+is remembered. "Start a file on X" does the same without the offer, from one source. For an
+`origin: mentioned` person, evidence also comes from chunks that name them in full, as
+whole words; a single word ("Workpersontwo") is never enough. Saved web pages never count as
+anyone's evidence or as "your sources": a page naming them may be about a namesake.
 
 ### 4.3 Meeting (`meetings/2026/2026-10-14-alex-1-1.md`)
 
@@ -520,7 +541,29 @@ said, not dropped. Without people, `brief` looks 36 hours ahead, then 14 days.
 3. **Synthesize:** the LLM writes the answer from the packet only, with citations.
 4. **Verify:** drop uncited or unverified claims. If nothing survives, say so plainly
    ("I couldn't find that").
-5. **Render:** summary first, details next, then `[n]` citations that expand on request.
+5. **Check:** did the answer help? An intent that gave up on what was asked says so in
+   code (`Answer.dead_end`: no file on anyone by that name, no meeting matched, search
+   found nothing, every cited point dropped). Otherwise one fast-tier call (`answer_check`)
+   reads the question and the answer as shown and says whether it helped and, if not,
+   what was missing. A correct empty result ("nothing open") counts as helpful.
+   Tellings, instructions, quick questions and pending "which one?" questions are never
+   checked. `ask.dig.enabled` switches this and the next step off.
+6. **Dig further** when it didn't help: the dig loop (`archie/ask/dig.py`). The model has
+   no tools; Archie is the tool. Each round, one fast-tier call reads the question, what
+   was missing, and a notebook of what has been tried, and picks one step from a fixed,
+   read-only menu: search, open a file already shown (or one of Archie's notes), look
+   someone up, list the calendar for a date range, search the web (§9), or answer. Code
+   runs the step and writes the result into the notebook; every excerpt joins one packet,
+   and the answer is written from that packet and verified like any other. Repeats,
+   unknown steps and paths never shown are refused. At most `ask.dig.rounds` rounds
+   (default 5) and `ask.dig.max_usd` per question (default $0.25). The answer says what
+   was done ("I looked further: 2 searches, 1 calendar check."), and if nothing verified
+   came of it, the first answer stays with "I looked further (2 searches) and found
+   nothing more." The TUI and CLI show each step as it runs ("Looking further… searching
+   “Workpersontwo Birch”").
+7. **Offer a file** on someone asked about who has none (§4.2): at most one offer per
+   answer, written by code, answered by a plain yes or no matched in code.
+8. **Render:** summary first, details next, then `[n]` citations that expand on request.
 
 | Intent        | Example questions                                         | Vignette |
 |---------------|-----------------------------------------------------------|----------|
@@ -560,7 +603,8 @@ Instructions run through a fixed list of actions, each a function whose reply sa
 it actually did: marking an open item done, snoozing, dismissing or reopening it (the
 fast model only picks which items; "Snoozed until Monday: HeadphonesRUs, earbud
 pairing."), a meeting's type, merging two names, meeting notes, ignoring or un-ignoring a
-sender, and showing a source. The model never writes a confirmation. Sending anything gets
+sender, starting a people file ("start a file on Workpersontwo"), and showing a source. The
+model never writes a confirmation. Sending anything gets
 "I can't send anything; I only read." Anything else gets "I can't filter Today by day yet.
 I've saved that you want it." and is saved in `journal/told.md`. Both are recorded as gaps
 in the usage log, and anything the user told Archie in the same message is saved and said
@@ -595,7 +639,14 @@ maps each tier to a model.
   cited claims). Code appends the shape's format instructions to the system prompt,
   parses the reply into a dict, checks it, and asks once more if it couldn't be read. No
   JSON schema is sent: schema-forced output costs tokens and is less reliable. **No
-  tools**, no file access and no network beyond the model call itself.
+  tools**, no file access and no network beyond the model call itself. When an answer
+  needs more digging, code runs the loop and the model only picks the next step (§8).
+- **Finding web pages:** `GeminiBackend.web_links(query)` is the one grounded call
+  (Gemini with Google Search). Only the links it returns are used, never its text; code
+  fetches each page (https from public addresses only, every redirect hop checked; size,
+  type and time limits), saves the readable text in
+  `sources/web/` and indexes it, and answers cite those pages as "Web: …". A page fetched
+  in the last 7 days is reused. `ask.dig.web` switches it off.
 - **Backends:**
   - `gemini` (default): the Gemini API through `google-genai`. The key is in the Keychain
     (`gemini-api-key`, set with `archie admin connect gemini`). Output tokens are capped
@@ -638,11 +689,11 @@ archie/
   cli.py                 # `archie`, `archie ask`, `archie admin …`
   config.py              # config.yaml and me.yaml
   store/                 # file I/O, frontmatter, fences, atomic writes, tombstones
-  connectors/            # calendar.py gmail.py drive.py github.py jira.py (+ base.py)
-  derive/                # meetings.py people.py loops.py projects.py dates.py
+  connectors/            # calendar.py gmail.py drive.py github.py jira.py (+ base.py), web.py (dig pages)
+  derive/                # meetings.py people.py loops.py projects.py dates.py enrich.py
   index/                 # chunk.py embed.py db.py search.py
   llm/                   # backend.py verify.py prompts/
-  ask/                   # understand.py dispatch.py intents/<intent>.py render.py
+  ask/                   # understand.py dispatch.py intents/<intent>.py render.py check.py dig.py offer.py
   briefings/             # classify.py templates/<type>.py build.py
   tui/
 tests/

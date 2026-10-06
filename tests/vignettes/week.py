@@ -126,11 +126,11 @@ def jira(comments=()):
 
 
 class Week:
-    def __init__(self, tmp_path, now=MORNING, work=False):
+    def __init__(self, tmp_path, now=MORNING, work=False, more_threads=None, more_events=()):
         self.llm = HeuristicLLM()
-        self.ctx = make_ctx(tmp_path, self.llm, now=now)
-        self.gmail = FakeGmail(threads(), history_id="500")
-        self.calendar = FakeCalendar(events())
+        self.ctx = make_ctx(tmp_path, self.llm, now=now, dig=True)
+        self.gmail = FakeGmail({**threads(), **(more_threads or {})}, history_id="500")
+        self.calendar = FakeCalendar([*events(), *more_events])
         self.drive = drive()
         self.connectors = [GmailConnector(lambda: self.gmail), CalendarConnector(lambda: self.calendar),
                            DriveConnector(lambda: self.drive)]

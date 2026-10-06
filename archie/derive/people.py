@@ -97,6 +97,15 @@ class PeopleDirectory:
                 out.append(a)
         return out
 
+    def mention_names(self, entity_id: str) -> list[str]:
+        """For someone the user only mentioned (`origin: mentioned`): the full name and other
+        multi-word names, matched as whole words in text. Never a single word."""
+        meta = self.meta.get(entity_id) or {}
+        if meta.get("origin") != "mentioned":
+            return []
+        names = [str(n).strip() for n in [meta.get("name"), *(meta.get("aliases") or [])] if n]
+        return list(dict.fromkeys(n for n in names if "@" not in n and not n.startswith("gh:") and len(n.split()) > 1))
+
     def facts(self, home: Home, entity_id: str) -> list[dict]:
         path = home / f"people/{entity_id}.md"
         return parse_facts(get_fence(read_note(path).body)) if path.exists() else []

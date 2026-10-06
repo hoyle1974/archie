@@ -117,12 +117,31 @@ def _enrich_one(ctx: Ctx, directory: PeopleDirectory, eid: str, since: str, fail
     return newest
 
 
+STATE = "state/people_enriched.yaml"
+
+
+def _load_state(ctx: Ctx) -> tuple[dict, dict]:
+    state_file = ctx.home / STATE
+    done = (yaml.safe_load(state_file.read_text()) or {}) if state_file.exists() else {}
+    return done, done.pop("_prompt", None) or {}  # entity_id -> prompt_version() its facts were written with
+
+
+def enrich_person(ctx: Ctx, eid: str) -> None:
+    """The facts pass for one person now (a file the user just asked Archie to start)."""
+    failures = Failures(ctx.home)
+    newest = _enrich_one(ctx, PeopleDirectory.load(ctx.home), eid, "", failures, fresh=True)
+    failures.save()
+    if newest:
+        done, versions = _load_state(ctx)
+        done[eid], versions[eid] = newest, prompt_version()
+        atomic_write(ctx.home / STATE, yaml.safe_dump({**done, "_prompt": versions}, sort_keys=True))
+
+
 def enrich_people(ctx: Ctx, paths=None) -> None:
     from concurrent.futures import ThreadPoolExecutor
 
-    state_file = ctx.home / "state/people_enriched.yaml"
-    done = (yaml.safe_load(state_file.read_text()) or {}) if state_file.exists() else {}
-    versions = done.pop("_prompt", None) or {}  # entity_id -> prompt_version() its facts were written with
+    state_file = ctx.home / STATE
+    done, versions = _load_state(ctx)
     version = prompt_version()
     directory = PeopleDirectory.load(ctx.home)
     ids = sorted(directory.meta)

@@ -31,7 +31,7 @@ QUESTION_INTENTS = {
 KINDS = ("question", "tell", "instruct", "answer", "unclear")
 FACTS = ("person", "ignore", "unignore", "other")
 ACTIONS = ("loop_done", "loop_snooze", "loop_dismiss", "loop_reopen", "meeting_type", "merge_names", "notes",
-           "ignore", "unignore", "show_citation", "nudge_snooze", "send", "none")
+           "ignore", "unignore", "show_citation", "nudge_snooze", "start_person", "send", "none")
 PARAMS = ("since", "until", "topic", "meeting")
 
 SHAPE = Shape(
@@ -132,7 +132,9 @@ def prompt_input(message: str, recent: list[dict], open_qs: list[dict], pending:
         out.append("The user's open items:")
         out += [f"- {x}" for x in items]
         out.append("")
-    if pending:
+    if pending and pending.get("kind") == "offer_person":
+        out += [f"Archie just asked: Want me to start a file on {pending.get('name')}?", ""]
+    elif pending and _labels(pending):
         from archie.ask.which import ask_which
 
         out.append(f"Archie just asked: {ask_which(_labels(pending))}")
@@ -170,9 +172,11 @@ def _params(raw: dict, heard: set[str]) -> dict:
 def checked(raw: list[dict], message: str, recent: list[dict], open_qs: list[dict],
             pending: dict | None = None) -> list[Part]:
     said = _squash(message).lower()
+    offered = [pending.get("name") or ""] if pending and pending.get("kind") == "offer_person" else []
     heard = _words(" ".join([message, *(" ".join([e.get("said", ""), e.get("resolved") or "", e.get("summary", ""),
                                                   *(c.get("label", "") for c in e.get("citations") or [])])
-                                        for e in recent), *(q.get("text", "") for q in open_qs), *_labels(pending)]))
+                                        for e in recent), *(q.get("text", "") for q in open_qs), *_labels(pending),
+                             *offered]))
     parts = []
     for r in raw:
         kind = r.get("kind") if r.get("kind") in KINDS else "question"

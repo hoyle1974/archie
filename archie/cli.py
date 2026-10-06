@@ -45,8 +45,11 @@ def cmd_ask(argv: list[str]) -> int:
         return 2
     home = Home.default()
     ctx = build_ctx(home)
+    def progress(line: str) -> None:  # stderr, so stdout stays the answer
+        print(line, file=sys.stderr, flush=True)
+
     try:
-        print(render(ask(ctx, question), sources=sources, paths=paths, stamp=True))
+        print(render(ask(ctx, question, progress), sources=sources, paths=paths, stamp=True))
     except LLMError as exc:
         print(f"Archie couldn't write an answer: {exc}")
         return 1

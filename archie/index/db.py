@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import threading
 from dataclasses import dataclass
@@ -176,6 +177,29 @@ class Index:
             f"SELECT path, chunk_id, text, source, ts, label, sender FROM chunks WHERE {where} ORDER BY ts DESC LIMIT ?",
             args + [limit])
         return [dict(zip(("path", "chunk_id", "text", "source", "ts", "label", "sender"), r)) for r in rows]
+
+    def chunks_naming(self, names: list[str], limit: int = 200, before: str | None = None,
+                      any_length: bool = False) -> list[dict]:
+        """Chunks whose text names someone, as whole words in any case, newest first. Only
+        names of two or more words count unless `any_length` ("Workpersontwo" alone could be anyone)."""
+        out: dict[tuple[str, str], dict] = {}
+        for name in names:
+            words = re.findall(r"\w+", name)
+            if not words or (len(words) < 2 and not any_length):
+                continue
+            exact = re.compile(r"(?<!\w)" + r"\W+".join(map(re.escape, words)) + r"(?!\w)", re.IGNORECASE)
+            where, args = "chunks_fts MATCH ?", ['"' + " ".join(words) + '"']
+            if before:
+                where += " AND (c.ts IS NULL OR c.ts <= ?)"
+                args.append(before)
+            rows = self.query(
+                "SELECT c.path, c.chunk_id, c.text, c.source, c.ts, c.label, c.sender FROM chunks_fts "
+                f"JOIN chunks c ON c.id = chunks_fts.rowid WHERE {where} ORDER BY c.ts DESC LIMIT ?", args + [limit])
+            for r in rows:
+                c = dict(zip(("path", "chunk_id", "text", "source", "ts", "label", "sender"), r))
+                if exact.search(c["text"]):
+                    out.setdefault((c["path"], c["chunk_id"]), c)
+        return sorted(out.values(), key=lambda c: c["ts"] or "", reverse=True)[:limit]
 
     def chunks_of(self, path: str) -> list[dict]:
         rows = self.query("SELECT path, chunk_id, text, source, ts, label FROM chunks WHERE path = ? ORDER BY id", (path,))

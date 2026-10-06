@@ -45,6 +45,41 @@ QUESTIONS = [
 ]
 
 
+# The answer check (ask/check.py) on fixed answers: `helpful` is the verdict it should give.
+# The first two are the real Workpersontwo asks; the last is a correct empty result.
+CHECKS = [
+    {"q": "Can you prep me for that meeting", "earlier": "Saved. I don't use that for anything yet.",
+     "said": "Can you prep me for that meeting", "resolved": "Can you prep me for my meeting with Workpersontwo next week?",
+     "shown": "I don't know anyone called Workpersontwo.\nYou have no meetings to prepare for in the next two weeks.",
+     "helpful": False},
+    {"q": "Who is Workpersontwo?", "earlier": "", "said": "Who is Workpersontwo?", "resolved": "Who is Workpersontwo?",
+     "shown": "I didn't recognise Workpersontwo, but she comes up in your mail: Workpersontwo Birch booked a 30 minute "
+              "video call with you for Sep 23 [1], and Workperson thanked you for pinging her on Oct 1 [2].",
+     "helpful": True},
+    {"q": "What do I owe people", "earlier": "", "said": "What do I owe people", "resolved": "What do I owe people?",
+     "shown": "Nothing open: you don't owe anyone anything right now.", "helpful": True},
+]
+
+
+def run_checks(ctx) -> list[dict]:
+    from archie.ask.check import answer_check
+
+    rows = []
+    for case in CHECKS:
+        try:
+            missing = answer_check(ctx, case["said"], case["resolved"], case["shown"], case["earlier"])
+            got, problems = missing is None, []
+            if got != case["helpful"]:
+                problems.append(f"judged {'helpful' if got else 'unhelpful'}, expected "
+                                f"{'helpful' if case['helpful'] else 'unhelpful'}")
+        except Exception as exc:  # report and keep going
+            missing, problems = None, [f"ERROR: {exc}"]
+        rows.append({"q": case["q"], "ok": not problems, "problems": problems, "missing": missing})
+        print(f"check {'ok  ' if not problems else 'FAIL'} {case['q'][:50]}"
+              + (f"\n      {'; '.join(problems)}" if problems else ""), flush=True)
+    return rows
+
+
 def load_questions(home: Path) -> list[dict]:
     """The built-in questions, then the ones reviews added (real words, never committed)."""
     import yaml
@@ -118,6 +153,7 @@ def main() -> None:
     stats = build_ctx(Home(scratch)).index.sync()  # a reset index (chunker update) is rebuilt first, as sync would
     if stats.indexed:
         print(f"Indexed {stats.indexed} changed files first.", flush=True)
+    checks = [] if args.only else run_checks(build_ctx(Home(scratch)))
     for i, case in picked:
         q = case["q"]
         (scratch / "state/conversation.jsonl").unlink(missing_ok=True)
@@ -157,6 +193,10 @@ def main() -> None:
     total = (f"\n**Total:** passed {passed}/{len(rows)}, {tot['ms'] / 1000:.1f} s, {tot['claims']} claims kept, {tot['dropped']} dropped, "
              f"{tot['in']:,} in ({tot['cached']:,} cached), {tot['thinking']:,} thinking, {tot['out']:,} out, "
              f"${tot['usd']:.2f}\n")
+    checked = "".join(f"- {'✓' if c['ok'] else '✗ ' + '; '.join(c['problems'])} {c['q']}"
+                      + (f" (missing: {c['missing']})" if c["missing"] else "") + "\n" for c in checks)
+    if checked:
+        total += f"\n**Answer check:** {sum(c['ok'] for c in checks)}/{len(checks)}\n\n{checked}"
     (out / "summary.md").write_text(f"# Eval {args.label}\n\nOverrides: {args.set or 'none'}\n\n{head}{table}{total}")
     (out / "answers.md").write_text("\n".join(answers))
     (out / "rows.json").write_text(json.dumps(rows, indent=1))

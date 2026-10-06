@@ -22,8 +22,9 @@ Part kinds:
 Actions: loop_done (an open item is finished), loop_snooze (wait until `until`, an ISO
 date), loop_dismiss (not a real item), loop_reopen, meeting_type (a meeting is a 1:1,
 standup or all-hands), merge_names (two names are one person), notes (meeting notes
-pasted in), ignore, unignore, show_citation ("show 2"), nudge_snooze, send (anything that
-sends: email, text, reply, invite, post), none.
+pasted in), ignore, unignore, show_citation ("show 2"), nudge_snooze, start_person (start
+a people file on someone; `target`: their name as said), send (anything that sends: email,
+text, reply, invite, post), none.
 
 Intents:
 {intents}
@@ -43,6 +44,9 @@ Rules:
 - News that one of the listed open items is finished is an instruct part with
   `action: loop_done`. Saying they'll tell someone themselves is their plan, not a send.
 - For pasted notes, `notes` is their first line only. Never copy the rest.
+- If Archie just asked "Want me to start a file on …?" and the user agrees in other words,
+  that's an instruct part with `action: start_person` and `target` the name Archie asked
+  about, never a pronoun.
 - Never answer, and never state facts.
 
 Examples (the open items listed include "waiting on HeadphonesRUs: Troubleshoot new earbud
@@ -89,6 +93,12 @@ PART answer
 text: it's spam, ignore it
 question: 1
 fact: ignore
+
+Message: start a file on Ines Moreau
+PART instruct
+text: start a file on Ines Moreau
+action: start_person
+target: Ines Moreau
 
 Message: hide newsletters from the morning list
 PART instruct

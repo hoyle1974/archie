@@ -141,7 +141,7 @@ def test_slow_answer_times_out_with_a_message(tmp_path, monkeypatch):
     import archie.tui.app as tui
 
     monkeypatch.setattr(tui, "ASK_TIMEOUT", 0.3)
-    monkeypatch.setattr("archie.ask.pipeline.ask", lambda ctx, q: _time.sleep(2))
+    monkeypatch.setattr("archie.ask.pipeline.ask", lambda ctx, q, progress=None: _time.sleep(2))
     ctx = make_ctx(tmp_path)
 
     async def go():
@@ -231,7 +231,7 @@ def test_a_long_sync_report_scrolls_instead_of_being_cut_off(tmp_path):
 def test_earlier_answers_stay_in_the_ask_pane_to_scroll_back_to(tmp_path, monkeypatch):
     from archie.ask.answer import Answer
 
-    monkeypatch.setattr("archie.ask.pipeline.ask", lambda ctx, q: Answer(plain=f"Answer to {q}. " + "More. " * 200))
+    monkeypatch.setattr("archie.ask.pipeline.ask", lambda ctx, q, progress=None: Answer(plain=f"Answer to {q}. " + "More. " * 200))
     ctx = make_ctx(tmp_path)
 
     async def go():
@@ -388,7 +388,7 @@ def test_today_pane_refreshes_after_an_answer(tmp_path, monkeypatch):
     from archie.ask.answer import Answer
 
     state = {"feed": "before"}
-    monkeypatch.setattr("archie.ask.pipeline.ask", lambda ctx, q: (state.update(feed="after"), Answer(plain="Done."))[1])
+    monkeypatch.setattr("archie.ask.pipeline.ask", lambda ctx, q, progress=None: (state.update(feed="after"), Answer(plain="Done."))[1])
     ctx = make_ctx(tmp_path)
 
     async def go():

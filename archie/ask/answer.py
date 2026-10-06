@@ -27,3 +27,4 @@ class Answer:
     title: str | None = None  # a code-computed first line, e.g. "2:00 PM · Design Review · 45 min"
     pending: dict | None = None  # a "which one?" question waiting on the next message (which.py)
     at: datetime | None = None  # when Archie answered (UTC); shown in local time by render(stamp=True)
+    dead_end: str | None = None  # why the intent gave up on what was asked; ask digs further (dig.py)

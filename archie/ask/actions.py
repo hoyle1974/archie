@@ -15,6 +15,7 @@ from archie.ask.context import Ctx
 from archie.ask.correct import correct
 from archie.ask.followup import citation_number, show
 from archie.ask.intents import HANDLERS
+from archie.ask.offer import start_person
 from archie.ask.tell import SAVED_ONLY, save_told, tell
 from archie.ask.understand import Part
 from archie.ask.which import ask_which
@@ -294,5 +295,5 @@ ACTIONS: dict[str, Callable[[Ctx, Part, str, dict | None], Answer]] = {
     # the notes handler finds the note's start in the whole message
     "notes": lambda ctx, part, message, last: HANDLERS["notes"](ctx, message, {**EMPTY, **part.params}),
     "ignore": _ignore(True), "unignore": _ignore(False),
-    "show_citation": _show, "nudge_snooze": _nudge_snooze,
+    "show_citation": _show, "nudge_snooze": _nudge_snooze, "start_person": start_person,
 }

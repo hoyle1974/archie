@@ -97,7 +97,8 @@ def unknown_person(ctx: Ctx, question: str, params: dict, name: str) -> Answer:
     lead = f"I didn't recognise anyone called {name}" if name else "I couldn't tell who you meant"
     answer = search_intent(ctx, question, {**params, "people": []})
     if answer.nothing_found or not (answer.summary or answer.sections):
-        return Answer(plain=f"{lead}, and a search found nothing about it.")
+        return Answer(plain=f"{lead}, and a search found nothing about it.",
+                      dead_end=f"no one called {name}, and search found nothing" if name else "search found nothing")
     answer.summary.insert(0, Claim(f"{lead}, so I searched everything instead.", []))
     return answer
 
@@ -171,7 +172,10 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
                             for e in matches)
         return Answer(plain=f"Which {query.title()}?\n{options}\nAsk again with their full name.")
     eid = matches[0]
+    from archie.ask.evidence import person_chunks
+
     history = ctx.index.chunks_with_people(directory.identifiers(eid), before=ctx.now.isoformat())
+    seen_in = person_chunks(ctx, directory, eid, limit=200, before=ctx.now.isoformat())  # mentions too
     packet = Packet()
     for c in ctx.index.chunks_of(f"people/{eid}.md"):
         packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"])
@@ -204,13 +208,13 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     told = told_sentence(directory, eid)
     said = " ".join(c.text for c in answer.summary).lower()
     if not answer.summary:  # the model had nothing to cite: open with what you told me
-        only = " That's all I know so far." if not history else ""
+        only = " That's all I know so far." if not seen_in else ""
         answer.summary = [Claim((told or f"I have {directory.name(eid)} on file, but nothing that says who they are.")
                                 + only, [])]
     elif told and meta.get("relationship") and str(meta["relationship"]).lower() not in said:
         answer.summary.insert(0, Claim(told, []))  # what you said leads, even if the mail never says it
     recent, seen = [], set()
-    for h in history:  # one meeting on several calendars is several files with one label
+    for h in seen_in:  # one meeting on several calendars is several files with one label
         if h["path"] not in seen and h["label"] not in recent:
             seen.add(h["path"])
             recent.append(h["label"])

@@ -315,22 +315,36 @@ class ArchieApp(App):
         self.ctx.now = datetime.now(timezone.utc)
         started = asyncio.get_running_loop().time()
 
+        latest, done = ["Still working…"], [False]
+
         def tick() -> None:
             waited = int(asyncio.get_running_loop().time() - started)
-            if waited >= 20 and not self.ask_done.is_set():
-                out.update(f"Still working… ({waited}s)")
+            if waited >= 20 and not done[0]:
+                out.update(f"{latest[0]} ({waited}s)")
+
+        def show(line: str) -> None:
+            if not done[0]:  # a worker left running after the timeout mustn't cover the final message
+                out.update(line)
+
+        def progress(line: str) -> None:  # called from the worker thread while Archie digs further
+            latest[0] = line
+            self.call_from_thread(show, line)
+
+        def finish(text: str) -> None:
+            done[0] = True
+            out.update(text)
 
         timer = self.set_interval(5, tick)
         try:
-            answer = await asyncio.wait_for(asyncio.to_thread(ask, self.ctx, question), ASK_TIMEOUT)
-            out.update(render(answer, sources=True, stamp=True))
+            answer = await asyncio.wait_for(asyncio.to_thread(ask, self.ctx, question, progress), ASK_TIMEOUT)
+            finish(render(answer, sources=True, stamp=True))
         except asyncio.TimeoutError:
-            out.update("That took too long, so I stopped waiting. Try asking again.")
+            finish("That took too long, so I stopped waiting. Try asking again.")
         except LLMError as exc:
-            out.update(f"Archie couldn't write an answer: {exc}")
+            finish(f"Archie couldn't write an answer: {exc}")
         except Exception as exc:
             log_error(self.ctx, f"ask: {question}")
-            out.update(f"Something went wrong: {exc} (details in logs/errors.log)")
+            finish(f"Something went wrong: {exc} (details in logs/errors.log)")
         finally:
             timer.stop()
         self.show_top_of(block)

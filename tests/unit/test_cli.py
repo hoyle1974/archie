@@ -61,7 +61,8 @@ def test_ask_prints_answer(tmp_path, monkeypatch, capsys):
     route = understood(question("search", topic="Priya"))
     answer = {"summary": [{"text": "Priya is the PM for auth.",
                            "citations": [{"ref": 1, "quote": "Priya is the PM for auth"}]}], "sections": []}
-    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend(by_schema(understand=route, answer=answer)))
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend(
+        by_schema(understand=route, answer=answer, answer_check={"helpful": True})))
     code, out = run(capsys, "ask", "who", "is", "priya?")
     first, blank, body = out.split("\n", 2)
     assert code == 0 and re.fullmatch(r"\w{3}, \w{3} \d{1,2} · \d{1,2}:\d{2} [AP]M", first)  # when it answered

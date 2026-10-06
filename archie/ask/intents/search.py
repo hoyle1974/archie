@@ -149,7 +149,7 @@ def find(ctx: Ctx, question: str, params: dict) -> list:
 def search_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     hits = find(ctx, question, params)
     if not hits:
-        return Answer(nothing_found=True)
+        return Answer(nothing_found=True, dead_end="search found nothing")
     if CONVERSATION.search(question):
         instructions = THREAD_INSTRUCTIONS.replace("{me_name}", ctx.me.name or "the user")
         packet = packet_from_hits(sorted(hits, key=lambda h: h.ts or "", reverse=True)) if params.get("mine") \

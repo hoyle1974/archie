@@ -1,7 +1,9 @@
 import pytest
 
 from archie.ask.actions import UPDATE_SHAPE as UPDATE
+from archie.ask.check import SHAPE as CHECK
 from archie.ask.clarify import SHAPE as CLARIFY
+from archie.ask.dig import SHAPE as DIG
 from archie.ask.correct import SHAPE as CORRECT
 from archie.ask.intents.notes import SHAPE as NOTES
 from archie.ask.remember import SHAPE as REMEMBER
@@ -12,13 +14,13 @@ from archie.derive.enrich import SHAPE as FACTS
 from archie.derive.loops import CLOSE_SHAPE as CLOSE
 from archie.derive.loops import EXTRACT_SHAPE as EXTRACT
 
-ALL = [UNDERSTAND, ANSWER, CLARIFY, CORRECT, UPDATE, NOTES, REMEMBER, EXTRACT, CLOSE, CROSS, FACTS]
+ALL = [UNDERSTAND, ANSWER, CLARIFY, CORRECT, UPDATE, NOTES, REMEMBER, EXTRACT, CLOSE, CROSS, FACTS, CHECK, DIG]
 
 
-def test_eleven_shapes_named_like_the_old_schemas():
+def test_every_shape_has_a_distinct_name():
     assert sorted(s.name for s in ALL) == sorted(["understand", "answer", "clarify", "correct", "loop_update",
                                                   "notes_actions", "remember", "loops_extract", "loops_close",
-                                                  "loops_cross", "people_facts"])
+                                                  "loops_cross", "people_facts", "answer_check", "dig_step"])
 
 
 @pytest.mark.parametrize("shape", [s for s in ALL if not s.claims], ids=lambda s: s.name)

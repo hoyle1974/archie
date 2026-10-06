@@ -74,10 +74,17 @@ def _sentences(text: str) -> list[str]:
     return out
 
 
+_UNHELPFUL = re.compile(r"couldn't find|found nothing|don't know anyone|no meetings|didn't recognise", re.I)
+_NOT_NAMES = {"I", "I'm", "I'll", "Can", "Could", "What", "Who", "When", "Where", "How", "Tell", "Prep", "The",
+              "Please", "Do", "Did", "Is", "Are", "Archie", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"}
+
+
 class HeuristicLLM:
     def __init__(self):
         self.calls: list[str] = []
         self.prompts: list[tuple[str, str]] = []  # (schema title, user message): what the model saw
+        self.dig_plan: list[dict] | None = None  # scripted dig steps; None: follow names (see _dig_step)
+        self.links: dict[str, list[dict]] = {}  # web query -> [{"url", "title"}]
 
     def saw(self, title: str) -> str:
         """Every user message sent with this schema, joined: what retrieval put in front of the model."""
@@ -104,6 +111,12 @@ class HeuristicLLM:
                 "since": p["since"], "until": p["until"], "topic": p["topic"], "meeting": p["meeting"],
                 "notes": p["text"], "fact": None, "about": None, "question": None, "action": None, "target": None,
                 "wanted": None, "options": [], "ask": None}
+        if re.match(r"I (?:will|'ll|’ll) meet with\b", msg, re.I):  # their plan: a telling
+            item.update(kind="tell", intent=None, people=[], fact="other", about=p["people"][0] if p["people"] else None)
+        earlier = re.findall(r"^You: .*?\bmeet(?:ing)? with ([A-Z][a-z]+)", user, re.M)
+        if re.search(r"\bthat meeting\b", msg, re.I) and earlier:  # "that meeting" is the one just mentioned
+            item.update(people=[earlier[-1]], meeting=None,
+                        resolved=re.sub(r"(?i)\bthat meeting\b", f"the meeting with {earlier[-1]}", msg))
         if r["intent"] in self.TO_PART:
             item["kind"], item["action"] = self.TO_PART[r["intent"]]
             item["intent"] = None
@@ -123,6 +136,49 @@ class HeuristicLLM:
             if sents:
                 claims.append({"text": f"{label}: {sents[0]}", "citations": [{"ref": ref, "quote": sents[0]}]})
         return {"summary": claims[:2], "sections": [{"heading": "Details", "items": claims[2:]}] if claims[2:] else []}
+
+    def _answer_check(self, system, user):
+        shown = user.split("Archie's answer:\n", 1)[-1]
+        bad = not re.search(r"\[\d+\]", shown) and bool(_UNHELPFUL.search(shown))  # cited facts help
+        return {"helpful": not bad, "missing": f"the answer only says: {' '.join(shown.split())[:80]}" if bad else None}
+
+    def _dig_step(self, system, user):
+        """Scripted steps if given; otherwise look up and search each name in the question and
+        the hint, then the fuller name a result shows ("Workpersontwo" -> "Workpersontwo Birch")."""
+        if self.dig_plan is not None:
+            return self.dig_plan.pop(0) if self.dig_plan else {"do": "answer"}
+        asked = re.search(r"^Question: (.*)$", user, re.M).group(1)
+        hint = re.search(r"^What the first answer missed: (.*)$", user, re.M).group(1)
+        notebook = user.split("Notebook:", 1)[-1]
+        done = {(d, a.strip().lower()) for d, a in re.findall(r"^Step \d+: (\w+): (.*)$", notebook, re.M)}
+        names = [w for w in dict.fromkeys(re.findall(r"\b[A-Z][a-z]+\b", f"{asked} {hint}")) if w not in _NOT_NAMES]
+        full = None
+        for name in names:
+            for step in (("person", name), ("search", name)):
+                if (step[0], step[1].lower()) not in done:
+                    return {"why": "follow the name", "do": step[0], "arg": step[1]}
+            m = re.search(rf"\b{name} [A-Z][a-z]+\b", notebook)
+            if m:
+                full = m.group(0)
+                if ("search", full.lower()) not in done:
+                    return {"why": "the full name", "do": "search", "arg": full}
+        unknown = full and f"(no people file on anyone called {full.split()[0]})" in notebook
+        return {"do": "answer", "new_person": full if unknown else None}
+
+    def _people_facts(self, system, user):
+        """One fact per source: its first sentence that names the person."""
+        name = re.search(r"^Sources about (.+):$", user, re.M).group(1)
+        first = name.split()[0]
+        facts = []
+        for ref, label, text in _items(user.split(f"Sources about {name}:", 1)[-1]):
+            s = next((s for s in _sentences(_body(text)) if first in s), None)
+            if s:
+                facts.append({"text": s.rstrip(".")[:80], "ref": ref, "quote": s})
+        return {"facts": facts[:3]}
+
+    def web_links(self, query: str, n: int = 3) -> list[dict]:
+        self.calls.append("web_links")
+        return self.links.get(query, [])[:n]
 
     def _loops_extract(self, system, user):
         loops = []

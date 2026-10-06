@@ -419,6 +419,42 @@ Each step leaves the suite green.
 5. The offer, yes/no handling, `start_person`, mentioned-people evidence.
 6. Vignette W, docs, OKF, graphify.
 
+## As built (2026-10-05)
+
+Where the code differs from the text above:
+
+- **The packet stops adding when full.** When a step's excerpts don't fit within
+  `ask.max_sources` / `ask.max_source_chars`, the rest are left out and the notebook says
+  "Some results didn't fit"; nothing already in the packet is evicted.
+- **The offer runs after any question answer**, dug or not, whenever the dig switch is on.
+  So "Tell me about Workpersontwo" also offers, when two source files name her.
+- **The offer's name** is the longest form that two different files use ("Workpersontwo
+  Petrova"), so a word that once happened to follow the name isn't taken for a surname.
+- **The yes is saved in `journal/told.md`** as `"yes" → Started a file on Workpersontwo Birch
+  …`, not `remembered: …`, so the replay of person tellings never re-runs it.
+- **The facts pass** for the new file is `enrich.enrich_person`, which wraps `_enrich_one`
+  (`fresh=True`) and records the person in `state/people_enriched.yaml`.
+- **Mentioned-people evidence** lives in `ask/evidence.person_chunks` (used by
+  `person_evidence` and `who`'s "Recent" list) on top of `Index.chunks_naming`, rather
+  than in `PeopleDirectory.identifiers`, which still returns only addresses and handles.
+  `PeopleDirectory.mention_names` gives the multi-word names. A person's own dossier is
+  never counted as a mention, and the briefing's "last talked" still uses mail only.
+- **Start a file** without an offer (`start_person`) searches the index for the name
+  (one word allowed there, since the user asked for it by name) and needs one source. A
+  pronoun is refused as a name.
+- **A reply to the offer that isn't a plain yes or no** still drops it, but the
+  understanding call is shown the offer, so "yes, start one for her" becomes `start_person`
+  on the offered name.
+- **Web pages stay out of people's evidence and the offer's count.** `sources/web/` pages
+  never count as a person's evidence (a namesake's page could become a dossier fact) or as
+  one of "your sources". They reach the user only through a dig answer.
+- **"I looked further" is said only when a step ran.** If every step was refused or the
+  first model call failed, the first answer stands with no added line.
+- **The web step is refused** when what's left of `max_usd` can't cover the search fee and
+  the answer.
+- **Redirects are followed by code**, each hop checked: https, a public address, at most 5
+  hops, and 10 s for the whole fetch.
+
 ## Out of scope
 
 - Digging for tellings or instructions (they're acted on, not answered).
