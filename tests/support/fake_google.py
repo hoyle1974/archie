@@ -47,6 +47,8 @@ class FakeGmail:
         self.history_records: list[dict] = []
         self.history_expired = False
         self.queries: list[str] = []
+        self.fetched: list[str] = []
+        self.rate_limited = 0  # the next threads().get fails this many times with a rate limit
 
     @property
     def history(self):
@@ -73,8 +75,10 @@ class _Users:
         class M:
             def list(self, userId, q=None, pageToken=None, maxResults=None, includeSpamTrash=None):
                 g.queries.append(q)
+                after = int(q.split("after:")[1].split()[0]) * 1000 if q and "after:" in q else 0
                 return Req(lambda: {"messages": [{"id": m["id"], "threadId": tid}
-                                                 for tid, msgs in g.thread_data.items() for m in msgs]})
+                                                 for tid, msgs in g.thread_data.items() for m in msgs
+                                                 if int(m["internalDate"]) > after]})
 
             def list_next(self, *a):
                 return None
@@ -86,7 +90,10 @@ class _Users:
 
         class T:
             def get(self, userId, id, format=None):
-                return Req(lambda: {"id": id, "historyId": g.history_id, "messages": g.thread_data[id]})
+                g.fetched.append(id)
+                req = Req(lambda: {"id": id, "historyId": g.history_id, "messages": g.thread_data[id]})
+                fails, g.rate_limited = g.rate_limited, 0
+                return Flaky(req, fails) if fails else req
 
         return T()
 
@@ -153,8 +160,9 @@ def cal_event(eid, summary, start, end, attendees=(), recurring=None, descriptio
 
 
 class FakeCalendar:
-    def __init__(self, events, sync_token="tok1", others=None):
-        self.events_data = list(events)
+    def __init__(self, events, sync_token="tok1", others=None, full=None):
+        self.events_data = list(events)  # what a request returns (with a sync token: what changed)
+        self.full = full  # the whole calendar, if given: a timeMin/timeMax request returns its events in range
         self.sync_token = sync_token
         self.requests: list[dict] = []
         self.token_expired = False
@@ -185,6 +193,11 @@ class FakeCalendar:
                     cal = kw.get("calendarId")
                     if cal in outer.others:
                         return {"items": outer.others[cal][2], "nextSyncToken": f"{cal}-tok"}
+                    if outer.full is not None and kw.get("timeMin"):
+                        lo, hi = (datetime.fromisoformat(kw[k].replace("Z", "+00:00")) for k in ("timeMin", "timeMax"))
+                        inside = [e for e in outer.full
+                                  if lo <= datetime.fromisoformat(e["start"]["dateTime"].replace("Z", "+00:00")) < hi]
+                        return {"items": inside, "nextSyncToken": outer.sync_token}
                     return {"items": outer.events_data, "nextSyncToken": outer.sync_token}
 
                 return Req(run)

@@ -1,7 +1,9 @@
 """Gmail, read-only (gmail.readonly). One raw file per thread: sources/gmail/<threadId>.json.
 
-Incremental via historyId; if Gmail has expired that history (about a week), fall back to
-a date query from the last successful sync. First sync backfills `backfill_days`.
+First sync backfills `backfill_days`; later syncs ask for mail since the last sync, less an
+hour for late arrivals. A thread whose mirror already holds every listed message isn't fetched.
+Gmail's history API isn't used: it reports internal changes as thousands of touched threads,
+and the only thing it adds (label changes on old mail) isn't something Archie reads.
 """
 
 from __future__ import annotations
@@ -16,10 +18,12 @@ from html import unescape
 from archie.connectors.base import SyncCtx, SyncResult
 from archie.connectors.google_retry import execute
 from archie.index.chunk import Chunk, register_raw_chunker
-from archie.store.files import write_raw
+from archie.store.files import read_raw, write_raw
 from archie.store.times import when
 
 NAME = "gmail"
+OVERLAP = timedelta(hours=1)
+PROGRESS_EVERY = 100
 DEFAULT_EXCLUDE = "-category:promotions -category:social -in:chats"
 BULK_HINTS = ("noreply", "no-reply", "donotreply", "do-not-reply", "notifications@", "mailer-daemon")
 
@@ -93,48 +97,34 @@ class GmailConnector:
     async def sync(self, sctx: SyncCtx, cursor) -> SyncResult:
         return await asyncio.to_thread(self._sync, sctx, cursor or {})
 
-    def _list_by_date(self, svc, since: datetime, exclude: str) -> set[str]:
+    def _list_by_date(self, svc, since: datetime, exclude: str, say) -> dict[str, set[str]]:
+        """{thread id: ids of its messages since `since`}."""
         q = f"after:{int(since.timestamp())} {exclude}".strip()
-        req, ids = svc.users().messages().list(userId="me", q=q, maxResults=500), set()
+        req, threads = svc.users().messages().list(userId="me", q=q, maxResults=500), {}
         while req is not None:
-            resp = execute(req)
-            ids |= {m["threadId"] for m in resp.get("messages", [])}
+            resp = execute(req, say, "Gmail")
+            for m in resp.get("messages", []):
+                threads.setdefault(m["threadId"], set()).add(m["id"])
             req = svc.users().messages().list_next(req, resp)
-        return ids
+        return threads
 
-    def _changed_since(self, svc, history_id: str) -> set[str] | None:
-        req, ids = svc.users().history().list(userId="me", startHistoryId=history_id), set()
+    @staticmethod
+    def _have(path, ids: set[str]) -> bool:
         try:
-            while req is not None:
-                resp = execute(req)
-                for h in resp.get("history", []):
-                    for key in ("messages", "messagesAdded", "messagesDeleted", "labelsAdded", "labelsRemoved"):
-                        for item in h.get(key, []):
-                            m = item.get("message", item)
-                            if m.get("threadId"):
-                                ids.add(m["threadId"])
-                req = svc.users().history().list_next(req, resp)
-        except Exception as exc:
-            if getattr(getattr(exc, "resp", None), "status", None) == 404:
-                return None  # history expired
-            raise
-        return ids
+            return ids <= {m["id"] for m in read_raw(path).get("messages", [])}
+        except (OSError, ValueError, KeyError):
+            return False
 
     def _sync(self, sctx: SyncCtx, cursor: dict) -> SyncResult:
         svc = self._service()
         exclude = sctx.config.get("exclude", DEFAULT_EXCLUDE)
-        start_history = execute(svc.users().getProfile(userId="me"))["historyId"]
-        if cursor.get("history_id"):
-            threads = self._changed_since(svc, cursor["history_id"])
-            if threads is None:
-                last = datetime.fromisoformat(cursor.get("last_sync") or sctx.backfill_start.isoformat())
-                threads = self._list_by_date(svc, last - timedelta(hours=1), exclude)
-        else:
-            threads = self._list_by_date(svc, sctx.backfill_start, exclude)
+        since = datetime.fromisoformat(cursor["last_sync"]) - OVERLAP if cursor.get("last_sync") else sctx.backfill_start
+        listed = self._list_by_date(svc, since, exclude, sctx.say)
+        todo = [t for t in sorted(listed) if not self._have(sctx.source_dir(NAME) / f"{t}.json", listed[t])]
         written = []
-        for tid in sorted(threads):
+        for n, tid in enumerate(todo, 1):
             try:
-                raw = execute(svc.users().threads().get(userId="me", id=tid, format="full"))
+                raw = execute(svc.users().threads().get(userId="me", id=tid, format="full"), sctx.say, "Gmail")
             except Exception as exc:
                 if getattr(getattr(exc, "resp", None), "status", None) == 404:
                     continue  # thread deleted; leave any existing mirror for now
@@ -142,8 +132,9 @@ class GmailConnector:
             path = sctx.source_dir(NAME) / f"{tid}.json"
             write_raw(path, normalize_thread(raw, sctx.me))
             written.append(path)
-        return SyncResult(cursor={"history_id": str(start_history), "last_sync": sctx.now.isoformat()},
-                          written=written)
+            if n % PROGRESS_EVERY == 0:
+                sctx.say(f"Gmail: fetched {n} of {len(todo)} threads…")
+        return SyncResult(cursor={"last_sync": sctx.now.isoformat()}, written=written)
 
 
 _QUOTE_HEADER = re.compile(r"^On .{5,200}wrote:\s*$", re.MULTILINE)

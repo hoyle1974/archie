@@ -95,7 +95,7 @@ def test_brief_intent_end_to_end(tmp_path):
 def test_no_upcoming_meeting(tmp_path):
     route = understood(question("brief"))
     ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=route)), now=NOW)
-    assert "no upcoming meetings" in render(ask(ctx, "prep me")).lower()
+    assert render(ask(ctx, "prep me")) == "You have no meetings to prepare for in the next two weeks."
 
 
 def test_linked_doc_is_in_the_packet(tmp_path):

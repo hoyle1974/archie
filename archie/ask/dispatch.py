@@ -31,11 +31,17 @@ def _fact(part: Part) -> str:
     return part.fact if part.fact in FACTS else "person"
 
 
+NO_INDEX = {"agenda", "help"}  # answered from files alone
+REBUILDING = "I'm rebuilding my index after an update. Ask again in a minute."
+
+
 def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict | None = None) -> tuple[str, Answer]:
     """(what handled the part, for the usage log; the reply)."""
     if part.kind == "question":
         name = part.intent if part.intent in HANDLERS else "search"
         label = name if name == part.intent else f"{part.intent}->search"
+        if name not in NO_INDEX and ctx.index.rebuilding():  # not "nothing found": it isn't searched yet
+            return label, Answer(plain=REBUILDING)
         return label, HANDLERS[name](ctx, part.resolved or part.text, {**EMPTY, **part.params, "said": part.text})
     if part.kind == "tell":
         fact = _fact(part)

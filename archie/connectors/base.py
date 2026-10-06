@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from archie.config import Me
 from archie.store.home import Home
@@ -19,6 +19,7 @@ class SyncCtx:
     me: Me
     now: datetime
     backfill_days: int = 14
+    say: Callable[[str], None] = lambda text: None  # a plain sentence for the progress line; any thread
 
     @property
     def backfill_start(self) -> datetime:

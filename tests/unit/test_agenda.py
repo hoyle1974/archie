@@ -67,9 +67,7 @@ def test_brief_does_not_prep_personal_events(tmp_path):
     ctx = make_ctx(tmp_path, now=NOW)
     seed(ctx)
     assert pick_meeting(ctx, None) is None  # tomorrow's personal events are not prep candidates
-    from archie.ask.intents.brief import brief_intent
-
-    assert "no upcoming meetings" in render(brief_intent(ctx, "prep me", {"meeting": None})).lower()
+    assert pick_meeting(ctx, None, 14 * 24).meta["title"] == "Design Review"  # the first work meeting, days later
 
 
 LATE = datetime(2026, 10, 3, 6, 57, tzinfo=timezone.utc)  # Fri Oct 2, 11:57 PM PDT

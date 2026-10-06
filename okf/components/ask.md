@@ -20,6 +20,7 @@ tags: [component]
 - `followup.py`: "show N" prints citation N of the last answer (label, quote, the text around it, then the path) with no model call; "really?" re-asks the last question and says when the answer changed, but only when the last exchange was all questions (or a "show N" about one), so a telling, notes or a yes/no answer is never redone. Each conversation entry records its part `kinds` for this. A "show" with no clear number asks which source.
 - `router.py`: `quick_route` handles unambiguous, parameter-free questions in code ("what's next?", "what do I owe people?", "help") and skips the model call.
 - `synthesize.py`: `people_context` adds what the user has told Archie (relationship, identity, pronouns, role) about every known person the packet mentions, and tells the model it overrides the sources, so an email saying "my son" can't override "my child". Then it sends the packet to the `strong` model, which returns `{summary, sections}` made of claims, and runs every claim through the [verifier](llm.md).
+- `dispatch.py` also checks `Index.rebuilding()` before a question that needs the index (anything but `agenda` and `help`): while a chunker or schema update has emptied it and no sync has rebuilt it, the reply is "I'm rebuilding my index after an update. Ask again in a minute." instead of "I couldn't find anything about that in your archive."
 - `answer.py`: `Answer` holds the summary claims, sections (cited items plus lines computed by code), the packet, the count of dropped claims, plain text, notes, and a `nothing_found` flag.
 - `render.py`: puts the summary first and numbers `[n]` markers in the order they appear. The source list is shown only with `--sources`. It says plainly when nothing was found, when claims were dropped because they couldn't be verified, and when the material found answers nothing.
 - `intents/`: each one registers with `@intent(name)`.
@@ -29,7 +30,7 @@ tags: [component]
 - `context.py`: `Ctx` bundles home, config, me, index, backend and now, so tests can swap any part.
 
   - `agenda`: lists what's on the calendar for a day or range, read from the calendar mirror with no model: all-day events first, then timed ones, with meetings showing who's in them. Declined and cancelled events are left out, and an event on two calendars is shown once. "today", "tomorrow", "this weekend" and weekday names are parsed by code and quick-routed; anything else uses the understood since/until. Today's timed events that have ended say "(over)", and from 10 PM a "today" with no timed events left also shows tomorrow.
-  - `brief`: see [briefings](briefings.md). Personal events (no attendees) are never briefed.
+  - `brief`: see [briefings](briefings.md). Named people come first (a meeting with all of them in 14 days, else a people briefing); otherwise a meeting by time or title. Personal events (no attendees) are never briefed.
   - `loops`: see [loops](loops.md).
   - `notes`:
     - Finds the matching meeting: a recent one (from 24 hours ago to 1 hour ahead) that matches by title words. With no meeting named, it takes the most recent one.
@@ -47,7 +48,7 @@ tags: [component]
 
   - `remember.py` (not an intent: `remember_people`, called by `tell.py` for `fact: person`): the user tells Archie about one or more people ("Goodspouse is my wife, she goes by Belle", "Acorn is my youngest, he's three").
     - Code sets `relationship`, `role`, `pronouns`, `identity`, `avoid` (words never to use for them), `full_name` and aliases on the dossier, creating a `status: known` dossier for someone with no email history. The name the user uses stays the dossier's `name`; a full name is kept only if it's in the message, and `PeopleDirectory.label` shows it in brackets ("Acorn (Acorn Testerson)") in the reply, the `who` glance and "my family".
-    - Each person's sentence goes word for word under `## My notes`, but only if it really appears in the message.
+    - Each person's sentence goes word for word under `## My notes`, but only if it really appears in the message. The reply quotes it ("• Acorn: “Acorn is full of energy…”"), not only the name, since the user may not recall what they typed. Every file it writes is re-indexed at once (`Index.update_files`), so "tell me about Acorn" right afterwards sees the note; before, `who` read the notes from index chunks that only changed at the next sync (review 2026-10-04 evening).
     - `who` shows "Your <relationship> · pronouns" and passes pronouns to the model. "my family" lists dossiers whose relationship is a family word. Briefings show the relationship too.
   - `catchup`:
     - The window comes from since/until and defaults to the last 7 days.

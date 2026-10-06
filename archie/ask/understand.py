@@ -18,7 +18,7 @@ from archie.llm.shape import F, Record, Shape
 
 QUESTION_INTENTS = {
     "agenda": "what's on the calendar for a day or range (\"what do I have tomorrow?\", \"what's my week like?\")",
-    "brief": "prepare for one specific meeting (\"prep me for 2pm\", \"what's my next meeting about?\")",
+    "brief": "prepare for one specific meeting, or to meet named people (\"prep me for 2pm\", \"what's my next meeting about?\", \"I'm meeting Ana and Ben next week, what should I prepare?\"; list the people)",
     "who": "who someone is, history with them, or a group like \"my family\" (\"who is Priya?\")",
     "loops": "open items: owed, promised, waiting on (\"what do I owe people?\")",
     "next": "what to work on next",

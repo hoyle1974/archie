@@ -96,7 +96,7 @@ def test_N_a_description_and_full_name_land_in_the_persons_file(tmp_path):
                             "other_names": [], "statement": said}]}
 
     ctx = make_ctx(tmp_path, FakeBackend(people))
-    assert render(ask(ctx, said)) == "Got it. I'll remember:\n  • Acorn (Acorn Testerson), new"
+    assert render(ask(ctx, said)) == f"Got it. I'll remember:\n  • Acorn (Acorn Testerson), new: “{said}”"
     acorn = read_note(ctx.home / "people/acorn.md")
     assert acorn.meta["name"] == "Acorn" and acorn.meta["full_name"] == "Acorn Testerson"
     assert "Acorn is full of energy and is 3 and a half years old." in acorn.body
@@ -116,3 +116,38 @@ def test_N_telling_saved_before_a_fix_reaches_the_person(tmp_path):
     asyncio.run(run_cycle(ctx, [], post_index=post_index_steps(), notes=notes))
     assert energy in read_note(ctx.home / "people/acorn.md").body
     assert "Re-applied 1 thing you told me earlier: Acorn" in notes
+
+
+def test_N_a_just_told_note_reaches_tell_me_about_with_no_sync(tmp_path):
+    energy = "Acorn is full of energy and is 3 and a half years old."
+
+    def model(system, user, shape, tier):
+        said = user.rsplit("Message:", 1)[-1].strip()
+        if shape.name == "understand":
+            if said == energy:
+                return understood(part("tell", fact="person", about="Acorn"))
+            return understood(question("who", people=["Acorn"]))
+        if shape.name == "remember":
+            return {"people": [{"name": "Acorn", "statement": energy}]}
+        return {"summary": [], "sections": []}
+
+    fb = FakeBackend(model)
+    ctx = make_ctx(tmp_path, fb)
+    write_note(ctx.home / "people/acorn.md", Note(meta={"entity_id": "acorn", "name": "Acorn", "aliases": [],
+                                                        "relationship": "kid"},
+                                                  body="## My notes\n- We have two kids. _(you said, Oct 1)_\n"))
+    ctx.index.sync()
+    ask(ctx, energy)
+    ask(ctx, "tell me about Acorn")  # no sync in between
+    answer_call = [c for c in fb.calls if c["shape"].name == "answer"][-1]
+    assert energy in answer_call["user"]
+
+
+def test_N_the_reply_says_what_was_remembered(tmp_path):
+    energy = "Acorn is full of energy and is 3 and a half years old."
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(
+        understand=understood(part("tell", fact="person", about="Acorn")),
+        remember={"people": [{"name": "Acorn", "statement": energy}]})))
+    write_note(ctx.home / "people/acorn.md", Note(meta={"entity_id": "acorn", "name": "Acorn", "aliases": [],
+                                                        "relationship": "kid"}, body="## My notes\n"))
+    assert render(ask(ctx, energy)) == f"Got it. I'll remember:\n  • Acorn: “{energy}”"

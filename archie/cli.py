@@ -73,6 +73,9 @@ def cmd_sync(home: Home) -> int:
         print(f"{name}: ok, {rep.written} updated" if rep.ok else f"{name}: failed: {rep.error}")
     for line in notes:
         print(line)
+    budget = getattr(ctx.backend, "budget", None)
+    if budget is not None:
+        print(budget.session_line())
     if ctx.config["llm"].get("google_project"):
         from archie.llm import google_usage
 

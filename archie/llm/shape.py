@@ -218,8 +218,28 @@ def _claim(line: str) -> dict:
     return {"text": _claim_text(line[:cites[0].start()]), "citations": out}
 
 
+def _open_quote(line: str) -> bool:
+    """The line's last citation opens a double quote that never closes: the model copied a
+    line break from the source into the quote."""
+    cites = list(_CITE.finditer(line))
+    if not cites:
+        return False
+    rest = line[cites[-1].end():]
+    return rest[:1] in "\"“" and not re.search(r"[\"”]", rest[1:])
+
+
+def _joined(lines: list[str]) -> list[str]:
+    out: list[str] = []
+    for line in lines:
+        if out and _open_quote(out[-1]) and not (_SUMMARY.match(line) or _HEADING.match(line)):
+            out[-1] = f"{out[-1]} {line}"
+        else:
+            out.append(line)
+    return out
+
+
 def _parse_claims(text: str) -> dict:
-    lines = list(_lines(text))
+    lines = _joined(list(_lines(text)))
     started = not any(_SUMMARY.match(x) for x in lines)
     summary: list[dict] = []
     sections: list[dict] = []

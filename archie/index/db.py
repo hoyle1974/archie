@@ -121,20 +121,42 @@ class Index:
                     self.conn.commit()
                 stats.removed += 1
             for rel, p in sorted(disk.items()):
-                text = p.read_text(encoding="utf-8")
-                digest = hashlib.sha256(text.encode()).hexdigest()
-                if known.get(rel) == digest:
-                    continue
-                chunks = chunk_file(rel, text)
-                vecs = self.embedder.embed([c.text for c in chunks]) if chunks else []
-                with self.lock:
-                    self._drop(rel)
-                    self._insert(chunks, vecs)
-                    self.conn.execute("INSERT OR REPLACE INTO files VALUES (?, ?, ?)", (rel, digest, now))
-                    self.conn.commit()
-                stats.indexed += 1
-                stats.chunks += len(chunks)
+                n = self._index_file(rel, p, known.get(rel), now)
+                if n is not None:
+                    stats.indexed += 1
+                    stats.chunks += n
         return stats
+
+    def rebuilding(self) -> bool:
+        """The index is empty but there are files to index: it was just reset (a chunker or
+        schema update) and the next sync hasn't rebuilt it yet."""
+        return self.query("SELECT count(*) FROM chunks")[0][0] == 0 and bool(self._files_on_disk())
+
+    def update_files(self, rels: list[str]) -> None:
+        """Re-index just these files now (a telling changed them), so the next question sees
+        them without waiting for a sync."""
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        with self._sync_guard:
+            known = dict(self.query("SELECT path, sha256 FROM files"))
+            for rel in rels:
+                p = self.home / rel
+                if p.exists():
+                    self._index_file(rel, p, known.get(rel), now)
+
+    def _index_file(self, rel: str, p, old_digest: str | None, now: str) -> int | None:
+        """Chunks written, or None when the file is unchanged."""
+        text = p.read_text(encoding="utf-8")
+        digest = hashlib.sha256(text.encode()).hexdigest()
+        if old_digest == digest:
+            return None
+        chunks = chunk_file(rel, text)
+        vecs = self.embedder.embed([c.text for c in chunks]) if chunks else []
+        with self.lock:
+            self._drop(rel)
+            self._insert(chunks, vecs)
+            self.conn.execute("INSERT OR REPLACE INTO files VALUES (?, ?, ?)", (rel, digest, now))
+            self.conn.commit()
+        return len(chunks)
 
     def chunk_text(self, path: str, chunk_id: str) -> str | None:
         rows = self.query("SELECT text FROM chunks WHERE path = ? AND chunk_id = ?", (path, chunk_id))

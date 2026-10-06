@@ -142,6 +142,19 @@ class PeopleDirectory:
                     return hits
         return []
 
+    def near(self, query: str) -> list[str]:
+        """People whose name or first name is one typo from `query` ("WorkPersoon" -> Workperson). A
+        guess: callers say it out loud and never write with it."""
+        from archie.names import near
+
+        out = []
+        for eid, meta in self.meta.items():
+            names = {str(n) for n in [meta.get("name"), *(meta.get("aliases") or [])] if n and "@" not in str(n)}
+            names |= {n.split(" ")[0] for n in names}
+            if any(near(query, n) for n in names):
+                out.append(eid)
+        return out
+
     def mentioned_in(self, text: str, any_case: bool = False, loose: bool = False) -> list[str]:
         """Entity ids whose name, a name alias, or a first name (3+ letters) appears in text,
         possessives included ("Workperson's", "Workpersons").

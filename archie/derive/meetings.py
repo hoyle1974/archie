@@ -48,6 +48,11 @@ def others(data: dict, me) -> list[dict]:
     return [a for a in data.get("attendees", []) if not a.get("self") and not me.is_me(a.get("email", ""))]
 
 
+def _has_your_notes(body: str) -> bool:
+    outside = re.sub(r"<!-- archie:auto -->.*?<!-- /archie:auto -->", "", body, flags=re.S)
+    return bool(outside.replace("## My notes", "").strip())
+
+
 def derive_meetings(ctx: Ctx, paths: list[Path]) -> None:
     by_event = {m.meta.get("event_id"): m for m in load_meetings(ctx.home)}
     directory = PeopleDirectory.load(ctx.home)
@@ -55,7 +60,12 @@ def derive_meetings(ctx: Ctx, paths: list[Path]) -> None:
     now = ctx.now.isoformat()
     for path in sorted(paths):
         rel = Path(path).relative_to(ctx.home.root).as_posix()
-        if not rel.startswith("sources/calendar/") or not Path(path).exists():
+        if not rel.startswith("sources/calendar/"):
+            continue
+        if not Path(path).exists():  # dropped by the connector (past its window), not cancelled
+            gone = by_event.get(Path(path).stem)
+            if gone and not _has_your_notes(gone.note.body):
+                (ctx.home / gone.rel_path).unlink(missing_ok=True)
             continue
         data = read_raw(path)
         existing = by_event.get(data.get("id"))

@@ -18,11 +18,15 @@ def _is_rate_limit(exc: Exception) -> bool:
     return False
 
 
-def execute(request):
+def execute(request, say=None, api: str = "Google"):
+    """`say` hears a sentence before each wait, so a long backoff never looks like a hang."""
     for attempt in range(MAX_TRIES):
         try:
             return request.execute()
         except Exception as exc:
             if not _is_rate_limit(exc) or attempt == MAX_TRIES - 1:
                 raise
-            SLEEP(2 ** (attempt + 1))
+            wait = 2 ** (attempt + 1)
+            if say:
+                say(f"{api} asked Archie to slow down; trying again in {wait} seconds…")
+            SLEEP(wait)

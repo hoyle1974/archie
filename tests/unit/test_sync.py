@@ -151,6 +151,26 @@ def test_progress_says_what_sync_is_waiting_on(tmp_path):
         "Reading what's new: loops…", "Updating the search index…", "Final checks…"]
 
 
+def test_a_connector_can_speak_from_its_worker_thread(tmp_path):
+    import threading
+
+    class Talker:
+        name = "talker"
+
+        async def sync(self, sctx, cursor):
+            def work():
+                sctx.say("Gmail: fetched 100 of 300 threads…")
+                return SyncResult(cursor={})
+
+            return await asyncio.to_thread(work)
+
+    said, threads = [], []
+    asyncio.run(run_cycle(make_ctx(tmp_path), [Talker()], index=False,
+                          on_progress=lambda t: (said.append(t), threads.append(threading.current_thread()))))
+    assert "Gmail: fetched 100 of 300 threads…" in said
+    assert set(threads) == {threading.main_thread()}  # delivered on the loop's thread, safe for the TUI
+
+
 def test_post_index_sentences_reach_notes(tmp_path):
     ctx = make_ctx(tmp_path)
     notes: list[str] = []

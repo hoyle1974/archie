@@ -6,6 +6,11 @@ family calendar); read-only subscriptions like holidays are skipped.
 Recurring events are expanded (singleEvents) so each occurrence is its own file. First sync
 covers the backfill window plus `lookahead_days` ahead; after that, `syncToken` returns only
 changes. A 410 means the token expired: do a full resync.
+
+Only occurrences up to `lookahead_days` ahead are kept. A token sync after a series is edited
+returns every future copy (years of a weekly event), so later ones are skipped, and the window
+rolls forward: once its end is a day or more behind, the days it newly covers are listed, since
+copies that never changed would never come through the token.
 """
 
 from __future__ import annotations
@@ -13,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from html import unescape
 
 from archie.connectors.base import SyncCtx, SyncResult
@@ -98,13 +103,12 @@ class CalendarConnector:
                  if not c.get("primary") and c.get("accessRole") in ("owner", "writer")]
         return cals
 
-    def _list(self, svc, sctx: SyncCtx, cal: str, token: str | None):
+    def _list(self, svc, sctx: SyncCtx, cal: str, token: str | None, start: datetime | None = None):
         if token:
             kw = {"calendarId": cal, "syncToken": token, "singleEvents": True, "showDeleted": True}
         else:
-            ahead = int(sctx.config.get("lookahead_days", 60))
             kw = {"calendarId": cal, "singleEvents": True, "showDeleted": True,
-                  "timeMin": sctx.backfill_start.isoformat(), "timeMax": (sctx.now + timedelta(days=ahead)).isoformat()}
+                  "timeMin": (start or sctx.backfill_start).isoformat(), "timeMax": _edge(sctx).isoformat()}
         items, req, resp = [], svc.events().list(**kw), {}
         while req is not None:
             resp = execute(req)
@@ -118,9 +122,16 @@ class CalendarConnector:
         if cursor.get("sync_token") and "primary" not in tokens:  # cursor from before multi-calendar
             tokens["primary"] = cursor["sync_token"]
         written, deleted, new_tokens = ([] if cursor.get("utc") else to_utc(sctx)), [], {}
+        edge = _edge(sctx)
+        if "window_end" not in cursor:  # once: drop copies stored years ahead before the window existed
+            deleted += _beyond(sctx, edge)
+        old_edge = datetime.fromisoformat(cursor.get("window_end") or sctx.now.isoformat())
+        roll = edge - old_edge >= timedelta(days=1)
         for cal, cal_name in self._calendars(svc, sctx):
             try:
                 items, token = self._list(svc, sctx, cal, tokens.get(cal))
+                if tokens.get(cal) and roll:  # copies that never changed only come through a dated list
+                    items += self._list(svc, sctx, cal, None, start=old_edge)[0]
             except Exception as exc:
                 if getattr(getattr(exc, "resp", None), "status", None) != 410:
                     raise
@@ -128,6 +139,8 @@ class CalendarConnector:
             new_tokens[cal] = token
             prefix = "" if cal == "primary" else hashlib.sha1(cal.encode()).hexdigest()[:6] + "_"
             for ev in items:
+                if _starts(ev) and _starts(ev) > edge:  # an edited series sends years of copies
+                    continue
                 path = sctx.source_dir(NAME) / f"{prefix}{ev['id']}.json"
                 if ev.get("status") == "cancelled":
                     if path.exists() and not read_raw(path).get("deleted"):
@@ -139,7 +152,36 @@ class CalendarConnector:
                 data["calendar"] = "primary" if cal == "primary" else cal_name
                 write_raw(path, data)
                 written.append(path)
-        return SyncResult(cursor={"calendars": new_tokens, "utc": True}, written=written, deleted=deleted)
+        window_end = edge if roll or not cursor.get("window_end") else old_edge
+        return SyncResult(cursor={"calendars": new_tokens, "utc": True, "window_end": window_end.isoformat()},
+                          written=written, deleted=deleted)
+
+
+def _edge(sctx: SyncCtx) -> datetime:
+    return sctx.now + timedelta(days=int(sctx.config.get("lookahead_days", 60)))
+
+
+def _at(raw: str) -> datetime:
+    """A stored or Google time as an aware datetime; a bare date (all-day) is midnight UTC."""
+    t = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
+def _starts(ev: dict) -> datetime | None:
+    t = ev.get("start") or {}
+    raw = t.get("dateTime") or t.get("date")
+    return _at(raw) if raw else None
+
+
+def _beyond(sctx: SyncCtx, edge: datetime) -> list:
+    """Remove stored occurrences that start after the window; they come back as it rolls."""
+    gone = []
+    for path in sorted(sctx.source_dir(NAME).glob("*.json")):
+        start = read_raw(path).get("start")
+        if start and _at(start) > edge:
+            path.unlink()
+            gone.append(path)
+    return gone
 
 
 def chunk_event(path: str, data: dict) -> list[Chunk]:

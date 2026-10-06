@@ -46,6 +46,7 @@ class Budget:
         self.home, self.limit, self.clock = home, float(limit), clock
         self.lock = threading.Lock()
         self._cache: tuple = (None, 0.0)
+        self.session_usd = 0.0  # calls made by this process (a TUI session or one command)
 
     @property
     def path(self):
@@ -83,6 +84,9 @@ class Budget:
         line = f"Gemini: {money(self.spent())} of ${self.limit:g} this month"
         return line if self.spent() < self.limit else f"{line}: paused until {self.resets()}"
 
+    def session_line(self) -> str:
+        return f"Gemini: {money(self.session_usd)} this session"
+
     def resets(self) -> str:
         now = self.clock().astimezone(timezone.utc)
         nxt = datetime(now.year + (now.month == 12), now.month % 12 + 1, 1)
@@ -107,3 +111,4 @@ class Budget:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(entry) + "\n")
+            self.session_usd += usd

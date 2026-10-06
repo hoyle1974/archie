@@ -89,8 +89,14 @@ async def run_cycle(ctx: Ctx, connectors: list[Connector], derivers: list[Derive
     backfill = ctx.config["sync"]["backfill_days"]
     waiting: set[str] = set()
 
+    loop = asyncio.get_running_loop()
+
+    def say_from_thread(text: str) -> None:  # connectors run in worker threads; the TUI isn't thread-safe
+        loop.call_soon_threadsafe(say, text)
+
     async def job(c):
-        sctx = SyncCtx(ctx.home, ctx.config["connectors"].get(c.name, {}), ctx.me, ctx.now, backfill)
+        sctx = SyncCtx(ctx.home, ctx.config["connectors"].get(c.name, {}), ctx.me, ctx.now, backfill,
+                       say=say_from_thread)
         try:
             return await _one(c, sctx, cursors.get(c.name))
         finally:

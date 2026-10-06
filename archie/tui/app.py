@@ -163,9 +163,10 @@ class ArchieApp(App):
         if budget is None:
             return
         from archie.llm import google_usage
+        from archie.llm.budget import money
 
         try:
-            text = budget.summary() + google_usage.subtitle(self.ctx.home)
+            text = f"{budget.summary()} ({money(budget.session_usd)} this session){google_usage.subtitle(self.ctx.home)}"
         except (OSError, ValueError):
             return
         self.query_one("#answer-scroll").border_subtitle = text

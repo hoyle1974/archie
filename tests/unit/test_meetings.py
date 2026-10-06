@@ -135,3 +135,27 @@ def test_user_edited_type_wins_over_reclassification(tmp_path):
     derive_meetings(ctx, [put(ctx, ev)])
     again = load_meetings(ctx.home)[0]
     assert again.meta["type"] == "standard" and again.meta["title"] == "Alex / Test (renamed)"
+
+
+def test_a_meeting_whose_source_was_removed_is_removed(tmp_path):
+    ctx = make_ctx(tmp_path, now=NOW)
+    path = put(ctx, cal_event("swim_20400102T173000Z", "Swimming", "2040-01-02T17:30:00Z", "2040-01-02T18:30:00Z"))
+    derive_meetings(ctx, [path])
+    note = ctx.home / find_meeting(ctx.home, "swim_20400102T173000Z").rel_path
+    assert note.exists()
+    path.unlink()  # the calendar connector dropped it: past the lookahead window
+    derive_meetings(ctx, [path])
+    assert not note.exists() and find_meeting(ctx.home, "swim_20400102T173000Z") is None
+
+
+def test_a_removed_meeting_with_your_notes_is_kept(tmp_path):
+    ctx = make_ctx(tmp_path, now=NOW)
+    path = put(ctx, cal_event("swim_20400102T173000Z", "Swimming", "2040-01-02T17:30:00Z", "2040-01-02T18:30:00Z"))
+    derive_meetings(ctx, [path])
+    note_path = ctx.home / find_meeting(ctx.home, "swim_20400102T173000Z").rel_path
+    note = read_note(note_path)
+    note.body = note.body.replace("## My notes\n", "## My notes\nBring the blue towel.\n")
+    write_note(note_path, note)
+    path.unlink()
+    derive_meetings(ctx, [path])
+    assert "Bring the blue towel." in note_path.read_text()

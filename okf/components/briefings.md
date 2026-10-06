@@ -7,7 +7,7 @@ status: active
 tags: [component]
 ---
 
-Types: one_on_one, standup, all_hands, standard. Includes conflict callouts. Uses [index-search](index-search.md), [loops](loops.md), [llm](llm.md). Design: [DESIGN §7](../../docs/DESIGN.md#7-briefings). Vignettes A, L, M.
+Types: one_on_one, standup, all_hands, standard. Includes conflict callouts. Uses [index-search](index-search.md), [loops](loops.md), [llm](llm.md). Design: [DESIGN §7](../../docs/DESIGN.md#7-briefings). Vignettes A, L, M, V.
 
 Built so far: `classify.py`, which picks the meeting type in code. Checked in order:
 1. The user's overrides in `config/meeting_types.yaml`, by `series` id or exact `titles`.
@@ -20,8 +20,9 @@ Built so far: `classify.py`, which picks the meeting type in code. Checked in or
 Keywords come before structure, so a 2-person "Daily Standup" is still a standup.
 
 - `build.py`:
-  - `upcoming(ctx)` lists scheduled meetings that haven't ended, from now to 36 hours ahead.
-  - `pick_meeting(ctx, text)` chooses one: "next" (or nothing) means the soonest, "2pm"/"4:30" matches the start time, and anything else matches title words.
+  - `upcoming(ctx, hours=36)` lists scheduled meetings that haven't ended, from now to `hours` ahead.
+  - `pick_meeting(ctx, text, hours=36)` chooses one: "next" (or nothing) means the soonest, "2pm"/"4:30" matches the start time, and anything else matches title words. `brief` tries 36 hours, then 14 days; with nothing in two weeks it says "You have no meetings to prepare for in the next two weeks." (it had said "in the next day and a half" even when the user asked about next week).
+  - Getting ready for people (Vignette V, [DESIGN §7.5](../../docs/DESIGN.md#75-getting-ready-for-people-not-a-meeting)): `resolve_people` turns the names the user gave into people (exact, then possessive, then one typo away via `PeopleDirectory.near`, said as "I took WorkPersoon to mean Workperson Acorn."; an unknown name is said, not dropped). `meeting_with` finds the next meeting in 14 days that all of them are invited to, which is briefed as usual. With none, `people_briefing` opens "There's nothing on your calendar with … in the next two weeks. Here's what to know.", sends each person's file and their own messages (`person_evidence`) to the model with `PEOPLE_INSTRUCTIONS`, and adds the People and "Open with these people" sections. It isn't saved. Why: review 2026-10-05, where "I will have a meeting with Arjun, Zara and Workperson next week, tell me what I should prepare for" got "You have no upcoming meetings in the next day and a half." twice.
   - `build_briefing(ctx, meeting)`:
     - Builds a packet from the event chunk plus a template for the meeting type. 1:1s add the previous occurrence's note and limit everything to activity since then. Standard meetings and 1:1s add attendee dossiers and up to 12 of each attendee's passages since the window start from the evidence selector ([ask](ask.md) `person_evidence`), so mail they sent comes before newer threads they were only copied on. Standups use the last 3 days of activity. Every type adds a hybrid search on the title, but only when the title has at least 2 real words, because a one-word title like "Test" matched unrelated commits.
     - The LLM writes a cited summary and sections using per-type `INSTRUCTIONS` (conflicts become a "⚠️ Conflict" item).

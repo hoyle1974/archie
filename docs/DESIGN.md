@@ -270,8 +270,8 @@ feed the handover vignette and narrow down searches.
 
 | Source   | Phase | Incremental mechanism                 | Raw unit             |
 |----------|-------|---------------------------------------|----------------------|
-| Calendar | 1     | `syncToken` per calendar (all calendars the user owns or edits) | event (instance) |
-| Gmail    | 1     | `historyId` (falls back to a date query if expired, about 1 week) | thread |
+| Calendar | 1     | `syncToken` per calendar (all calendars the user owns or edits); occurrences kept up to `lookahead_days` ahead, and the window rolls forward with a dated list | event (instance) |
+| Gmail    | 1     | `after:` date query from the last sync, less an hour | thread |
 | Drive    | 1     | `changes` page token                  | file (text export)   |
 | GitHub   | 1     | `since` / `updated` sort              | PR, commit, review   |
 | Jira     | 1     | JQL `updated >= cursor`               | issue (with comments)|
@@ -329,7 +329,10 @@ Each chunk records `(file_path, chunk_id, char_start, char_end, source, ts, peop
 - `chunks_fts`: an FTS5 table over chunk text
 - `chunks_vec`: a `vec0` table, `embedding FLOAT[384]`
 - `meta(key, value)`: `embed_model`, `chunker_version`, `schema_version`. A mismatch
-  triggers a full reindex.
+  triggers a full reindex. Until the next sync rebuilds it, a question that needs the index
+  gets "I'm rebuilding my index after an update. Ask again in a minute.", never "nothing
+  found". A telling re-indexes the person file it changed at once, so the next question
+  sees it.
 
 **Embeddings:** `BAAI/bge-small-en-v1.5` (384 dims, 512-token input) through
 `sentence-transformers`, run locally.
@@ -486,6 +489,17 @@ What changed
 ⚠️ Conflict: …
 ```
 
+### 7.5 Getting ready for people, not a meeting
+
+`brief` with people named ("I'm meeting Arjun, Zara and Workperson next week") looks for a
+meeting in the next 14 days that all of them are invited to and briefs it. With none, it
+builds a briefing for the people instead: it opens "There's nothing on your calendar with
+Arjun, Zara and Workperson in the next two weeks. Here's what to know.", then the same People
+and "Open with these people" sections, with a cited summary from each person's file and
+their own messages. It is not saved to `briefings/`. A name one typo from a known person
+("WorkPersoon") is matched and said ("I took WorkPersoon to mean Workperson Acorn."); an unknown name is
+said, not dropped. Without people, `brief` looks 36 hours ahead, then 14 days.
+
 ## 8. `archie ask`
 
 `ask` is the only interface the user needs to remember. It's a pipeline:
@@ -511,7 +525,7 @@ What changed
 | Intent        | Example questions                                         | Vignette |
 |---------------|-----------------------------------------------------------|----------|
 | `agenda`      | "what do I have tomorrow?", "what's my week look like?"   | A |
-| `brief`       | "prep me for 2pm", "what's my next meeting about?"        | A |
+| `brief`       | "prep me for 2pm", "I'm meeting Ana and Ben next week"    | A, V |
 | `who`         | "who is Priya?", "what's my history with Alex?"           | B, J |
 | `loops`       | "what do I owe people?", "what am I waiting on?"          | C |
 | `next`        | "what should I work on next?"                             | D |
@@ -536,7 +550,8 @@ about it." when search finds nothing either.
 
 Tellings, instructions and answers are not intents. Every telling, and every answer to
 one of Archie's questions, is saved word for word in `journal/told.md`, then applied:
-facts about a person (the `remember` code), ignoring or un-ignoring a sender (the
+facts about a person (the `remember` code, whose reply repeats what was saved in the
+user's words: "Got it. I'll remember: • Acorn: “Acorn is full of energy…”"), ignoring or un-ignoring a sender (the
 `ignore:` list in `config.yaml`; their mail makes no open items or questions, and answers
 leave it out unless the question names them), or nothing yet ("Saved. I don't use that for
 anything yet."). Yes/no answers use the `clarify` code.

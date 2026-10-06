@@ -27,10 +27,10 @@ def sync(fake, cursor=None, tmp_path=None):
 
 
 def test_first_sync_backfills_14_days_and_writes_threads(tmp_path):
-    fake = FakeGmail({"t1": [ASK, REPLY]}, history_id="200")
+    fake = FakeGmail({"t1": [ASK, REPLY]})
     home, res = sync(fake, tmp_path=tmp_path)
-    assert "after:" in fake.queries[0]
-    assert res.cursor["history_id"] == "200"
+    assert f"after:{int(datetime(2026, 9, 17, 16, tzinfo=timezone.utc).timestamp())}" in fake.queries[0]
+    assert res.cursor == {"last_sync": NOW.isoformat()}
     data = read_raw(home / "sources/gmail/t1.json")
     assert [m["from_email"] for m in data["messages"]] == ["sarah.j@acme.example", "test@acme.example"]
     assert data["messages"][0]["date"] == "2026-10-01T09:30:00+00:00"
@@ -38,19 +38,52 @@ def test_first_sync_backfills_14_days_and_writes_threads(tmp_path):
     assert data["messages"][1]["from_me"] is True
 
 
-def test_incremental_sync_refetches_only_changed_threads(tmp_path):
-    fake = FakeGmail({"t1": [ASK], "t2": [REPLY]}, history_id="300")
-    fake.history = [{"id": "301", "messagesAdded": [{"message": {"id": "m9", "threadId": "t2"}}]}]
-    home, res = sync(fake, cursor={"history_id": "300", "last_sync": "2026-10-01T15:00:00+00:00"}, tmp_path=tmp_path)
-    assert [p.name for p in res.written] == ["t2.json"]
+def test_later_syncs_ask_only_for_mail_since_the_last_sync_with_an_hour_of_overlap(tmp_path):
+    late = gmail_message("m9", "t2", "Sarah Jones <sarah.j@acme.example>", "test@acme.example", "Later", "hi",
+                         datetime(2026, 10, 1, 15, 30, tzinfo=timezone.utc))
+    fake = FakeGmail({"t1": [ASK], "t2": [late]})
+    home, res = sync(fake, cursor={"last_sync": "2026-10-01T15:45:00+00:00"}, tmp_path=tmp_path)
+    assert f"after:{int(datetime(2026, 10, 1, 14, 45, tzinfo=timezone.utc).timestamp())}" in fake.queries[0]
+    assert fake.fetched == ["t2"] and [p.name for p in res.written] == ["t2.json"]
+    assert res.cursor == {"last_sync": NOW.isoformat()}
 
 
-def test_expired_history_falls_back_to_date_query(tmp_path):
-    fake = FakeGmail({"t1": [ASK]}, history_id="400")
-    fake.history_expired = True
-    home, res = sync(fake, cursor={"history_id": "1", "last_sync": "2026-09-30T00:00:00+00:00"}, tmp_path=tmp_path)
-    assert [p.name for p in res.written] == ["t1.json"]
-    assert "after:" in fake.queries[-1]
+def test_a_thread_already_mirrored_in_full_is_not_fetched_again(tmp_path):
+    fake = FakeGmail({"t1": [ASK, REPLY]})
+    sync(fake, tmp_path=tmp_path)
+    fake.fetched.clear()
+    fake.thread_data["t1"].append(gmail_message("m3", "t1", "Sarah Jones <sarah.j@acme.example>", "test@acme.example",
+                                                "Re: Redis fallback", "Thanks!", datetime(2026, 10, 1, 11, tzinfo=timezone.utc)))
+    fake.thread_data["t3"] = [gmail_message("m4", "t3", "a@b.example", "test@acme.example", "x", "y",
+                                            datetime(2026, 10, 1, 12, tzinfo=timezone.utc))]
+    _, res = sync(fake, cursor={"last_sync": "2026-09-30T00:00:00+00:00"}, tmp_path=tmp_path)
+    assert sorted(fake.fetched) == ["t1", "t3"]  # t1 has a new message; nothing unchanged is refetched
+    sync(fake, cursor={"last_sync": "2026-09-30T00:00:00+00:00"}, tmp_path=tmp_path)
+    assert sorted(fake.fetched) == ["t1", "t3"]
+
+
+def test_an_old_history_cursor_is_read_as_a_date(tmp_path):
+    fake = FakeGmail({"t1": [ASK]})
+    _, res = sync(fake, cursor={"history_id": "1", "last_sync": "2026-09-30T00:00:00+00:00"}, tmp_path=tmp_path)
+    assert [p.name for p in res.written] == ["t1.json"] and "after:" in fake.queries[-1]
+
+
+def test_rate_limit_waits_and_progress_are_said_out_loud(tmp_path):
+    from archie.connectors import google_retry
+
+    heard = []
+    fake = FakeGmail({f"t{i}": [gmail_message(f"m{i}", f"t{i}", "a@b.example", "test@acme.example", "s", "b",
+                                              datetime(2026, 10, 1, 9, tzinfo=timezone.utc))] for i in range(120)})
+    fake.rate_limited = 1
+    google_retry.SLEEP = lambda s: None
+    try:
+        home = init_home(tmp_path / "h")
+        sctx = SyncCtx(home, {}, TEST, NOW, 14, say=heard.append)
+        asyncio.run(GmailConnector(service_factory=lambda: fake).sync(sctx, None))
+    finally:
+        google_retry.SLEEP = __import__("time").sleep
+    assert "Gmail asked Archie to slow down; trying again in 2 seconds…" in heard
+    assert "Gmail: fetched 100 of 120 threads…" in heard
 
 
 def test_chunks_strip_quotes_and_signatures_and_carry_people(tmp_path):

@@ -122,3 +122,17 @@ def test_people_facts():
 
 def test_answer_is_claims():
     assert ANSWER.claims and ANSWER.name == "answer"
+
+
+def test_a_quote_that_wraps_onto_the_next_line_stays_in_its_claim():
+    reply = ('SUMMARY\n'
+             'Workperson says the background check happens on your start date. [3] "The background check is done '
+             'on the day you\n'
+             'start." [3] "send me the address"\n')
+    out, problems = ANSWER.parse(reply)
+    assert problems == []
+    assert len(out["summary"]) == 1
+    claim = out["summary"][0]
+    assert claim["text"] == "Workperson says the background check happens on your start date."
+    assert [c["quote"] for c in claim["citations"]] == ["The background check is done on the day you start.",
+                                                        "send me the address"]

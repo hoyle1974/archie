@@ -61,6 +61,17 @@ def test_summary_reads_plainly_at_every_size(tmp_path):
     assert b.summary() == "Gemini: $16.22 of $15 this month: paused until Nov 1"
 
 
+def test_session_spend_counts_only_this_process_calls(tmp_path):
+    home = init_home(tmp_path / "h")
+    Budget(home, 15, clock=lambda: OCT).record("gemini-3.7-flash", "fast", 1_000_000, 0, 0)  # an earlier run: $0.75
+    b = Budget(home, 15, clock=lambda: OCT)
+    assert b.session_usd == 0
+    b.record("gemini-3.7-flash", "fast", 40_000, 0, 0)  # $0.03
+    assert b.session_usd == pytest.approx(0.03)
+    assert b.session_line() == "Gemini: $0.03 this session"
+    assert b.spent() == pytest.approx(0.78)
+
+
 def test_gemini_records_each_call_and_refuses_once_the_month_is_used_up(tmp_path):
     home = init_home(tmp_path / "h")
     client = Client()  # each call: 1M in ($0.75) + 200k out incl. thinking ($0.75) = $1.50

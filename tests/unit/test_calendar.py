@@ -29,7 +29,7 @@ def test_first_sync_uses_backfill_window_and_saves_token(tmp_path):
     home, res = sync(fake, tmp_path=tmp_path)
     assert fake.requests[0]["timeMin"].startswith("2026-09-17")
     assert fake.requests[0]["singleEvents"] is True
-    assert res.cursor == {"calendars": {"primary": "tok1"}, "utc": True}
+    assert res.cursor == {"calendars": {"primary": "tok1"}, "utc": True, "window_end": "2026-11-30T16:00:00+00:00"}
     data = read_raw(home / "sources/calendar/ev1.json")
     assert data["title"] == "Design Review: Auth Redesign"
     assert data["start"] == "2026-10-01T21:00:00+00:00"
@@ -42,7 +42,7 @@ def test_incremental_uses_sync_token(tmp_path):
     fake = FakeCalendar([REVIEW], sync_token="tok2")
     home, res = sync(fake, cursor={"sync_token": "tok1"}, tmp_path=tmp_path)
     assert fake.requests[0]["syncToken"] == "tok1" and "timeMin" not in fake.requests[0]
-    assert res.cursor == {"calendars": {"primary": "tok2"}, "utc": True}
+    assert res.cursor == {"calendars": {"primary": "tok2"}, "utc": True, "window_end": "2026-11-30T16:00:00+00:00"}
 
 
 def test_expired_token_does_full_resync(tmp_path):
@@ -108,3 +108,60 @@ def test_times_are_stored_in_utc_and_old_local_offsets_are_rewritten_once(tmp_pa
     again = asyncio.run(CalendarConnector(service_factory=lambda: fake).sync(SyncCtx(home, {}, TEST, NOW, 14),
                                                                              res.cursor))
     assert again.written == []  # done once
+
+
+def _weekly(start, weeks):
+    from datetime import timedelta
+
+    out = []
+    for i in range(weeks):
+        s = start + timedelta(weeks=i)
+        e = s + timedelta(hours=1)
+        out.append(cal_event(f"swim_{s:%Y%m%dT%H%M%SZ}", "Swimming", s.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                             e.strftime("%Y-%m-%dT%H:%M:%SZ"), recurring="swim"))
+    return out
+
+
+def test_an_edited_series_keeps_only_copies_inside_the_lookahead(tmp_path):
+    fake = FakeCalendar(_weekly(NOW, 52 * 3), sync_token="tok2")  # Google sends every copy of an edited series
+    edge = datetime(2026, 11, 30, 16, 0, tzinfo=timezone.utc).isoformat()  # NOW + 60 days: no roll needed
+    home, res = sync(fake, cursor={"calendars": {"primary": "tok1"}, "utc": True, "window_end": edge},
+                     tmp_path=tmp_path)
+    kept = sorted(p.name for p in (home / "sources/calendar").glob("swim_*.json"))
+    assert len(kept) == 9  # 60 days of weekly copies, not three years
+    assert kept[-1] == "swim_20261126T160000Z.json"
+
+
+def test_the_window_rolls_forward_to_fetch_copies_that_never_changed(tmp_path):
+    from datetime import timedelta
+
+    fake = FakeCalendar([], sync_token="tok2", full=_weekly(NOW, 20))  # nothing changed since the last sync
+    home = init_home(tmp_path / "h")
+    later = NOW + timedelta(days=21)
+    edge = NOW + timedelta(days=60)
+    cursor = {"calendars": {"primary": "tok1"}, "utc": True, "window_end": edge.isoformat()}
+    res = asyncio.run(CalendarConnector(service_factory=lambda: fake).sync(SyncCtx(home, {}, TEST, later, 14), cursor))
+    windowed = [r for r in fake.requests if "timeMin" in r]
+    assert [r["timeMin"] for r in windowed] == [edge.isoformat()]
+    assert res.cursor["window_end"] == (later + timedelta(days=60)).isoformat()
+    got = sorted(p.name for p in (home / "sources/calendar").glob("swim_*.json"))
+    assert got == ["swim_20261203T160000Z.json", "swim_20261210T160000Z.json", "swim_20261217T160000Z.json"]
+
+
+def test_copies_already_stored_past_the_window_are_removed(tmp_path):
+    from archie.store.files import write_raw
+
+    home = init_home(tmp_path / "h")
+    far = home / "sources/calendar/swim_20400102T173000Z.json"
+    far.parent.mkdir(parents=True, exist_ok=True)
+    write_raw(far, {"id": "swim_20400102T173000Z", "start": "2040-01-02T17:30:00+00:00",
+                    "end": "2040-01-02T18:30:00+00:00", "title": "Swimming"})
+    allday = home / "sources/calendar/school_off.json"  # all-day events store a bare date
+    write_raw(allday, {"id": "school_off", "start": "2026-10-03", "end": "2026-10-04", "all_day": True})
+    far_day = home / "sources/calendar/far_off.json"
+    write_raw(far_day, {"id": "far_off", "start": "2030-10-03", "end": "2030-10-04", "all_day": True})
+    fake = FakeCalendar([], sync_token="tok2")
+    res = asyncio.run(CalendarConnector(service_factory=lambda: fake).sync(
+        SyncCtx(home, {}, TEST, NOW, 14), {"calendars": {"primary": "tok1"}, "utc": True}))
+    assert not far.exists() and far in res.deleted
+    assert allday.exists() and not far_day.exists()

@@ -168,11 +168,11 @@ def test_ask_pane_shows_gemini_spend_and_keeps_it_current(tmp_path):
         async with app.run_test() as pilot:
             await app.sync_done.wait()
             pane = app.query_one("#answer-scroll")
-            assert pane.border_subtitle == "Gemini: $0.00 of $15 this month"
+            assert pane.border_subtitle == "Gemini: $0.00 of $15 this month ($0.00 this session)"
             ctx.backend.budget.record("gemini-3.7-flash", "fast", 28_000, 0, 0)
             app.refresh_spend()
             await pilot.pause()
-            assert pane.border_subtitle == "Gemini: $0.02 of $15 this month"
+            assert pane.border_subtitle == "Gemini: $0.02 of $15 this month ($0.02 this session)"
 
     asyncio.run(go())
 
@@ -204,7 +204,7 @@ def test_sync_shows_googles_token_count_and_warns_when_out_of_step(tmp_path, mon
             assert ("Warning: Google counts $1.50 more Gemini use this month than Archie logged ($1.50 vs $0.00)"
                     in text_of(app, "#activity"))
             assert app.query_one("#answer-scroll").border_subtitle == \
-                "Gemini: $0.00 of $15 this month · Google: $1.50, out of step"
+                "Gemini: $0.00 of $15 this month ($0.00 this session) · Google: $1.50, out of step"
 
     asyncio.run(go())
 

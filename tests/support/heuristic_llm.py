@@ -28,6 +28,9 @@ def _params(question: str) -> dict:
     people = re.findall(r"\b(?:who is|history with|with)\s+([\w.+-]+@[\w-]+(?:\.[\w-]+)+|"
                         r"[A-Z][a-z]+(?: [A-Z][a-z]*\.?)?)", question)
     people += re.findall(r"\b([A-Z][a-z]+)(?:'s|’s|s)\s+(?:role|title|job)\b", question)
+    group = re.search(r"\b(?:meet|meeting)\s+(?!with\b)((?:[a-z]+(?:,\s*|,?\s+and\s+))*[a-z]+)", question, re.I)
+    if group:  # "I'm meeting Sarah, Ken and Priya" (any case, as a real model hears it)
+        people += [n.title() for n in re.split(r",\s*(?:and\s+)?|\s+and\s+", group.group(1))]
     topic = None
     about = re.search(r"tell me about ([A-Z][a-z]+) and (\w+)", question, re.I)
     if about:

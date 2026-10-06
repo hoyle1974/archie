@@ -115,6 +115,9 @@ def main() -> None:
     (out / "prompts").mkdir(parents=True)
     picked = [(i, case) for i, case in enumerate(load_questions(real), 1) if not args.only or i in args.only]
     rows, answers = [], [f"# Eval {args.label}\n\nOverrides: {args.set or 'none'}\n"]
+    stats = build_ctx(Home(scratch)).index.sync()  # a reset index (chunker update) is rebuilt first, as sync would
+    if stats.indexed:
+        print(f"Indexed {stats.indexed} changed files first.", flush=True)
     for i, case in picked:
         q = case["q"]
         (scratch / "state/conversation.jsonl").unlink(missing_ok=True)

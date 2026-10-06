@@ -59,8 +59,8 @@ def upcoming(ctx: Ctx, hours: int = 36) -> list[Meeting]:
     return sorted(out, key=_start)
 
 
-def pick_meeting(ctx: Ctx, text: str | None) -> Meeting | None:
-    cands = upcoming(ctx)
+def pick_meeting(ctx: Ctx, text: str | None, hours: int = 36) -> Meeting | None:
+    cands = upcoming(ctx, hours)
     if not cands:
         return None
     q = (text or "").strip().lower()
@@ -89,9 +89,8 @@ def header(m: Meeting) -> str:
     return f"{start:%-I:%M %p} · {m.meta.get('title')} · {minutes} min"
 
 
-def _people_lines(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> list[str]:
-    ids = m.meta.get("attendees") or []
-    if m.meta.get("type") == "all_hands":
+def _people_lines(ctx: Ctx, ids: list[str], directory: PeopleDirectory, kind: str = "standard") -> list[str]:
+    if kind == "all_hands":
         return [f"{len(ids) + 1} people invited."]
     lines = []
     for eid in ids:
@@ -110,8 +109,8 @@ def _people_lines(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> list[str]
                 bits.append(ts[0].text + (f" (also signed as {ts[1].text})" if len(ts) > 1 else ""))
             elif facts:
                 bits.append(facts[0]["text"])
-        ids = directory.identifiers(eid)
-        talked = ctx.index.chunks_with_people(ids, limit=1, before=ctx.now.isoformat()) if ids else []
+        found = directory.identifiers(eid)
+        talked = ctx.index.chunks_with_people(found, limit=1, before=ctx.now.isoformat()) if found else []
         if talked:
             bits.append(f"last talked {when(talked[0]['ts'])}")
         else:
@@ -168,10 +167,10 @@ def gather(ctx: Ctx, m: Meeting, directory: PeopleDirectory) -> tuple[Packet, st
     return p, " ".join(extra)
 
 
-def _open_items(ctx: Ctx, m: Meeting) -> list:
+def _open_items(ctx: Ctx, attendees: list[str]) -> list:
     from archie.ask.intents.loops import _claim, _line
 
-    ids = set(m.meta.get("attendees") or [])
+    ids = set(attendees)
     ranked = [r for r in rank(load_loops(ctx.home), ctx.now, ctx.config, upcoming_people=ids)
               if r.loop.meta.get("counterpart") in ids and not r.stale]
     return [_claim(ctx, r, _line(r)) for r in ranked[:6]]
@@ -213,8 +212,8 @@ def _path(m: Meeting) -> str:
 def build_briefing(ctx: Ctx, m: Meeting, force: bool = False) -> Briefing:
     directory = PeopleDirectory.load(ctx.home)
     packet, extra = gather(ctx, m, directory)
-    people = _people_lines(ctx, m, directory)
-    open_items = _open_items(ctx, m)
+    people = _people_lines(ctx, m.meta.get("attendees") or [], directory, m.meta.get("type", "standard"))
+    open_items = _open_items(ctx, m.meta.get("attendees") or [])
     fingerprint = "\n".join([packet.render(), "\n".join(people), "\n".join(c.text for c in open_items),
                              repr(sorted((k, str(v)) for k, v in m.meta.items()))])
     digest = hashlib.sha256(fingerprint.encode()).hexdigest()[:16]
@@ -244,3 +243,66 @@ def build_briefing(ctx: Ctx, m: Meeting, force: bool = False) -> Briefing:
             "notified": old.get("notified", False)}
     write_note(path, Note(meta=meta, body=render(answer, sources=True) + "\n"))
     return Briefing(m, answer, rel)
+
+
+PEOPLE_INSTRUCTIONS = """- {me_name} is getting ready to meet these people; nothing is on the calendar yet. Summary:
+  who each one is to {me_name}, then the one or two things most worth knowing or doing first.
+- Optional section: "Lately" (the newest thing each one said or asked)."""
+
+
+def resolve_people(directory: PeopleDirectory, names: list[str]) -> tuple[list[str], list[str]]:
+    """(entity ids, sentences to say first) for the names the user gave. A typo is matched
+    to the one person it's a letter away from and said; an unknown name is said, not dropped."""
+    ids, said = [], []
+    for name in names:
+        hits = directory.find(name) or directory.find(name, loose=True)
+        if not hits:
+            hits = directory.near(name)
+            if len(hits) == 1:
+                said.append(f"I took {name} to mean {directory.name(hits[0])}.")
+        if not hits:
+            said.append(f"I don't know anyone called {name}.")
+        elif len(hits) > 1:
+            said.append(f"I know more than one {name}: {' and '.join(directory.name(e) for e in hits)}. "
+                        "Ask again with their full name.")
+        elif hits[0] not in ids:
+            ids.append(hits[0])
+    return ids, said
+
+
+def meeting_with(ctx: Ctx, ids: list[str], days: int = 14) -> Meeting | None:
+    """The next meeting in `days` that all of these people are invited to."""
+    want = set(ids)
+    return next((m for m in upcoming(ctx, days * 24) if want <= set(m.meta.get("attendees") or [])), None)
+
+
+def _listed(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def people_briefing(ctx: Ctx, question: str, ids: list[str], said: list[str]) -> Answer:
+    """Getting ready for people when no meeting with them is on the calendar (Vignette V)."""
+    from archie.ask.evidence import person_evidence
+    from archie.llm.verify import Claim
+
+    directory = PeopleDirectory.load(ctx.home)
+    packet = Packet()
+    each = max(4, 24 // len(ids))
+    for eid in ids:
+        for c in ctx.index.chunks_of(f"people/{eid}.md")[:3]:
+            packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"])
+        for c in person_evidence(ctx, eid, max_items=each):
+            packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
+    names = [directory.name(e) for e in ids]
+    me = ctx.me.name or "the user"
+    answer = synthesize(ctx, question, packet, PEOPLE_INSTRUCTIONS.replace("{me_name}", me),
+                        extra_context=f"Getting ready to meet: {', '.join(names)}. No meeting with them is on "
+                                      "the calendar in the next two weeks.")
+    first = _listed([n.split(" ")[0] for n in names])
+    lead = [Claim(f"There's nothing on your calendar with {first} in the next two weeks. Here's what to know.", [])]
+    answer.summary[0:0] = lead + [Claim(s, []) for s in said]
+    answer.sections.insert(0, Section("People", lines=_people_lines(ctx, ids, directory)))
+    open_items = _open_items(ctx, ids)
+    if open_items:
+        answer.sections.insert(1, Section("Open with these people", items=open_items))
+    return answer

@@ -126,7 +126,7 @@ def test_mixed_message_runs_every_part(tmp_path, monkeypatch):
     ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=reply, remember=sam)))
     out = render(ask(ctx, "I picked up the pizza. Sam is my neighbor."))
     assert calls == ["I picked up the pizza."]
-    assert "Marked done: pizzas" in out and "Sam: neighbor, new" in out
+    assert "Marked done: pizzas" in out and "Sam, new: “Sam is my neighbor.”" in out
     assert ctx.backend.calls[-1]["user"] == "Sam is my neighbor."
 
 
@@ -233,7 +233,7 @@ def test_a_plain_reply_then_a_cited_one_keeps_the_sources(tmp_path):
     finally:
         _restore(saved)
     out = render(ans)
-    assert out.startswith("Got it. I'll remember:\n  • Sam: neighbor, new") and "Priya is your manager. [1]" in out
+    assert out.startswith("Got it. I'll remember:\n  • Sam, new: “Sam is my neighbor.”") and "Priya is your manager. [1]" in out
     assert [c["file"] for c in citations_of(ans)] == ["people/priya_sharma.md"]
 
 
@@ -328,3 +328,24 @@ def test_usage_line_records_people_topic_and_sources(tmp_path):
     line = json.loads((ctx.home / "logs/usage.jsonl").read_text().splitlines()[-1])
     assert line["parts"][0]["people"] == ["Priya"] and line["parts"][0]["topic"] == "SSO"
     assert "sources/gmail/t1.json#c0" in line["sources"]
+
+
+def test_an_empty_index_with_sources_says_it_is_rebuilding_not_nothing_found(tmp_path):
+    from tests.support.raw import addr, msg, write_thread
+
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("search", topic="Yeti cooler")))))
+    write_thread(ctx.home, "t1", [msg("m1", "shop@yeti.example", "", [addr("test@acme.example")],
+                                      "2026-09-30T09:00:00+00:00", "Your Yeti cooler shipped.", to_me=True)])
+    # the index was just emptied (a chunker update) and no sync has rebuilt it yet
+    answer = ask(ctx, "where is my Yeti cooler?")
+    assert render(answer) == "I'm rebuilding my index after an update. Ask again in a minute."
+    assert not answer.nothing_found
+
+
+def test_an_empty_index_still_answers_what_needs_no_index(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("help")))))
+    from tests.support.raw import addr, msg, write_thread
+
+    write_thread(ctx.home, "t1", [msg("m1", "shop@yeti.example", "", [addr("test@acme.example")],
+                                      "2026-09-30T09:00:00+00:00", "Your Yeti cooler shipped.", to_me=True)])
+    assert "rebuilding" not in render(ask(ctx, "what can you do?"))

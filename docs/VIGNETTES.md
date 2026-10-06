@@ -36,6 +36,7 @@ remove the mark and set the row to ✅.
 | Q | "Which one did you mean?"    | loops, people → understand, pending questions                   | M5 | ✅ |
 | R | Nudges                       | Gmail, loops → audit (waiting_nudge), snooze                    | M5 | ✅ |
 | U | News that finishes an item   | loops → understand (open items), loop_done, told record         | M5 | ✅ |
+| V | Getting ready for people     | Gmail, people → understand (people), brief, evidence, names     | M5 | ✅ |
 
 ### Milestones
 
@@ -121,7 +122,8 @@ dossier. Ambiguous names ("Alex" with two Alexes) get a question back, not a gue
 "What's Priya's role?" (also "Priyas", without the apostrophe) answers from the archive.
 A title in someone's email signature becomes their role, cited and dated, even when it's
 in an older email behind newer threads they were only copied on. If their emails give two
-different titles, both are shown with dates, as in M.
+different titles, both are shown with dates, as in M. An answer never contains a fragment
+of a quote (text left over from a cited sentence that wrapped onto a second line).
 
 ## C. The open loop I forgot
 
@@ -315,12 +317,14 @@ user's statement is never checked against the archive.
 is full of energy and is 3 and a half years old."` gets:
 ```
 Got it. I'll remember:
-  • Acorn (Acorn Testerson), new
+  • Acorn (Acorn Testerson), new: “Acorn's full name is Acorn Testerson. Acorn is full of energy and is 3 and a half years old.”
 ```
 Any sentence about a person (their age, what they're like) is saved word for word in that
 person's "My notes", never "Saved. I don't use that for anything yet." A full name the
 user gives is kept beside the name they use: answers say "Acorn", with the full name in
-brackets where it helps ("Acorn (Acorn Testerson)").
+brackets where it helps ("Acorn (Acorn Testerson)"). The reply repeats what was
+saved in the user's words, not only the name, and "tell me about Acorn" right afterwards
+includes it, with no sync in between.
 
 ## O. Follow-ups
 
@@ -411,3 +415,37 @@ open item is saved as before.
 **Acceptance:** the item moves to `done` on the user's word, the sentence is in
 `journal/told.md` with what Archie did, and no gap is logged. "I will let them know" is the
 user's own plan, not a request to send anything (Archie never sends).
+
+## V. Getting ready for people, not a meeting
+
+**Situation.** Sunday night. The user knows they'll meet three people from their new
+company next week, but there's no invite yet, and they can't recall who is who.
+
+**User:** `ask "I'm meeting Arjun, Zara and Workperson next week, what should I prepare for?"`
+
+**Archie shows:**
+```
+There's nothing on your calendar with Arjun, Zara and Workperson in the next two weeks.
+Here's what to know. Arjun is the CEO who sent your offer on Sep 22 [1]. Workperson asked
+where to ship your laptop on Oct 1, and it's his turn to reply [2].
+
+People
+  Arjun Bisen · Co-Founder/CEO, Overwatch Data · last talked Fri Sep 25
+  Zara Perumal · last talked Sat Sep 26
+  Workperson Acorn · Director of Engineering (also signed as VP of Engineering) · last talked Thu Oct 1
+
+Open with these people
+  • …
+```
+
+**What happens.** `brief` gets the people the user named. If a meeting in the next 14 days
+has all of them invited, that meeting is briefed as in A. Otherwise the briefing is built
+for the people: their files and their own messages go to the model, and code adds People
+and "Open with these people".
+
+**Acceptance:** named people with no matching meeting get a people briefing, never "no
+upcoming meetings in the next day and a half". A meeting with them in the next two weeks
+is briefed instead. A misspelt name ("WorkPersoon") is matched to the one person it's a typo
+away from, and the answer says so ("I took WorkPersoon to mean Workperson Acorn."). A name Archie
+doesn't know is said ("I don't know anyone called Zebulon."), not dropped. Each fact
+traces to fixture data.

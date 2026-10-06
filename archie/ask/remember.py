@@ -56,7 +56,7 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict], changed_only: bool 
                 said_on: date | None = None) -> list[str]:
     directory = PeopleDirectory.load(ctx.home)
     when = (said_on or ctx.now.astimezone()).strftime("%b %-d")
-    done, asks = [], []
+    done, asks, written = [], [], []
     for p in people:
         name = (p.get("name") or "").strip()
         if not name:
@@ -89,14 +89,20 @@ def apply_facts(ctx: Ctx, question: str, people: list[dict], changed_only: bool 
                 aliases.append(a)
         note.meta["aliases"] = aliases
         statement = p.get("statement") or ""
-        if statement and normalize(statement) in normalize(question):  # only the user's real words
+        saved = bool(statement) and normalize(statement) in normalize(question)  # only the user's real words
+        if saved:
             _add_note(note, statement, when)
         if changed_only and _content(note) == before:  # a replay that changes nothing writes nothing
             continue
         write_note(path, note)
+        written.append(f"people/{eid}.md")
         directory.add(eid, note.meta)
         bits = [b for b in (p.get("relationship"), p.get("identity"), p.get("role"), p.get("pronouns")) if b]
-        done.append(f"{directory.label(eid)}" + (f": {', '.join(bits)}" if bits else "") + ("" if hits else ", new"))
+        if saved:  # say what was saved in their words, not only who: they may not recall what they typed
+            bits = [f"“{statement.strip()}”"]
+        done.append(f"{directory.label(eid)}" + ("" if hits else ", new") + (f": {', '.join(bits)}" if bits else ""))
+    if written:  # the next question sees it now, not after the next sync
+        ctx.index.update_files(written)
     return done + asks
 
 
