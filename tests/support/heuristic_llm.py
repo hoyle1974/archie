@@ -84,7 +84,6 @@ class HeuristicLLM:
         self.calls: list[str] = []
         self.prompts: list[tuple[str, str]] = []  # (schema title, user message): what the model saw
         self.dig_plan: list[dict] | None = None  # scripted dig steps; None: follow names (see _dig_step)
-        self.links: dict[str, list[dict]] = {}  # web query -> [{"url", "title"}]
 
     def saw(self, title: str) -> str:
         """Every user message sent with this schema, joined: what retrieval put in front of the model."""
@@ -175,10 +174,6 @@ class HeuristicLLM:
             if s:
                 facts.append({"text": s.rstrip(".")[:80], "ref": ref, "quote": s})
         return {"facts": facts[:3]}
-
-    def web_links(self, query: str, n: int = 3) -> list[dict]:
-        self.calls.append("web_links")
-        return self.links.get(query, [])[:n]
 
     def _loops_extract(self, system, user):
         loops = []

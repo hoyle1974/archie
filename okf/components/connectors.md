@@ -41,11 +41,5 @@ tags: [component]
   - Auth: `archie admin connect jira --site … --email …` stores the API token in the Keychain. `me.yaml` needs `jira_account_id`.
   - Not yet tested against a live Jira site.
 
-- `web.py`: public web pages for the dig loop's web step ([dig](dig.md)). It is not a connector cycle: it runs only when a question is being dug.
-  - `web_search(ctx, query)`: `GeminiBackend.web_links` finds up to 3 links ([llm](llm.md)), and `fetch` saves each page to `sources/web/<sha1 of url>.json` (`url`, `title`, `fetched_at`, `query`, `text`). It indexes them (`Index.update_files`) and returns the chunks that best match the query.
-  - Fetching: through `ctx.web` (an injectable `httpx.Client`; tests use `tests/support/fake_web.py`). Redirects are followed by code, up to 5 hops, and every hop must pass `public(url)`: https, not a local name (`localhost`, `.local`, `.lan`, …), and, on a real connection, a name that resolves only to public addresses. That keeps a page from sending the fetcher to the local network or over plain http. The final address is checked against what's already saved before downloading. Status 200, HTML or plain text only, at most 2 MB, 10 s for the whole fetch. Pages with under 200 characters of text (logins, consent walls) are skipped, and a page fetched in the last 7 days is reused.
-  - `query_problem(q)` refuses a query with an `@`, a URL, a number of 5+ digits or more than 8 words, so nothing from the user's mail goes out.
-  - The chunker labels page chunks "Web: Title (fetched Oct 5)", at most 4 per page.
-- `pagetext.py`: HTML to text. `html_to_text` is Gmail's body conversion; `page_text` also drops head, nav, footer, svg, template and noscript for web pages; `html_title`.
 
 All phase-1 connectors are built. Phase 2: Slack. Design: [DESIGN §5.1](../../docs/DESIGN.md#51-connectors). Principles: [read-only](../principles/read-only.md), [keep everything](../principles/keep-everything.md). Each cycle is run by [sync](sync.md).

@@ -1,5 +1,4 @@
-"""One LLM interface: text in, a line-format reply out, parsed and checked by code (DESIGN §9).
-No tools, except `web_links`, whose only output is links that code fetches and checks.
+"""One LLM interface: text in, a line-format reply out, parsed and checked by code. No tools, ever (DESIGN §9).
 
 Model tiers: "fast" (routing, extraction) and "strong" (briefings, conflicts, handovers).
 Backend: Gemini (google-genai); the key is in the Keychain as "gemini-api-key".
@@ -81,7 +80,7 @@ TIMEOUT_S = {"fast": 60, "strong": 300}
 
 
 class GeminiBackend(TextBackend):
-    """The Gemini API through google-genai: plain text in and out; Google Search only in `web_links`."""
+    """The Gemini API through google-genai: plain text in and out, no tools."""
 
     def __init__(self, llm: dict, client=None, budget=None, prompt_log: Path | None = None):
         self.budget = budget
@@ -162,49 +161,6 @@ class GeminiBackend(TextBackend):
         if block:
             raise LLMError(f"Gemini blocked the request ({block.name})", about_input=True)
         raise LLMError("Gemini returned an empty reply", about_input=True)
-
-    def web_links(self, query: str, n: int = 3) -> list[dict]:
-        """Links for a web query: the one model call with a tool (Google Search grounding). Only
-        the grounding sources are read; the model's text is thrown away, and code fetches and
-        checks the pages (connectors/web.py)."""
-        import httpx
-        from google.genai import errors, types
-
-        from archie.llm.budget import GROUNDED_CALL_USD
-
-        CALL.set("web_links")
-        model = self.models.get("fast")
-        config = types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())],
-            max_output_tokens=1024,
-            http_options=types.HttpOptions(timeout=TIMEOUT_S["fast"] * 1000),
-        )
-        if self.budget:
-            self.budget.check()
-        try:
-            resp = self.client().models.generate_content(
-                model=model, contents=f"Search the web for: {query}\nName the most relevant pages.", config=config)
-        except errors.APIError as exc:
-            raise LLMError(_explain(exc, model)) from exc
-        except httpx.TimeoutException as exc:
-            raise LLMError(f"Gemini didn't answer within {TIMEOUT_S['fast']} seconds") from exc
-        except httpx.TransportError as exc:
-            raise LLMError("couldn't reach Gemini; check the network connection") from exc
-        meta = getattr(resp, "usage_metadata", None)
-        if self.budget:
-            self.budget.record(model, "fast", getattr(meta, "prompt_token_count", 0) or 0,
-                               getattr(meta, "candidates_token_count", 0) or 0,
-                               getattr(meta, "thoughts_token_count", 0) or 0, call="web_links",
-                               extra_usd=GROUNDED_CALL_USD)
-        grounding = getattr(resp.candidates[0], "grounding_metadata", None) if resp.candidates else None
-        out, seen = [], set()
-        for chunk in getattr(grounding, "grounding_chunks", None) or []:
-            web = getattr(chunk, "web", None)
-            uri = getattr(web, "uri", None)
-            if uri and uri not in seen:
-                seen.add(uri)
-                out.append({"url": uri, "title": getattr(web, "title", "") or ""})
-        return out[:n]
 
 
 def _explain(exc, model: str) -> str:

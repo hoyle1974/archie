@@ -31,8 +31,6 @@ from a shell.
    reindex` rebuilds it from files. No fact may exist only in SQLite.
 3. **Raw and derived files are separate.** Connectors write only `sources/`. Everything
    else (people, meetings, loops, briefings) is derived and may be edited by the user.
-   `sources/web/` is the one raw folder not filled by a connector cycle: the dig loop's
-   web step (§8) saves the public pages it reads there.
 4. **The fence rule.** In derived files the user edits, Archie writes only inside
    `<!-- archie:auto -->` … `<!-- /archie:auto -->` fences. Archie may rewrite a fence's
    contents but never touches text outside a fence. Frontmatter keys Archie owns are listed
@@ -50,9 +48,8 @@ from a shell.
    `ask`, not a new command.
 8. **Read-only toward the world.** Connectors only read (for example the
    `gmail.readonly` scope). Archie never sends, posts, comments or changes remote state.
-   The only outside calls are the model, the connectors, and the dig loop's web step,
-   which reads public pages (§8). A web query is names, organisations and topics only,
-   never text from the user's mail.
+   Answers rely only on sources the user controls: the open web is never searched, not
+   even when Archie digs further (§8).
 9. **Keep everything.** Data is never pruned. The first sync of a source goes back
    only 2 weeks, and everything after that accumulates, so a year-long review becomes
    possible a year from now.
@@ -110,8 +107,7 @@ from a shell.
 │   ├── conversation.jsonl   # recent ask exchanges, for follow-ups and the TUI (last 200)
 │   ├── told_applied.yaml    # which remember version last applied each telling in journal/told.md
 │   └── people_declined.yaml # names the user said no to a people file for (§4.2)
-├── sources/                 # RAW: written only by connectors (and the dig loop's web step)
-│   ├── web/<sha1 of url>.json       # public pages the dig loop read: url, title, fetched_at, text
+├── sources/                 # RAW: written only by connectors
 │   ├── calendar/<eventId>.json
 │   ├── gmail/<threadId>.json
 │   ├── drive/<fileId>.json          # metadata + exported plain text
@@ -241,8 +237,7 @@ dossier with `status: stub` and `origin: mentioned` (an Archie-owned key), adds 
 written next to the name in a mail header, and runs the facts pass for that person; a no
 is remembered. "Start a file on X" does the same without the offer, from one source. For an
 `origin: mentioned` person, evidence also comes from chunks that name them in full, as
-whole words; a single word ("Workpersontwo") is never enough. Saved web pages never count as
-anyone's evidence or as "your sources": a page naming them may be about a namesake.
+whole words; a single word ("Workpersontwo") is never enough.
 
 ### 4.3 Meeting (`meetings/2026/2026-10-14-alex-1-1.md`)
 
@@ -552,7 +547,7 @@ said, not dropped. Without people, `brief` looks 36 hours ahead, then 14 days.
    no tools; Archie is the tool. Each round, one fast-tier call reads the question, what
    was missing, and a notebook of what has been tried, and picks one step from a fixed,
    read-only menu: search, open a file already shown (or one of Archie's notes), look
-   someone up, list the calendar for a date range, search the web (§9), or answer. Code
+   someone up, list the calendar for a date range, or answer. Code
    runs the step and writes the result into the notebook; every excerpt joins one packet,
    and the answer is written from that packet and verified like any other. Repeats,
    unknown steps and paths never shown are refused. At most `ask.dig.rounds` rounds
@@ -641,12 +636,6 @@ maps each tier to a model.
   JSON schema is sent: schema-forced output costs tokens and is less reliable. **No
   tools**, no file access and no network beyond the model call itself. When an answer
   needs more digging, code runs the loop and the model only picks the next step (§8).
-- **Finding web pages:** `GeminiBackend.web_links(query)` is the one grounded call
-  (Gemini with Google Search). Only the links it returns are used, never its text; code
-  fetches each page (https from public addresses only, every redirect hop checked; size,
-  type and time limits), saves the readable text in
-  `sources/web/` and indexes it, and answers cite those pages as "Web: …". A page fetched
-  in the last 7 days is reused. `ask.dig.web` switches it off.
 - **Backends:**
   - `gemini` (default): the Gemini API through `google-genai`. The key is in the Keychain
     (`gemini-api-key`, set with `archie admin connect gemini`). Output tokens are capped
@@ -689,7 +678,7 @@ archie/
   cli.py                 # `archie`, `archie ask`, `archie admin …`
   config.py              # config.yaml and me.yaml
   store/                 # file I/O, frontmatter, fences, atomic writes, tombstones
-  connectors/            # calendar.py gmail.py drive.py github.py jira.py (+ base.py), web.py (dig pages)
+  connectors/            # calendar.py gmail.py drive.py github.py jira.py (+ base.py)
   derive/                # meetings.py people.py loops.py projects.py dates.py enrich.py
   index/                 # chunk.py embed.py db.py search.py
   llm/                   # backend.py verify.py prompts/

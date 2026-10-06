@@ -13,9 +13,10 @@ import base64
 import re
 from datetime import datetime, timedelta, timezone
 from email.utils import getaddresses, parsedate_to_datetime
+from html import unescape
+
 from archie.connectors.base import SyncCtx, SyncResult
 from archie.connectors.google_retry import execute
-from archie.connectors.pagetext import html_to_text
 from archie.index.chunk import Chunk, register_raw_chunker
 from archie.store.files import read_raw, write_raw
 from archie.store.times import when
@@ -31,6 +32,12 @@ def _decode(data: str) -> str:
     return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode("utf-8", errors="replace")
 
 
+def _html_to_text(html: str) -> str:
+    html = re.sub(r"(?is)<(script|style).*?</\1>", "", html)
+    html = re.sub(r"(?i)<br\s*/?>|</p>|</div>|</li>", "\n", html)
+    return unescape(re.sub(r"<[^>]+>", "", html))
+
+
 def _body(payload: dict) -> str:
     plain, html = [], []
 
@@ -44,7 +51,7 @@ def _body(payload: dict) -> str:
             walk(p)
 
     walk(payload)
-    return "\n".join(plain) if plain else html_to_text("\n".join(html))
+    return "\n".join(plain) if plain else _html_to_text("\n".join(html))
 
 
 def _addrs(value: str) -> list[dict]:

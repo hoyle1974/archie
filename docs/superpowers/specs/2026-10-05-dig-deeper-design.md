@@ -423,6 +423,9 @@ Each step leaves the suite green.
 
 Where the code differs from the text above:
 
+- **No web step.** The `web` action (§3, and every mention of it in §§1–7) was built, tried
+  live, and removed: it didn't work the way the user wanted, and answers rely only on
+  sources the user controls. The dig menu is search, open, person, calendar and answer.
 - **The packet stops adding when full.** When a step's excerpts don't fit within
   `ask.max_sources` / `ask.max_source_chars`, the rest are left out and the notebook says
   "Some results didn't fit"; nothing already in the packet is evicted.
@@ -445,15 +448,8 @@ Where the code differs from the text above:
 - **A reply to the offer that isn't a plain yes or no** still drops it, but the
   understanding call is shown the offer, so "yes, start one for her" becomes `start_person`
   on the offered name.
-- **Web pages stay out of people's evidence and the offer's count.** `sources/web/` pages
-  never count as a person's evidence (a namesake's page could become a dossier fact) or as
-  one of "your sources". They reach the user only through a dig answer.
 - **"I looked further" is said only when a step ran.** If every step was refused or the
   first model call failed, the first answer stands with no added line.
-- **The web step is refused** when what's left of `max_usd` can't cover the search fee and
-  the answer.
-- **Redirects are followed by code**, each hop checked: https, a public address, at most 5
-  hops, and 10 s for the whole fetch.
 
 ## Out of scope
 

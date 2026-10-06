@@ -182,16 +182,6 @@ def test_a_pronoun_is_not_a_name_to_start_a_file_on(tmp_path):
     assert not list((ctx.home / "people").glob("*.md"))
 
 
-def test_web_pages_are_not_your_sources(tmp_path):
-    ctx = make_ctx(tmp_path)
-    seed(ctx)
-    web = [{"path": f"sources/web/{i}.json", "text": "Workpersontwo Birch is an engineering manager.", "label": "Web: x"}
-           for i in range(3)]
-    assert make_offer(ctx, ["Workpersontwo"], web + items(ctx, "workperson")) is None
-    _, pending = make_offer(ctx, ["Workpersontwo"], web + items(ctx, "koala", "self"))
-    assert pending["sources"] == ["sources/gmail/koala.json", "sources/gmail/self.json"]
-
-
 def test_a_possessive_is_not_part_of_the_name(tmp_path):
     found = [{"path": f"sources/gmail/{i}.json", "text": "Workpersontwo Birch's notes are attached.", "label": ""}
              for i in range(2)]
@@ -244,12 +234,6 @@ def test_mentioned_people_are_found_by_full_name_not_first_name(tmp_path):
         "entity_id": "workpersontwo_birch", "name": "Workpersontwo Birch", "aliases": ["Workpersontwo"], "status": "stub",
         "origin": "mentioned"}, body="## My notes\n\n"))
     ctx.index.sync()
-    from archie.store.files import write_raw
-
-    write_raw(ctx.home / "sources/web/abc.json", {"url": "https://x.example/p", "title": "Workpersontwo Birch, dentist",
-                                                  "fetched_at": "2026-09-30T10:00:00+00:00", "query": "Workpersontwo Birch",
-                                                  "text": "Workpersontwo Birch is a dentist in Sofia. " * 10})
-    ctx.index.sync()
     paths = {c["path"] for c in person_evidence(ctx, "workpersontwo_birch")}
-    assert paths == {"sources/gmail/koala.json", "sources/gmail/self.json"}  # not Workperson's "Workpersontwo", not the web
+    assert paths == {"sources/gmail/koala.json", "sources/gmail/self.json"}  # not Workperson's "Workpersontwo"
     assert PeopleDirectory.load(ctx.home).mention_names("workpersontwo_birch") == ["Workpersontwo Birch"]

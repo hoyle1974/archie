@@ -2,8 +2,8 @@
 
 The model has no tools; Archie is the tool. Each round, one fast-tier call reads the
 question, what the first answer missed, and a notebook of what's been tried, and picks one
-step from a fixed read-only menu (search, open a file, look someone up, list the calendar,
-search the web). Code runs it and writes the result into the notebook. Every excerpt a step
+step from a fixed read-only menu (search, open a file, look someone up, list the calendar),
+all over the user's own files. Code runs it and writes the result into the notebook. Every excerpt a step
 returns joins one packet, and the answer is written from that packet by `synthesize`, so the
 verifier checks it like any other. Rounds and money are capped per question."""
 
@@ -22,7 +22,7 @@ from archie.llm.prompts import load_prompt
 from archie.llm.shape import F, Shape
 from archie.llm.verify import Packet, tidy
 
-STEPS = ("search", "open", "person", "calendar", "web", "answer")
+STEPS = ("search", "open", "person", "calendar", "answer")
 SHAPE = Shape("dig_step", fields=(
     F("why", required=False, hint="one line: what you expect to learn"),
     F("do", "choice", choices=STEPS, lenient=True),
@@ -38,11 +38,9 @@ MAX_MEETINGS = 30
 MAX_RANGE_DAYS = 92
 FAST_CALL_USD = 0.01  # high estimates of one call, checked against ask.dig.max_usd before each round
 STRONG_CALL_USD = 0.06
-DIG_INSTRUCTIONS = """- Archie's first answer fell short; "What the first answer missed" says what the user wanted. Answer that.
-- When a fact comes from a source labelled "Web:", say it's from a web page (or name the site)."""
+DIG_INSTRUCTIONS = """- Archie's first answer fell short; "What the first answer missed" says what the user wanted. Answer that."""
 NOUNS = {"search": ("search", "searches"), "open": ("file read", "files read"),
-         "person": ("people lookup", "people lookups"), "calendar": ("calendar check", "calendar checks"),
-         "web": ("web search", "web searches")}
+         "person": ("people lookup", "people lookups"), "calendar": ("calendar check", "calendar checks")}
 
 Progress = Callable[[str], None]
 
@@ -70,16 +68,11 @@ class DigResult:
         return f"I looked further ({work}) and found nothing more." if work else None
 
 
-def _web_on(ctx: Ctx) -> bool:
-    return bool(ctx.config["ask"]["dig"].get("web")) and hasattr(ctx.backend, "web_links")
-
-
 class _Dig:
-    def __init__(self, ctx: Ctx, start: Packet | None, progress: Progress | None,
-                 left: Callable[[], float] = lambda: float("inf")):
+    def __init__(self, ctx: Ctx, start: Packet | None, progress: Progress | None):
         from archie.ask.intents.search import limits
 
-        self.ctx, self.progress, self.left = ctx, progress or (lambda _: None), left
+        self.ctx, self.progress = ctx, progress or (lambda _: None)
         self.max_items, self.max_chars = limits(ctx)
         self.packet = Packet()
         self.used = 0
@@ -137,21 +130,12 @@ class _Dig:
     def _refusal(self, do: str | None, arg: str) -> str | None:
         if do not in STEPS or do == "answer":
             return "not a step on the list"
-        if do == "web" and not _web_on(self.ctx):
-            return "web search is switched off"
         if not arg:
             return f"{do} needs an argument"
         if (do, arg.lower()) in self.tried:
             return "already done"
         if do == "open" and not self._openable(arg):
             return "only paths shown in results, or Archie's notes, can be opened"
-        if do == "web":
-            from archie.connectors.web import query_problem
-            from archie.llm.budget import GROUNDED_CALL_USD
-
-            if self.left() < GROUNDED_CALL_USD + STRONG_CALL_USD:
-                return "not enough of this question's budget left for a web search"
-            return query_problem(arg)
         return None
 
     def _openable(self, path: str) -> bool:
@@ -228,22 +212,9 @@ class _Dig:
         more = f"\n(and {len(found) - MAX_MEETINGS} more)" if len(found) > MAX_MEETINGS else ""
         return ("\n".join(lines) + more) if lines else "(nothing on the calendar then)"
 
-    def _web(self, query: str) -> str:
-        from archie.connectors.web import web_search
-
-        self.progress(f"Looking further… searching the web for “{query}”")
-        chunks = web_search(self.ctx, query)
-        return self._added(chunks) if chunks else "(no readable web pages found)"
-
     # -- prompts ------------------------------------------------------------------------
     def system(self) -> str:
-        web = _web_on(self.ctx)
-        return load_prompt(
-            "dig_step", me_name=self.ctx.me.name or "the user",
-            web_step="- web: <query>  Search the public web, for public context such as someone's job or "
-                     "company.\n" if web else "",
-            web_rules="- A web query is names, organisations and topics only: never text, email addresses or "
-                      "numbers from the user's messages." if web else "")
+        return load_prompt("dig_step", me_name=self.ctx.me.name or "the user")
 
     def prompt(self, question: str, hint: str) -> str:
         from archie.ask.synthesize import now_line, people_context
@@ -267,7 +238,7 @@ def dig(ctx: Ctx, question: str, hint: str, start: Packet | None = None,
     def spent() -> float:
         return (budget.session_usd - spent_before) if budget else 0.0
 
-    d = _Dig(ctx, start, progress, left=lambda: max_usd - spent())
+    d = _Dig(ctx, start, progress)
     system = d.system()
     new_person = None
     for n in range(1, rounds + 1):

@@ -161,27 +161,6 @@ def test_no_claim_to_have_looked_when_no_step_ran(tmp_path):
     assert dig(ctx2, "q", "nothing").nothing_more() is None
 
 
-def test_web_is_refused_when_the_question_budget_is_nearly_spent(tmp_path):
-    class Budget:
-        session_usd = 0.0
-
-    class Pricey(FakeBackend):
-        budget = Budget()
-
-        def web_links(self, query, n=3):
-            raise AssertionError("a web search was paid for over the budget")
-
-        def complete(self, *a, **k):
-            self.budget.session_usd += 0.17  # $0.08 of $0.25 left: not enough for a web search and the answer
-            return super().complete(*a, **k)
-
-    fb = Pricey(by_schema(dig_step={"do": "web", "arg": "Workpersontwo Birch"}))
-    ctx = make_ctx(tmp_path, fb, dig=True)
-    ctx.config["ask"]["dig"]["rounds"] = 1
-    r = dig(ctx, "q", "nothing")
-    assert r.actions == ["refused: web: Workpersontwo Birch"]
-
-
 def test_progress_says_what_it_is_doing(tmp_path):
     fb = scripted([{"do": "search", "arg": "Workpersontwo"}, {"do": "calendar", "arg": "2026-09-20 2026-09-30"}])
     ctx = make_ctx(tmp_path, fb, dig=True)
@@ -191,9 +170,9 @@ def test_progress_says_what_it_is_doing(tmp_path):
     assert heard[:2] == ["Looking further… searching “Workpersontwo”", "Looking further… checking your calendar Sep 20 to Sep 30"]
 
 
-def test_web_is_not_offered_without_a_web_capable_backend(tmp_path):
+def test_only_the_users_own_files_are_searched(tmp_path):
     fb = scripted([{"do": "web", "arg": "Workpersontwo Birch"}])
     ctx = make_ctx(tmp_path, fb, dig=True)
     r = dig(ctx, "q", "nothing")
     assert r.actions == ["refused: web: Workpersontwo Birch"]
-    assert "- web:" not in fb.calls[0]["system"]
+    assert "web" not in fb.calls[0]["system"].lower()

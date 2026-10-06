@@ -7,11 +7,9 @@ import yaml
 
 from archie.store.files import read_note
 from tests.support.fake_google import cal_event
-from tests.support.fake_web import FakeWeb, html, page
 from tests.vignettes.week import ME, Week, at, mail
 
 LATER = datetime(2026, 10, 3, 16, 0, tzinfo=timezone.utc)  # every work meeting in the week is over
-BIO = "https://petrova.example/about"
 
 
 def workpersontwo_threads() -> dict:
@@ -80,19 +78,3 @@ def test_W_no_means_no_file_and_no_second_offer(tmp_path):
     out = w.ask("Can you prep me for that meeting")
     assert "Want me to start one?" not in out
     assert not (w.ctx.home / "people/workpersontwo_birch.md").exists()
-
-
-def test_W_the_web_adds_public_context_with_its_source_named(tmp_path):
-    w = week(tmp_path)
-    w.llm.links = {"Workpersontwo Birch": [{"url": BIO, "title": "About Workpersontwo Birch"}]}
-    w.ctx.web = FakeWeb({BIO: page(html("About Workpersontwo Birch",
-                                        "Workpersontwo Birch is an engineering manager on the platform team at Acme. "
-                                        "She previously led infrastructure at a logistics company for six years "
-                                        "and mentors new managers through a local leadership program."))})
-    w.llm.dig_plan = [{"do": "search", "arg": "Workpersontwo"}, {"do": "web", "arg": "Workpersontwo Birch"}, {"do": "answer"}]
-    w.ask("I will meet with Workpersontwo next week")
-    out = w.ask("Can you prep me for that meeting", sources=True)
-    saved = list((w.ctx.home / "sources/web").glob("*.json"))
-    assert len(saved) == 1 and json.loads(saved[0].read_text())["url"] == BIO
-    assert "Web: About Workpersontwo Birch" in out
-    assert "1 search, 1 web search" in out

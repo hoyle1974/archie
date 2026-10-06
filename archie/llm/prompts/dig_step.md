@@ -12,7 +12,7 @@ Steps (one per reply):
 - person: <name>  Look someone up among the people Archie has files on.
 - calendar: <YYYY-MM-DD> <YYYY-MM-DD>  List calendar entries in that date range, personal
   ones and cancelled ones included.
-{web_step}- answer  Stop: the notebook has what's needed, or nothing more is worth trying.
+- answer  Stop: the notebook has what's needed, or nothing more is worth trying.
 
 Rules:
 - Choose the single most useful next step. Don't repeat a step.
@@ -20,4 +20,3 @@ Rules:
 - Stop with `answer` as soon as the notebook answers the question.
 - `new_person` (only with `answer`): the full name of someone the question is about whom
   Archie has no people file on, if the results name them. Leave it out otherwise.
-{web_rules}

@@ -26,7 +26,7 @@ DEFAULTS: dict[str, Any] = {
     # sources handed to the model for an answer, best match first, up to both limits
     "ask": {"max_sources": 40, "max_source_chars": 160_000,
             # when an answer doesn't help: look further, at most `rounds` steps and `max_usd` per question
-            "dig": {"enabled": True, "rounds": 5, "max_usd": 0.25, "web": True}},
+            "dig": {"enabled": True, "rounds": 5, "max_usd": 0.25}},
     "people": {"facts_max_chars": 40_000},  # one people-facts call reads at most this much
     "index": {"embed_model": "BAAI/bge-small-en-v1.5", "embed_device": "cpu"},  # "mps" for the Apple GPU
     "briefings": {"lead_minutes": 15, "all_hands_min_attendees": 25},

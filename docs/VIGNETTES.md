@@ -37,7 +37,7 @@ remove the mark and set the row to ✅.
 | R | Nudges                       | Gmail, loops → audit (waiting_nudge), snooze                    | M5 | ✅ |
 | U | News that finishes an item   | loops → understand (open items), loop_done, told record         | M5 | ✅ |
 | V | Getting ready for people     | Gmail, people → understand (people), brief, evidence, names     | M5 | ✅ |
-| W | Someone I only mentioned     | Gmail, Calendar, web → answer check, dig loop, file offer       | M5 | ✅ |
+| W | Someone I only mentioned     | Gmail, Calendar → answer check, dig loop, file offer            | M5 | ✅ |
 
 ### Milestones
 
@@ -476,8 +476,8 @@ I don't have a file on Workpersontwo Birch yet. The name is in 4 of your sources
 
 **What happens.** `brief` doesn't know Workpersontwo and says so in code, which marks the answer
 as a dead end. Archie digs further: the fast model picks one step at a time (look her up,
-search her name, search the fuller name a result shows, check the calendar, search the
-web), code runs each step, and the answer is written from what was found and verified
+search her name, search the fuller name a result shows, check the calendar; only the
+user's own files, never the web), code runs each step, and the answer is written from what was found and verified
 like any other. Because two or more source files name her, Archie offers to start a file,
 using the fullest form of the name. Yes writes `people/workpersontwo_birch.md` (`origin:
 mentioned`, `status: stub`) and fills in cited facts; later questions find her by her full
@@ -485,6 +485,4 @@ name in the text. No is remembered and never asked again.
 
 **Acceptance:** the prep answer has verified claims from the Sep 23 call and Workperson's
 thread, never says "no meetings", and ends with the offer naming Workpersontwo Birch. "yes"
-creates her file and "tell me about Workpersontwo" then resolves to it. With the web on, a web
-step saves the page under `sources/web/` and the answer's sources include a "Web:" label.
-"no" writes `state/people_declined.yaml` and the same question makes no second offer.
+creates her file and "tell me about Workpersontwo" then resolves to it. "no" writes `state/people_declined.yaml` and the same question makes no second offer.

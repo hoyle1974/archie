@@ -128,10 +128,10 @@ def _is_me(ctx: Ctx, name: str) -> bool:
 
 
 def _sources(items: list[dict], name: str) -> list[str]:
-    """The user's own source files (not Archie's notes, not web pages) whose text or label names them."""
+    """The user's own source files (not Archie's notes) whose text or label names them."""
     out: list[str] = []
     for it in items:
-        if it["path"].startswith("sources/") and not it["path"].startswith("sources/web/") and it["path"] not in out and \
+        if it["path"].startswith("sources/") and it["path"] not in out and \
                 _named(name, f"{it.get('label', '')}\n{it['text']}"):
             out.append(it["path"])
     return out
