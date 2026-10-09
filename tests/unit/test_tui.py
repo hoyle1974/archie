@@ -384,6 +384,49 @@ def test_pasting_goes_into_the_question_box(tmp_path):
     asyncio.run(go())
 
 
+def screen_text(widget):
+    return "\n".join(line.text for line in widget.render_lines(widget.region.reset_offset)).rstrip()
+
+
+def test_a_source_excerpt_in_markdown_is_drawn_as_markdown(tmp_path, monkeypatch):
+    from archie.ask.answer import Answer
+
+    md = "## My notes\n- I will meet with _Workpersontwo_ next week"
+    text = f"[1] Workpersontwo (dossier)\n“I will meet with Workpersontwo next week”\n\n{md}\n\npeople/workpersontwo.md"
+    monkeypatch.setattr("archie.ask.pipeline.ask", lambda ctx, q, progress=None: Answer(plain=text, markdown=md))
+    ctx = make_ctx(tmp_path)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test(size=(160, 50)) as pilot:
+            await app.sync_done.wait()
+            await pilot.click("#question")
+            await pilot.press(*"show 1", "enter")
+            await app.ask_done.wait()
+            await pilot.pause()
+            drawn = screen_text(app.query(".answer").last())
+            assert "My notes" in drawn and "• I will meet with Workpersontwo next week" in drawn
+            assert "##" not in drawn and "_Workpersontwo_" not in drawn
+            assert drawn.rstrip().endswith("people/workpersontwo.md")
+            app.action_copy_answer()
+            assert md in app.clipboard
+
+    asyncio.run(go())
+
+    from archie.ask import conversation
+
+    conversation.append(ctx.home, {"ts": "2026-10-04T16:00:00+00:00", "said": "show 1", "shown": text, "markdown": md})
+
+    async def relaunch():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test(size=(160, 50)) as pilot:
+            await app.sync_done.wait()
+            await pilot.pause()
+            assert "##" not in screen_text(app.query(".answer").last())
+
+    asyncio.run(relaunch())
+
+
 def test_today_pane_refreshes_after_an_answer(tmp_path, monkeypatch):
     from archie.ask.answer import Answer
 

@@ -32,9 +32,30 @@ class Pane(VerticalScroll):
     can_focus = False
 
 
-def exchange(question: str, text: str) -> tuple[Vertical, Static]:
+class AnswerText(Static):
+    """An answer as plain text, except a source excerpt in it (`markdown`), which is drawn as
+    Markdown: headings, lists and emphasis instead of #, - and _."""
+
+    def __init__(self, text: str, markdown: str | None = None):
+        super().__init__(classes="answer", markup=False)
+        self.say(text, markdown)
+
+    def say(self, text: str, markdown: str | None = None) -> None:
+        self.text = text
+        if not markdown or markdown not in text:
+            self.update(text)
+            return
+        from rich.console import Group
+        from rich.markdown import Markdown
+        from rich.text import Text
+
+        before, _, after = text.partition(markdown)
+        self.update(Group(Text(before.rstrip("\n") + "\n"), Markdown(markdown), Text("\n" + after.lstrip("\n"))))
+
+
+def exchange(question: str, text: str, markdown: str | None = None) -> tuple[Vertical, AnswerText]:
     """One ask in the Ask pane: the question on its own band, the answer below it."""
-    out = Static(text, classes="answer", markup=False)
+    out = AnswerText(text, markdown)
     return Vertical(Static(f"You asked: {question}", classes="asked", markup=False), out, classes="exchange"), out
 
 
@@ -117,14 +138,14 @@ class ArchieApp(App):
             with Vertical(id="right"):
                 with Pane(id="answer-scroll"):
                     earlier = self.earlier_asks()
-                    for said, text in earlier:
-                        yield exchange(said, text)[0]
+                    for said, text, markdown in earlier:
+                        yield exchange(said, text, markdown)[0]
                     if not earlier:
                         yield Static(HINT, id="hint", markup=False)
                 yield Input(placeholder="Ask Archie…", id="question")
         yield Footer()
 
-    def earlier_asks(self) -> list[tuple[str, str]]:
+    def earlier_asks(self) -> list[tuple[str, str, str | None]]:
         """The last few exchanges (from this window, other windows or `archie ask`), oldest first."""
         from archie.ask import conversation
 
@@ -132,7 +153,7 @@ class ArchieApp(App):
             entries = conversation.load(self.ctx.home)[-RESTORE_ASKS:]
         except OSError:
             return []
-        return [(e.get("said") or "", conversation.shown(e)) for e in entries]
+        return [(e.get("said") or "", conversation.shown(e), e.get("markdown")) for e in entries]
 
     async def on_unmount(self) -> None:
         self.writer.release()
@@ -201,8 +222,8 @@ class ArchieApp(App):
             self.notify("Copied. Paste with Cmd+V.", timeout=2)
 
     def action_copy_answer(self) -> None:
-        entries = self.query(".answer")
-        text = str(entries.last().render()) if entries else HINT
+        entries = self.query(AnswerText)
+        text = entries.last().text if entries else HINT
         self.copy_to_clipboard(text)
         self.notify("Copied the answer.", timeout=2)
 
@@ -309,7 +330,7 @@ class ArchieApp(App):
         self.ask_done.clear()
         self.run_worker(self._answer(question, block, out))
 
-    async def _answer(self, question: str, block: Vertical, out: Static) -> None:
+    async def _answer(self, question: str, block: Vertical, out: AnswerText) -> None:
         from archie.ask.pipeline import ask
 
         self.ctx.now = datetime.now(timezone.utc)
@@ -320,24 +341,24 @@ class ArchieApp(App):
         def tick() -> None:
             waited = int(asyncio.get_running_loop().time() - started)
             if waited >= 20 and not done[0]:
-                out.update(f"{latest[0]} ({waited}s)")
+                out.say(f"{latest[0]} ({waited}s)")
 
         def show(line: str) -> None:
             if not done[0]:  # a worker left running after the timeout mustn't cover the final message
-                out.update(line)
+                out.say(line)
 
         def progress(line: str) -> None:  # called from the worker thread while Archie digs further
             latest[0] = line
             self.call_from_thread(show, line)
 
-        def finish(text: str) -> None:
+        def finish(text: str, markdown: str | None = None) -> None:
             done[0] = True
-            out.update(text)
+            out.say(text, markdown)
 
         timer = self.set_interval(5, tick)
         try:
             answer = await asyncio.wait_for(asyncio.to_thread(ask, self.ctx, question, progress), ASK_TIMEOUT)
-            finish(render(answer, sources=True, stamp=True))
+            finish(render(answer, sources=True, stamp=True), answer.markdown)
         except asyncio.TimeoutError:
             finish("That took too long, so I stopped waiting. Try asking again.")
         except LLMError as exc:

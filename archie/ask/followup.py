@@ -25,14 +25,44 @@ def is_recheck(text: str) -> bool:
     return bool(RECHECK.match(text or ""))
 
 
+FRONT_MATTER = re.compile(r"\A---\n.*?\n---[ \t]*(?:\n|\Z)", re.S)
+FENCE = re.compile(r"^[ \t]*<!-- /?archie:auto -->[ \t]*(?:\n|\Z)", re.M)
+
+
+def _readable(text: str) -> str:
+    """The chunk without YAML front matter or archie:auto fences, which mean nothing to a reader."""
+    text = FENCE.sub("", FRONT_MATTER.sub("", text))
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+def _find(text: str, quote: str) -> re.Match | None:
+    words = (quote or "").split()
+    for some in (words, words[:8]):
+        if some:
+            m = re.search(r"\s+".join(map(re.escape, some)), text, re.I)
+            if m:
+                return m
+    return None
+
+
 def _around(text: str, quote: str, width: int = 200) -> str:
-    flat = re.sub(r"\s+", " ", text).strip()
-    q = re.sub(r"\s+", " ", quote or "").strip().lower()
-    at = flat.lower().find(q[:40]) if q else -1
-    if at < 0:
+    """The text around the quote, cut at line breaks so headings and lists stay whole. A line
+    longer than `width` is cut at a space instead."""
+    text = _readable(text)
+    m = _find(text, quote)
+    if m is None:
         return ""
-    start, end = max(0, at - width), min(len(flat), at + len(q) + width)
-    return ("…" if start else "") + flat[start:end] + ("…" if end < len(flat) else "")
+    start = text.rfind("\n", 0, max(0, m.start() - width)) + 1
+    if m.start() - start > 2 * width:
+        start = text.find(" ", m.start() - width, m.start()) + 1 or m.start() - width
+    end = text.find("\n", min(len(text), m.end() + width))
+    end = len(text) if end < 0 else end
+    if end - m.end() > 2 * width:
+        end = text.rfind(" ", m.end(), m.end() + width)
+        end = m.end() + width if end < 0 else end
+    head = "" if start == 0 else "…\n\n" if text[start - 1] == "\n" else "…"
+    tail = "" if end >= len(text) else "\n\n…" if text[end] == "\n" else "…"
+    return head + text[start:end].strip("\n") + tail
 
 
 def show(ctx: Ctx, last: dict | None, n: int) -> Answer:
@@ -47,7 +77,8 @@ def show(ctx: Ctx, last: dict | None, n: int) -> Answer:
     if around:
         lines += ["", around]
     lines += ["", c["file"]]
-    return Answer(plain="\n".join(lines))
+    markdown = around if around and c["file"].endswith(".md") else None
+    return Answer(plain="\n".join(lines), markdown=markdown)
 
 
 def recheck(previous: dict, answer: Answer, new_citations: list[dict]) -> Answer:

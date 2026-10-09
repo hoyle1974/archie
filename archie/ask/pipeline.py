@@ -254,7 +254,7 @@ def ask(ctx: Ctx, question: str, progress=None) -> Answer:
             conversation.append(ctx.home, {
                 "ts": ctx.now.isoformat(), "said": question, "resolved": reply.resolved,
                 "kinds": kinds, "summary": render(answer)[:800],
-                "shown": render(answer, sources=True, stamp=True),
+                "shown": render(answer, sources=True, stamp=True), "markdown": answer.markdown,
                 "citations": citations_of(answer) if reply.citations is None else reply.citations,
                 "pending": answer.pending})
         except OSError:

@@ -4,6 +4,9 @@ title: Archie change log
 description: Chronological history of design decisions and structural changes, newest first.
 ---
 
+## 2026-10-06
+- "show N" in the TUI draws a Markdown source as Markdown. The excerpt around the quote had every line break collapsed, so a dossier showed as `## My notes - … _(you said, Oct 5)_ - …`. It now keeps whole lines and drops front matter and `archie:auto` fences. From a `.md` file it is `Answer.markdown` (kept in `state/conversation.jsonl` as `markdown`), and the [TUI](components/tui.md) draws only that part with Rich's Markdown renderer. Other sources (email, calendar, GitHub JSON) stay plain text, since Markdown would merge their lines. The CLI prints the excerpt as plain text.
+
 ## 2026-10-05
 - Dig deeper when an answer doesn't help (new component [dig](components/dig.md), vignette W, [spec](../docs/superpowers/specs/2026-10-05-dig-deeper-design.md)). Live, "Can you prep me for that meeting" about Workpersontwo got "I don't know anyone called Workpersontwo" and "no meetings", though she was in four of the user's sources; she had no people file because she never wrote from her own address.
   - Intents mark dead ends in code (`Answer.dead_end`); other question answers get one fast-tier check (`answer_check`). `brief` now says "I don't know anyone called X." even when no one named is known.

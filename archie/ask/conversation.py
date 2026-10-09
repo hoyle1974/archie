@@ -1,6 +1,6 @@
 """Conversation memory for `ask` (state/conversation.jsonl). Each finished exchange keeps the
 user's words, the question as understood, the answer's summary, its numbered citations and
-the answer as shown (`shown`). Follow-ups ("show 1", "really?", "them") read the recent ones;
+the answer as shown (`shown`, with any Markdown part of it in `markdown`). Follow-ups ("show 1", "really?", "them") read the recent ones;
 the TUI shows the last few again on launch."""
 
 from __future__ import annotations
