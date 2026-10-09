@@ -1,7 +1,8 @@
 """`agenda`: what's on the calendar for a day or a range ("what do I have tomorrow?",
 "what's Friday look like?"). Computed from the calendar mirror, no LLM: all-day events
 first, then timed events (meetings show who's in them). Declined and cancelled events
-are left out; the same event on two calendars is shown once."""
+are left out; the same event on two calendars is shown once. Plans the user told Archie
+(journal/plans.md) show on their days, in the user's words (Vignette X)."""
 
 from __future__ import annotations
 
@@ -79,6 +80,10 @@ def events_between(ctx: Ctx, start: date, end: date) -> list[dict]:
     return sorted(out, key=lambda e: (e["_day"], not e.get("all_day"), e["start"]))
 
 
+def _plan(p) -> str:
+    return f"“{p.text}” ({p.said:%b} {p.said.day})"
+
+
 @intent("agenda")
 def agenda_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     today = ctx.now.astimezone().date()
@@ -92,11 +97,18 @@ def agenda_intent(ctx: Ctx, question: str, params: dict) -> Answer:
             and not any(not e.get("all_day") and not _over(e, ctx.now) for e in events):
         end = today + timedelta(days=1)  # late with nothing left today: you mean tomorrow too
         events = events_between(ctx, start, end)
+    from archie.ask import plans
+
     directory = PeopleDirectory.load(ctx.home)
+    told = plans.between(ctx.home, start, end)
     lines = []
+    longer = [p for p in told if p.start != p.end]  # "next week": said once, not on every day
+    if longer:
+        lines += ["Plans you told me for these days:", *(f"  • {_plan(p)}" for p in longer), ""]
     for i in range((end - start).days + 1):
         day = start + timedelta(days=i)
         lines.append(f"{day:%A}, {day:%b} {day.day}")
+        lines += [f"  You said: {_plan(p)}" for p in told if p.start == p.end == day]
         todays = [e for e in events if e["_day"] == day]
         if not todays:
             lines.append("  Nothing on your calendar.")

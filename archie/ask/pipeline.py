@@ -185,9 +185,10 @@ def _respond(ctx: Ctx, question: str, entry: dict, progress=None) -> Reply:
     last = recent[-1] if recent else None
     kept = (last or {}).get("citations") or []
     n = citation_number(question)
-    if n is not None:
+    if n is not None:  # the answer on screen, even after a quiet half hour or a restart
+        shown = conversation.latest(ctx.home)
         entry.update(quick=True, intent="show_citation", parts=[{"kind": "show", "handler": "show_citation"}])
-        return Reply(show(ctx, last, n), _question_of(last), kept)
+        return Reply(show(ctx, shown, n), _question_of(shown), (shown or {}).get("citations") or [])
     pending = (last or {}).get("pending")
     offer = None
     if pending and pending.get("kind") == "offer_person":  # before match(), which treats "yes" as filler

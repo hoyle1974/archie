@@ -91,3 +91,20 @@ def due_in(text: str, written: datetime) -> str | None:
             taken.append(range(m.start(), m.end()))
             found.append((not _DEADLINE.search(text[:m.start()]), m.start(), d))
     return min(found)[2].isoformat() if found else None
+
+
+_WEEK = re.compile(r"(?i)\b(next|this|the following)\s+week\b")
+
+
+def days_in(text: str, written: datetime) -> tuple[date, date] | None:
+    """The days a plan is for, from its words: "next week" is the following Monday to Sunday,
+    "this week" today to Sunday, otherwise the one date `due_in` finds. None: no date said."""
+    today = written.astimezone(written.tzinfo).date()
+    m = _WEEK.search(text or "")
+    if m:
+        monday = today - timedelta(days=today.weekday())
+        if m[1].lower() == "this":
+            return today, monday + timedelta(days=6)
+        return monday + timedelta(days=7), monday + timedelta(days=13)
+    day = due_in(text, written)
+    return (date.fromisoformat(day),) * 2 if day else None

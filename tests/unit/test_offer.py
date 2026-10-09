@@ -237,3 +237,63 @@ def test_mentioned_people_are_found_by_full_name_not_first_name(tmp_path):
     paths = {c["path"] for c in person_evidence(ctx, "workpersontwo_birch")}
     assert paths == {"sources/gmail/koala.json", "sources/gmail/self.json"}  # not Workperson's "Workpersontwo"
     assert PeopleDirectory.load(ctx.home).mention_names("workpersontwo_birch") == ["Workpersontwo Birch"]
+
+
+# -- a file holding only the user's notes ("bare") -------------------------------------
+
+def _bare(ctx, name="Workpersontwo"):
+    from archie.store.files import Note, write_note
+
+    write_note(ctx.home / f"people/{name.lower()}.md", Note(
+        meta={"entity_id": name.lower(), "name": name, "aliases": [], "org": None, "status": "known"},
+        body=f"## My notes\n- I will meet {name} next week _(you said, Oct 5)_\n"))
+    ctx.index.sync()
+
+
+def test_a_bare_file_gets_the_fuller_name_two_sources_use(tmp_path):
+    from archie.ask.offer import fuller_name
+
+    ctx = make_ctx(tmp_path, FakeBackend(lambda *a: {}))
+    seed(ctx)
+    _bare(ctx)
+    d = PeopleDirectory.load(ctx.home)
+    full, sources = fuller_name(ctx, d, "workpersontwo")
+    assert full == "Workpersontwo Birch" and len(sources) == 2  # Workperson's "Workpersontwo" alone doesn't count
+
+
+def test_no_fuller_name_once_declined_or_when_the_file_has_an_address(tmp_path):
+    from archie.ask.offer import _set_declined, fuller_name
+
+    ctx = make_ctx(tmp_path, FakeBackend(lambda *a: {}))
+    seed(ctx)
+    _bare(ctx)
+    _set_declined(ctx, ["Workpersontwo Birch"])
+    assert fuller_name(ctx, PeopleDirectory.load(ctx.home), "workpersontwo") is None
+    _set_declined(ctx, [])
+    note = read_note(ctx.home / "people/workpersontwo.md")
+    note.meta["aliases"] = ["workpersontwo@example.com"]
+    from archie.store.files import write_note
+
+    write_note(ctx.home / "people/workpersontwo.md", note)
+    assert fuller_name(ctx, PeopleDirectory.load(ctx.home), "workpersontwo") is None  # found by address already
+
+
+def test_mention_names_cover_people_without_an_address(tmp_path):
+    d = PeopleDirectory()
+    d.add("acorn", {"name": "Acorn", "full_name": "Acorn Testerson", "aliases": []})
+    d.add("workperson", {"name": "Workperson Acorn", "aliases": ["workperson@acme.example"]})
+    assert d.mention_names("acorn") == ["Acorn Testerson"]  # never the single word "Acorn"
+    assert d.mention_names("workperson") == []  # found by address instead
+
+
+def test_start_a_file_fills_in_the_bare_one_instead_of_a_second(tmp_path):
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(
+        understand=understood(part("instruct", action="start_person", target="Workpersontwo Birch")),
+        people_facts=cite("Workpersontwo Birch booked a 30 minute call with you."))))
+    seed(ctx)
+    _bare(ctx)
+    out = render(ask(ctx, "start a file on Workpersontwo Birch"))
+    assert out.startswith("Added what your sources say about Workpersontwo Birch to your file on Workpersontwo, with 1 fact")
+    note = read_note(ctx.home / "people/workpersontwo.md")
+    assert note.meta["name"] == "Workpersontwo" and note.meta["full_name"] == "Workpersontwo Birch"
+    assert not (ctx.home / "people/workpersontwo_birch.md").exists()

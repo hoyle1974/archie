@@ -110,8 +110,12 @@ class HeuristicLLM:
                 "since": p["since"], "until": p["until"], "topic": p["topic"], "meeting": p["meeting"],
                 "notes": p["text"], "fact": None, "about": None, "question": None, "action": None, "target": None,
                 "wanted": None, "options": [], "ask": None}
+        if re.match(r"[A-Z][a-z]+ (?:is|was|works|starts|joined)\b", msg) and r["intent"] == "search":
+            item.update(kind="tell", intent=None, people=[], fact="person", about=msg.split()[0])  # about a person
         if re.match(r"I (?:will|'ll|’ll) meet with\b", msg, re.I):  # their plan: a telling
-            item.update(kind="tell", intent=None, people=[], fact="other", about=p["people"][0] if p["people"] else None)
+            item.update(kind="tell", intent=None, fact="plan", about=p["people"][0] if p["people"] else None)
+        elif re.search(r"\b(holiday|day off|out of (the )?office)\b", msg, re.I) and r["intent"] == "search":
+            item.update(kind="tell", intent=None, people=[], fact="plan")
         earlier = re.findall(r"^You: .*?\bmeet(?:ing)? with ([A-Z][a-z]+)", user, re.M)
         if re.search(r"\bthat meeting\b", msg, re.I) and earlier:  # "that meeting" is the one just mentioned
             item.update(people=[earlier[-1]], meeting=None,
@@ -163,6 +167,13 @@ class HeuristicLLM:
                     return {"why": "the full name", "do": "search", "arg": full}
         unknown = full and f"(no people file on anyone called {full.split()[0]})" in notebook
         return {"do": "answer", "new_person": full if unknown else None}
+
+    def _remember(self, system, user):
+        """Each capitalized name in the message is a person, with the whole message as what was said."""
+        names = [w for w in dict.fromkeys(re.findall(r"\b[A-Z][a-z]+\b", user)) if w not in _NOT_NAMES]
+        return {"people": [{"name": n, "relationship": None, "role": None, "pronouns": None, "identity": None,
+                            "avoid": [], "full_name": None, "other_names": [], "statement": user}
+                           for n in names[:1]]}
 
     def _people_facts(self, system, user):
         """One fact per source: its first sentence that names the person."""

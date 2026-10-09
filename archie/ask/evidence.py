@@ -14,28 +14,30 @@ from archie.index.chunk import signature_key
 SKIP = ("briefings", "loops", "people")
 
 
-def person_chunks(ctx: Ctx, directory, entity_id: str, limit: int = 100_000, before: str | None = None) -> list[dict]:
+def person_chunks(ctx: Ctx, directory, entity_id: str, limit: int = 100_000, before: str | None = None,
+                  also: tuple[str, ...] = ()) -> list[dict]:
     """Chunks a person is in, newest first: by email or handle, and for someone the user only
-    mentioned (`origin: mentioned`), by their full name in the text (DESIGN §4.2)."""
+    mentioned (`origin: mentioned`), by their full name in the text (DESIGN §4.2). `also`: more
+    full names to match, such as the one `offer.fuller_name` found for a file with only notes."""
     out = {(c["path"], c["chunk_id"]): c
            for c in ctx.index.chunks_with_people(directory.identifiers(entity_id), limit=limit, before=before)}
-    for c in ctx.index.chunks_naming(directory.mention_names(entity_id), limit=limit, before=before):
+    for c in ctx.index.chunks_naming([*directory.mention_names(entity_id), *also], limit=limit, before=before):
         if c["source"] not in SKIP:  # their own dossier names them too
             out.setdefault((c["path"], c["chunk_id"]), c)
     return sorted(out.values(), key=lambda c: c["ts"] or "", reverse=True)[:limit]
 
 
 def person_evidence(ctx: Ctx, entity_id: str, *, topic: str | None = None, max_items: int = 40,
-                    max_chars: int = 160_000, since: str | None = None) -> list[dict]:
+                    max_chars: int = 160_000, since: str | None = None, also: tuple[str, ...] = ()) -> list[dict]:
     from archie.derive.people import PeopleDirectory
     from archie.index.search import search
 
     directory = PeopleDirectory.load(ctx.home)
     ids = directory.identifiers(entity_id)
-    if not (ids or directory.mention_names(entity_id)) or max_items <= 0:
+    if not (ids or directory.mention_names(entity_id) or also) or max_items <= 0:
         return []
     before = ctx.now.isoformat()
-    theirs = [c for c in person_chunks(ctx, directory, entity_id, before=before)
+    theirs = [c for c in person_chunks(ctx, directory, entity_id, before=before, also=also)
               if c["source"] not in SKIP and (not since or (c["ts"] or "") > since)]
     by_key = {(c["path"], c["chunk_id"]): c for c in theirs}
     ordered: list[dict] = []

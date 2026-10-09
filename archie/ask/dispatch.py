@@ -45,7 +45,8 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
         return label, HANDLERS[name](ctx, part.resolved or part.text, {**EMPTY, **part.params, "said": part.text})
     if part.kind == "tell":
         fact = _fact(part)
-        return ("other->gap" if fact == "other" else f"tell:{fact}"), tell(ctx, fact, part.text, about=part.about)
+        return ("other->gap" if fact == "other" else f"tell:{fact}"), tell(ctx, fact, part.text, about=part.about,
+                                                                          people=part.params.get("people"))
     if part.kind == "answer" and part.options:
         pending = (last or {}).get("pending")
         if pending and 1 <= part.options[0] <= len(pending.get("options") or []):
@@ -59,7 +60,8 @@ def dispatch(ctx: Ctx, part: Part, message: str, open_qs: list[dict], last: dict
             return "clarify", answer_yes_no(ctx, part.text)
         fact, subject = _fact(part), _who_is_subject(q) or None
         label = "other->gap" if fact == "other" else f"answer:{fact}"
-        return label, tell(ctx, fact, part.text, about=part.about or subject, subject=subject)
+        return label, tell(ctx, fact, part.text, about=part.about or subject, subject=subject,
+                           people=part.params.get("people"))
     if part.kind == "instruct":
         if part.action in ACTIONS:
             return part.action, ACTIONS[part.action](ctx, part, message, last)

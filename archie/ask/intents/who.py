@@ -173,9 +173,12 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         return Answer(plain=f"Which {query.title()}?\n{options}\nAsk again with their full name.")
     eid = matches[0]
     from archie.ask.evidence import person_chunks
+    from archie.ask.offer import bare, fill_in_offer, fuller_name
 
+    guess = fuller_name(ctx, directory, eid)  # a file with only the user's notes: what do sources call them?
+    also = (guess[0],) if guess else ()
     history = ctx.index.chunks_with_people(directory.identifiers(eid), before=ctx.now.isoformat())
-    seen_in = person_chunks(ctx, directory, eid, limit=200, before=ctx.now.isoformat())  # mentions too
+    seen_in = person_chunks(ctx, directory, eid, limit=200, before=ctx.now.isoformat(), also=also)  # mentions too
     packet = Packet()
     for c in ctx.index.chunks_of(f"people/{eid}.md"):
         packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"])
@@ -185,12 +188,15 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     room -= sum(len(it.text) for it in packet.items)
     from archie.ask.evidence import person_evidence
 
-    for c in person_evidence(ctx, eid, topic=params.get("topic"), max_items=k - len(packet.items), max_chars=room):
+    for c in person_evidence(ctx, eid, topic=params.get("topic"), max_items=k - len(packet.items), max_chars=room,
+                             also=also):
         packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
     meta = directory.meta[eid]
     about = f"The person asked about is {directory.name(eid)}."
     if meta.get("full_name"):
         about += f" Full name: {meta['full_name']}."
+    elif guess:
+        about += f" Your sources call them {guess[0]}."
     if meta.get("relationship"):
         about += f" They are your {meta['relationship']}."
     if meta.get("identity"):
@@ -227,4 +233,12 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     word = guessed_from(directory, eid, params.get("said") or question)
     if word:
         answer.summary.insert(0, Claim(f"I took {word} to mean {directory.name(eid)}.", []))
+    if guess:
+        name = directory.name(eid)
+        answer.summary.insert(0, Claim(f"Your file on {name} has only your notes, so I also looked for "
+                                       f"{guess[0]} in your sources.", []))
+        line, answer.pending = fill_in_offer(directory, eid, *guess)
+        answer.notes.append(line)
+    elif bare(directory, eid) and not seen_in and not any(meta.get(k) for k in ("relationship", "role", "identity")):
+        answer.dead_end = f"only your own notes on {directory.name(eid)}"  # dig: maybe sources name them otherwise
     return answer

@@ -78,3 +78,40 @@ def test_W_no_means_no_file_and_no_second_offer(tmp_path):
     out = w.ask("Can you prep me for that meeting")
     assert "Want me to start one?" not in out
     assert not (w.ctx.home / "people/workpersontwo_birch.md").exists()
+
+
+def test_W_a_file_holding_only_my_notes_still_finds_her(tmp_path):
+    """Live, telling Archie about Workpersontwo by first name made people/workpersontwo.md with only that
+    note. "tell me about Workpersontwo" then saw nothing but the note, and no offer came."""
+    w = week(tmp_path)
+    w.ask("Workpersontwo is joining the platform team")
+    bare = read_note(w.ctx.home / "people/workpersontwo.md")
+    assert bare.meta["name"] == "Workpersontwo" and not bare.meta.get("full_name")
+
+    out = w.ask("tell me about Workpersontwo", sources=True)
+    assert out.startswith("Your file on Workpersontwo has only your notes, so I also looked for Workpersontwo Birch")
+    assert "Test Testerson & Workpersontwo Birch" in out  # the Sep 23 call; Workperson's "Workpersontwo" alone isn't matched
+    assert out.split("\n\nSources\n")[0].endswith(
+        "Workpersontwo Birch is in 3 of your sources. Want me to add them to your file on Workpersontwo?")
+    assert "dig" not in _log(w)[-1]  # found by code, no digging needed
+
+    out = w.ask("yes")
+    assert out.startswith("Added what your sources say about Workpersontwo Birch to your file on Workpersontwo")
+    note = read_note(w.ctx.home / "people/workpersontwo.md")
+    assert note.meta["full_name"] == "Workpersontwo Birch" and note.meta["origin"] == "mentioned"
+    assert "Workpersontwo is joining the platform team" in note.body  # the user's note stays
+    assert not (w.ctx.home / "people/workpersontwo_birch.md").exists()  # one file, not two
+
+    out = w.ask("tell me about Workpersontwo", sources=True)
+    assert "Want me to" not in out and "only your notes" not in out
+    assert "Test Testerson & Workpersontwo Birch" in out
+    assert "At a glance\n  Workpersontwo (Workpersontwo Birch)\n" in out
+
+
+def test_W_prep_for_someone_with_a_bare_file_uses_her_sources(tmp_path):
+    w = week(tmp_path)
+    w.ask("Workpersontwo is joining the platform team")
+    out = w.ask("Can you prep me for my meeting with Workpersontwo next week?", sources=True)
+    assert "no meetings" not in out.lower()
+    assert "Test Testerson & Workpersontwo Birch" in out
+    assert "Want me to add them to your file on Workpersontwo?" in out

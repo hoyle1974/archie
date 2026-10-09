@@ -7,8 +7,10 @@ Part kinds:
 - question: the user wants to know something. Set `intent`, and the search hints below.
 - tell: the user is telling Archie something. `fact`: person (anything about a person:
   who they are, relationship, role, pronouns, full or other names, words to avoid, age,
-  what they're like), ignore or unignore (a sender), or other (anything else). `about`: who
-  or what, in their words (for ignore/unignore: the address, @domain or name they gave).
+  what they're like), ignore or unignore (a sender), plan (something they expect to happen:
+  a holiday, a day off, a trip, a meeting that isn't on the calendar yet; `people`: who it's
+  with), or other (anything else). `about`: who or what, in their words (for
+  ignore/unignore: the address, @domain or name they gave).
 - instruct: the user wants Archie to do something. `action`, and `target` (which item, in
   their words). For anything Archie has no action for: `action: none` and `wanted`, a verb
   phrase of at most 12 words that fits after "I can't" ("filter Today by day").
@@ -44,9 +46,9 @@ Rules:
 - News that one of the listed open items is finished is an instruct part with
   `action: loop_done`. Saying they'll tell someone themselves is their plan, not a send.
 - For pasted notes, `notes` is their first line only. Never copy the rest.
-- If Archie just asked "Want me to start a file on …?" and the user agrees in other words,
-  that's an instruct part with `action: start_person` and `target` the name Archie asked
-  about, never a pronoun.
+- If Archie just asked "Want me to start a file on …?" or "Want me to add … to your file
+  on …?" and the user agrees in other words, that's an instruct part with `action:
+  start_person` and `target` the full name Archie asked about, never a pronoun.
 - Never answer, and never state facts.
 
 Examples (the open items listed include "waiting on HeadphonesRUs: Troubleshoot new earbud
@@ -73,6 +75,17 @@ PART tell
 text: Theo is my nephew. He's seven and loves trains.
 fact: person
 about: Theo
+
+Message: Monday is a company holiday
+PART tell
+text: Monday is a company holiday
+fact: plan
+
+Message: I'll probably meet Ines next week, it's not scheduled yet
+PART tell
+text: I'll probably meet Ines next week, it's not scheduled yet
+fact: plan
+people: Ines
 
 Message: the earbuds work now, I'll tell them later
 PART instruct

@@ -4,6 +4,14 @@ title: Archie change log
 description: Chronological history of design decisions and structural changes, newest first.
 ---
 
+## 2026-10-09
+- Fixes from the eighth usage review (`~/.archie/reviews/2026-10-09.md`):
+  - A people file holding only the user's notes no longer hides the person's sources. Live, two sentences about "Workpersontwo" made `people/workpersontwo.md` (no address, no full name), and "tell me about Workpersontwo" then answered only from those notes, twice, with no offer. `who` and the people briefing now look for the fuller name two sources use, say so, and offer to add it to that file; yes fills it in rather than starting a second file ([dig](components/dig.md)). People with no address are found by their multi-word names, including `full_name`.
+  - "show N" opens the answer on screen however old it is. After a restart the TUI showed Tuesday's answer with [1], but "show 1" said "There's no recent answer with sources to show."
+  - Plans (new vignette X): "Monday is a company holiday" and "I will meet with Workpersontwo next week" had got "Saved. I don't use that for anything yet." They're now `fact: plan`, saved in `journal/plans.md` with days worked out by code, shown in the agenda, and used by `brief` for "that meeting" ([ask](components/ask.md)). The understanding prompt gained the `plan` fact and two examples.
+  - The people briefing's instructions now say to give what the sources do say about someone (when they last met, how it was set up) rather than leave the summary empty; live, a prep for Workpersontwo with her Sep 23 call in the packet came back with nothing.
+  - Eval (`scripts/prompt_eval.py`): 19 of 23 on the full run ($0.47). The Workpersontwo questions and "Monday is a company holiday" now pass; the "Arjun, Zara and Workperson next week" asks are now a plan plus the same briefing (expectations updated); question 6 fails because "pair" is matched as a whole word and the answer says "pairing" (not a regression). After the briefing and reply-punctuation fixes, the five changed questions pass ($0.08).
+
 ## 2026-10-06
 - "show N" in the TUI draws a Markdown source as Markdown. The excerpt around the quote had every line break collapsed, so a dossier showed as `## My notes - … _(you said, Oct 5)_ - …`. It now keeps whole lines and drops front matter and `archie:auto` fences. From a `.md` file it is `Answer.markdown` (kept in `state/conversation.jsonl` as `markdown`), and the [TUI](components/tui.md) draws only that part with Rich's Markdown renderer. Other sources (email, calendar, GitHub JSON) stay plain text, since Markdown would merge their lines. The CLI prints the excerpt as plain text.
 

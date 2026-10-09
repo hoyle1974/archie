@@ -1,7 +1,8 @@
 """Conversation memory for `ask` (state/conversation.jsonl). Each finished exchange keeps the
 user's words, the question as understood, the answer's summary, its numbered citations and
-the answer as shown (`shown`, with any Markdown part of it in `markdown`). Follow-ups ("show 1", "really?", "them") read the recent ones;
-the TUI shows the last few again on launch."""
+the answer as shown (`shown`, with any Markdown part of it in `markdown`). Follow-ups ("really?",
+"them") read the recent ones; "show 1" reads the newest, however old, because the TUI shows the
+last few again on launch."""
 
 from __future__ import annotations
 
@@ -53,6 +54,12 @@ def shown(entry: dict) -> str:
     when = _when(entry)
     summary = entry.get("summary") or ""
     return f"{stamp(when)}\n\n{summary}" if when else summary
+
+
+def latest(home: Home) -> dict | None:
+    """The newest exchange, however old: the answer on screen that "show N" opens."""
+    entries = load(home)
+    return entries[-1] if entries else None
 
 
 def recent(home: Home, now: datetime) -> list[dict]:

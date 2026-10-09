@@ -247,6 +247,8 @@ def build_briefing(ctx: Ctx, m: Meeting, force: bool = False) -> Briefing:
 
 PEOPLE_INSTRUCTIONS = """- {me_name} is getting ready to meet these people; nothing is on the calendar yet. Summary:
   who each one is to {me_name}, then the one or two things most worth knowing or doing first.
+- When the sources say little, still say what they do (when {me_name} last met or talked with
+  them, how it was set up). Never leave the summary empty if a source is about them.
 - Optional section: "Lately" (the newest thing each one said or asked)."""
 
 
@@ -285,13 +287,21 @@ def people_briefing(ctx: Ctx, question: str, ids: list[str], said: list[str]) ->
     from archie.ask.evidence import person_evidence
     from archie.llm.verify import Claim
 
+    from archie.ask.offer import fill_in_offer, fuller_name
+
     directory = PeopleDirectory.load(ctx.home)
     packet = Packet()
     each = max(4, 24 // len(ids))
+    offer, looked = None, []
     for eid in ids:
+        guess = fuller_name(ctx, directory, eid)  # a file with only the user's notes
+        if guess:
+            looked.append(f"Your file on {directory.name(eid)} has only your notes, so I also looked for "
+                          f"{guess[0]} in your sources.")
+            offer = offer or fill_in_offer(directory, eid, *guess)
         for c in ctx.index.chunks_of(f"people/{eid}.md")[:3]:
             packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"])
-        for c in person_evidence(ctx, eid, max_items=each):
+        for c in person_evidence(ctx, eid, max_items=each, also=(guess[0],) if guess else ()):
             packet.add(c["path"], c["chunk_id"], c["text"], label=c["label"], ts=c["ts"])
     names = [directory.name(e) for e in ids]
     me = ctx.me.name or "the user"
@@ -300,7 +310,10 @@ def people_briefing(ctx: Ctx, question: str, ids: list[str], said: list[str]) ->
                                       "the calendar in the next two weeks.")
     first = _listed([n.split(" ")[0] for n in names])
     lead = [Claim(f"There's nothing on your calendar with {first} in the next two weeks. Here's what to know.", [])]
-    answer.summary[0:0] = lead + [Claim(s, []) for s in said]
+    answer.summary[0:0] = lead + [Claim(s, []) for s in [*said, *looked]]
+    if offer:
+        answer.notes.append(offer[0])
+        answer.pending = offer[1]
     answer.sections.insert(0, Section("People", lines=_people_lines(ctx, ids, directory)))
     open_items = _open_items(ctx, ids)
     if open_items:

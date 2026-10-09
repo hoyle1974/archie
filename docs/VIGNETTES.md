@@ -38,6 +38,7 @@ remove the mark and set the row to ✅.
 | U | News that finishes an item   | loops → understand (open items), loop_done, told record         | M5 | ✅ |
 | V | Getting ready for people     | Gmail, people → understand (people), brief, evidence, names     | M5 | ✅ |
 | W | Someone I only mentioned     | Gmail, Calendar → answer check, dig loop, file offer            | M5 | ✅ |
+| X | Plans I tell Archie          | ask → understand (plan), journal/plans.md, agenda, brief, dates | M5 | ✅ |
 
 ### Milestones
 
@@ -341,7 +342,8 @@ question checked again, opening with "I checked again", and saying so if the ans
 changed.
 
 **Acceptance:** "them" and the topic are worked out from the last few exchanges.
-Citations from the previous answer can be opened. After 30 quiet minutes, or for an
+Citations from the previous answer can be opened, however old it is (the TUI shows it
+again on launch). After 30 quiet minutes, or for an
 unrelated question, the old topic isn't pulled in.
 
 ## P. "I can't do that yet"
@@ -486,3 +488,44 @@ name in the text. No is remembered and never asked again.
 **Acceptance:** the prep answer has verified claims from the Sep 23 call and Workperson's
 thread, never says "no meetings", and ends with the offer naming Workpersontwo Birch. "yes"
 creates her file and "tell me about Workpersontwo" then resolves to it. "no" writes `state/people_declined.yaml` and the same question makes no second offer.
+
+**Also (from the Oct 9 usage review):** when the user has already told Archie about her by
+first name, so `people/workpersontwo.md` holds only their notes, "tell me about Workpersontwo" still
+uses the sources that name Workpersontwo Birch, says so ("Your file on Workpersontwo has only your
+notes, so I also looked for Workpersontwo Birch in your sources."), and offers "Want me to add
+them to your file on Workpersontwo?". Yes fills in that file (`full_name`, `origin: mentioned`)
+instead of starting a second one.
+
+## X. Plans I tell Archie
+
+**Situation.** Saturday. The user's company is closed Monday, and they expect to meet Ken
+next week, but neither is on the calendar.
+
+**User:** `ask "Monday is a company holiday"`, `ask "I will meet with Ken next week"`, later
+`ask "what do I have on Monday?"` and `ask "Can you prep me for that meeting?"`
+
+**Archie shows:**
+```
+Saved for Mon, Oct 5: “Monday is a company holiday”. I'll show it in your agenda that day.
+```
+```
+Monday, Oct 5
+  You said: “Monday is a company holiday” (Oct 3)
+```
+```
+You said on Oct 3: “I will meet with Ken next week”. It isn't on your calendar yet. There's nothing on your calendar with Ken …
+```
+
+**What happens.** The understanding call marks the telling `fact: plan` with who it's with.
+Code works out the days from the user's words (`dates.days_in`: a weekday, a date, "next
+week"), and saves one line in `journal/plans.md`, which the user can edit. Agenda shows a
+plan on its days; a plan spanning several days is listed once above them. `brief` with no
+people, for "that meeting" (or when no calendar meeting matches), briefs the people in the
+newest plan still ahead.
+
+**Acceptance:** the user's exact words are kept; dates come from code; a plan with no date
+is saved but shown on no day; "that meeting" after the conversation has ended still finds
+the planned meeting. Tests: `tests/vignettes/test_x_plans.py`.
+
+Motivated by the Oct 5–9 asks "I will meet with Workpersontwo next week", "I haven't scheduled it
+yet, but will most likely meet with Workpersontwo" and "Monday is a company holiday".

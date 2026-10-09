@@ -120,6 +120,7 @@ from a shell.
 ├── loops/<YYYY>/<loop_id>.md
 ├── journal/weekly/<YYYY>-W<ww>.md           # weekly accomplishments
 ├── journal/told.md                         # what you told Archie, word for word (Archie appends)
+├── journal/plans.md                        # plans you told Archie, with their days (you can edit)
 ├── config/meeting_types.yaml               # user overrides: series → type
 ├── archie.db                # disposable index (ignored)
 └── logs/                    # ignored
@@ -237,7 +238,12 @@ dossier with `status: stub` and `origin: mentioned` (an Archie-owned key), adds 
 written next to the name in a mail header, and runs the facts pass for that person; a no
 is remembered. "Start a file on X" does the same without the offer, from one source. For an
 `origin: mentioned` person, evidence also comes from chunks that name them in full, as
-whole words; a single word ("Workpersontwo") is never enough.
+whole words; a single word ("Workpersontwo") is never enough. The same holds for anyone with no
+address (multi-word names and `full_name`). A file that has only the user's notes (made by
+a telling such as "Workpersontwo is joining the platform team") would otherwise hide their
+sources, so `who` and the people briefing look for the fuller name at least two sources use
+("Workpersontwo Birch"), say so, include those sources, and offer "Want me to add them to your
+file on Workpersontwo?"; yes fills in that file instead of starting a second one.
 
 ### 4.3 Meeting (`meetings/2026/2026-10-14-alex-1-1.md`)
 
@@ -527,7 +533,8 @@ said, not dropped. Without people, `brief` looks 36 hours ahead, then 14 days.
    answer to an open question, or something unclear. Code checks the reply: a part's words
    must be in the message, a rewritten question may only use names someone said, and
    question numbers must exist. It states no facts, so it needs no citations. Code-only
-   shortcuts come first: the quick questions, "show N" (a citation from the last answer),
+   shortcuts come first: the quick questions, "show N" (a citation from the newest answer,
+however old, since the TUI shows it again on launch),
    "really?" (the last question again), and a plain yes or no to one open question.
 2. **Retrieve:** the intent's plan runs in code (file reads plus index queries) and
    builds a **context packet** (JSON, each item with a citation key). Gemini's context is
@@ -591,7 +598,11 @@ one of Archie's questions, is saved word for word in `journal/told.md`, then app
 facts about a person (the `remember` code, whose reply repeats what was saved in the
 user's words: "Got it. I'll remember: • Acorn: “Acorn is full of energy…”"), ignoring or un-ignoring a sender (the
 `ignore:` list in `config.yaml`; their mail makes no open items or questions, and answers
-leave it out unless the question names them), or nothing yet ("Saved. I don't use that for
+leave it out unless the question names them), a plan (a holiday, a day off, a meeting not on
+the calendar yet: one line in `journal/plans.md`, with the days code works out from the
+user's words and who it's with; `agenda` shows it on those days, and `brief` prepares for
+the people in it when asked about "that meeting" or when no calendar meeting matches), or
+nothing yet ("Saved. I don't use that for
 anything yet."). Yes/no answers use the `clarify` code.
 
 Instructions run through a fixed list of actions, each a function whose reply says what

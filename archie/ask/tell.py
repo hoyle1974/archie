@@ -1,7 +1,8 @@
 """Things the user tells Archie (spec: understand-first §3).
 
 Every telling is saved word for word in journal/told.md, then applied where it fits:
-facts about a person (the remember code), ignoring or un-ignoring a sender, or nothing yet.
+facts about a person (the remember code), ignoring or un-ignoring a sender, a plan
+(journal/plans.md, plans.py), or nothing yet.
 Replies are written by code from what was applied. The user's words are taken as said and
 never checked against the archive."""
 
@@ -75,11 +76,18 @@ def _ignore(ctx: Ctx, on: bool, about: str | None, text: str) -> tuple[Answer, s
     return Answer(plain=reply), f"ignoring {', '.join(addresses)}"
 
 
-def tell(ctx: Ctx, fact: str, text: str, about: str | None = None, subject: str | None = None) -> Answer:
-    """Apply one telling. `subject` is who an answered "Who is …?" question was about."""
+def tell(ctx: Ctx, fact: str, text: str, about: str | None = None, subject: str | None = None,
+         people: list[str] | None = None) -> Answer:
+    """Apply one telling. `subject` is who an answered "Who is …?" question was about; `people`,
+    who a plan is with."""
     result = SAVED_ONLY
     try:
-        if fact in ("ignore", "unignore"):
+        if fact == "plan":
+            from archie.ask import plans
+
+            plan, reply = plans.save(ctx, text, people or [])
+            answer, result = Answer(plain=reply), plans.result(plan)
+        elif fact in ("ignore", "unignore"):
             answer, result = _ignore(ctx, fact == "ignore", about or subject, text)
         elif fact == "person":
             text = f"{subject}: {text}" if subject else text  # saved with who it's about, for replays

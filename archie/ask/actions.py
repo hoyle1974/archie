@@ -203,7 +203,11 @@ def _loop(action: str) -> Callable[[Ctx, Part, str, dict | None], Answer]:
 def _show(ctx: Ctx, part: Part, message: str, last: dict | None) -> Answer:
     m = _SHOW_N.search(part.text)
     n = citation_number(part.text) or (int(m.group(1) or m.group(2)) if m else None)
-    return show(ctx, last, n) if n else Answer(plain=WHICH)
+    if not n:
+        return Answer(plain=WHICH)
+    from archie.ask.conversation import latest
+
+    return show(ctx, latest(ctx.home), n)  # the answer on screen, however old
 
 
 def _ignore(on: bool) -> Callable[[Ctx, Part, str, dict | None], Answer]:

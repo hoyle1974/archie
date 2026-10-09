@@ -66,3 +66,18 @@ def test_O_really_with_nothing_recent_is_an_ordinary_message(tmp_path):
     ctx.now = NOW + timedelta(minutes=1)
     render(ask(ctx, "really?"))  # the last exchange was itself "really?": no endless re-asking
     assert fb.calls[-1]["shape"].name in ("understand", "answer")
+
+
+def test_O_show_works_on_the_answer_on_screen_however_old(tmp_path):
+    fb = FakeBackend(model)
+    ctx = make_ctx(tmp_path, fb)
+    atomic_write(ctx.home / "people/status_audio.md", DOSSIER)
+    ctx.index.sync()
+    render(ask(ctx, "did Status reply about my earbud?"))
+
+    ctx.now = NOW + timedelta(days=3)  # Archie reopened: the TUI shows that answer again
+    calls = len(fb.calls)
+    shown = render(ask(ctx, "show 1"))
+    assert len(fb.calls) == calls
+    assert shown.startswith("[1] ") and "offering a replacement right earbud for $49" in shown
+    assert "There's no recent answer" not in shown

@@ -29,7 +29,7 @@ QUESTION_INTENTS = {
     "search": "anything else: find information in the archive",
 }
 KINDS = ("question", "tell", "instruct", "answer", "unclear")
-FACTS = ("person", "ignore", "unignore", "other")
+FACTS = ("person", "ignore", "unignore", "plan", "other")
 ACTIONS = ("loop_done", "loop_snooze", "loop_dismiss", "loop_reopen", "meeting_type", "merge_names", "notes",
            "ignore", "unignore", "show_citation", "nudge_snooze", "start_person", "send", "none")
 PARAMS = ("since", "until", "topic", "meeting")
@@ -132,7 +132,9 @@ def prompt_input(message: str, recent: list[dict], open_qs: list[dict], pending:
         out.append("The user's open items:")
         out += [f"- {x}" for x in items]
         out.append("")
-    if pending and pending.get("kind") == "offer_person":
+    if pending and pending.get("kind") == "offer_person" and pending.get("into"):
+        out += [f"Archie just asked: Want me to add {pending.get('name')} to your file on {pending['into']}?", ""]
+    elif pending and pending.get("kind") == "offer_person":
         out += [f"Archie just asked: Want me to start a file on {pending.get('name')}?", ""]
     elif pending and _labels(pending):
         from archie.ask.which import ask_which

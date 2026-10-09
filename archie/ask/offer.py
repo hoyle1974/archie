@@ -7,7 +7,12 @@ name, or a name the user declined. The offer uses the fullest form seen ("Workpe
 over "Workpersontwo"). A plain yes or no answers it, matched in code; yes writes people/<id>.md
 with `origin: mentioned` and runs the facts pass for that one person, no writes
 state/people_declined.yaml. "Start a file on X" (the `start_person` action) does the same
-without the offer, from a search, with one source enough."""
+without the offer, from a search, with one source enough.
+
+A file the user's own telling made ("Workpersontwo is joining the platform team") has only their
+notes: no address, no full name. `fuller_name` finds the fuller name two or more sources use
+for them, so answers can include those sources, and the offer then adds it to that file
+instead of starting a second one."""
 
 from __future__ import annotations
 
@@ -137,6 +142,46 @@ def _sources(items: list[dict], name: str) -> list[str]:
     return out
 
 
+def bare(directory, eid: str) -> bool:
+    """A file with nothing to find the person by in sources: no address or login, no full name."""
+    return not directory.identifiers(eid) and not directory.mention_names(eid)
+
+
+def fuller_name(ctx: Ctx, directory, eid: str) -> tuple[str, list[str]] | None:
+    """For a bare file ("Workpersontwo"): the fuller name at least two of the user's source files use
+    ("Workpersontwo Birch"), and those files. None if there's no such name, it's another person's,
+    the user's own, a business's, or one the user declined."""
+    if not bare(directory, eid):
+        return None
+    name = directory.name(eid)
+    items = ctx.index.chunks_naming([name], limit=SEARCH_CHUNKS, any_length=True)
+    full = fullest(name, [it for it in items if it["path"] in _sources(items, name)])
+    if len(full.split()) <= len(name.split()):
+        return None
+    named = _sources(items, full)
+    if len(named) < MIN_SOURCES or full.lower() in {n.lower() for n in declined(ctx)} or _is_me(ctx, full):
+        return None
+    if any(e != eid for e in directory.find(full)) or _not_a_person(ctx, full, _headers(ctx, named)):
+        return None
+    return full, named[:MAX_SOURCES]
+
+
+def fill_in_offer(directory, eid: str, full: str, sources: list[str]) -> tuple[str, dict]:
+    """The offer to add a fuller name's sources to a bare file, and its pending question."""
+    short = directory.name(eid)
+    line = f"{full} is in {len(sources)} of your sources. Want me to add them to your file on {short}?"
+    return line, {"kind": "offer_person", "name": full, "aliases": [], "sources": sources, "options": [],
+                  "into": short}
+
+
+def _bare_match(directory, name: str) -> str | None:
+    """The one bare file whose name begins the full name ("Workpersontwo" for "Workpersontwo Birch")."""
+    words = name.lower().split()
+    hits = [e for e in directory.find(name.split()[0]) if bare(directory, e)
+            and directory.name(e).lower().split() == words[:len(directory.name(e).split())]]
+    return hits[0] if len(hits) == 1 else None
+
+
 def make_offer(ctx: Ctx, names: list[str], items: list[dict]) -> tuple[str, dict] | None:
     """The offer line and its pending question for the first acceptable name, or None."""
     from archie.derive.people import PeopleDirectory
@@ -201,6 +246,9 @@ def start_file(ctx: Ctx, name: str, aliases: list[str], sources: list[str]) -> A
     hits = directory.find(name)
     if hits:
         return Answer(plain=f"You already have a file on {directory.name(hits[0])}.")
+    into = _bare_match(directory, name)
+    if into:
+        return _fill_in(ctx, directory, into, name, aliases, sources)
     emails = [e for e in _emails(ctx, name, sources) if not directory.by_email(e)]
     eid = directory.new_id(name, "")
     meta = {"entity_id": eid, "name": name, "aliases": [*aliases, *emails],
@@ -219,6 +267,35 @@ def start_file(ctx: Ctx, name: str, aliases: list[str], sources: list[str]) -> A
         return Answer(plain=f"Started a file on {name} with {facts} fact{'' if facts == 1 else 's'} "
                             "from your mail and calendar.")
     return Answer(plain=f"Started a file on {name}; I couldn't confirm any facts yet.")
+
+
+def _facts_line(ctx: Ctx, rel: str) -> str:
+    from archie.derive.people import parse_facts
+    from archie.store.fence import get_fence
+    from archie.store.files import read_note
+
+    n = len(parse_facts(get_fence(read_note(ctx.home / rel).body)))
+    return f"with {n} fact{'' if n == 1 else 's'} from your mail and calendar" if n else "though I couldn't confirm any facts yet"
+
+
+def _fill_in(ctx: Ctx, directory, eid: str, name: str, aliases: list[str], sources: list[str]) -> Answer:
+    """Give a bare file the full name its sources use, keeping the user's name and notes."""
+    from archie.derive.enrich import enrich_person
+    from archie.store.files import read_note
+
+    rel = f"people/{eid}.md"
+    note = read_note(ctx.home / rel)
+    short = note.meta.get("name") or name
+    emails = [e for e in _emails(ctx, name, sources) if not directory.by_email(e)]
+    note.meta.setdefault("full_name", name)
+    note.meta["aliases"] = list(dict.fromkeys([*(note.meta.get("aliases") or []),
+                                               *(a for a in [name, *aliases, *emails] if a != short)]))
+    note.meta["origin"] = "mentioned"
+    write_note(ctx.home / rel, note)
+    ctx.index.update_files([rel])
+    enrich_person(ctx, eid)
+    ctx.index.update_files([rel])
+    return Answer(plain=f"Added what your sources say about {name} to your file on {short}, {_facts_line(ctx, rel)}.")
 
 
 def answer_offer(ctx: Ctx, pending: dict, yes: bool, said: str) -> Answer:
