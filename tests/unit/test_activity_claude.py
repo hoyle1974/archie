@@ -46,3 +46,21 @@ def test_a_session_entirely_outside_the_window_is_not_an_item(tmp_path):
         "turns": [{"role": "user", "at": "2026-09-01T00:00:00Z", "text": "old session"}]})
     start, end = datetime(2026, 10, 9, tzinfo=timezone.utc), datetime(2026, 10, 10, tzinfo=timezone.utc)
     assert [i for i in my_activity(ctx, start, end) if i.kind == "claude_session"] == []
+
+
+def test_activity_chunk_index_matches_chunker_when_session_opens_with_assistant(tmp_path):
+    """Review finding (Important #2): activity.py's chunk-index numbering must still line
+    up with chunk_session's grouping once a session opens with an assistant turn."""
+    ctx = _ctx(tmp_path)
+    write_raw(ctx.home / "sources/claude/archie/s1.json", {
+        "session_id": "s1", "title": None, "project": "archie", "cwd": "/x", "branch": "main",
+        "started_at": "2026-10-09T16:02:00Z", "ended_at": "2026-10-09T16:03:40Z", "original": "/x/s1.jsonl",
+        "turns": [{"role": "assistant", "at": "2026-10-09T16:02:00Z", "text": "leading"},
+                  {"role": "user", "at": "2026-10-09T16:02:11Z", "text": "my question"},
+                  {"role": "assistant", "at": "2026-10-09T16:03:40Z", "text": "the answer"}]})
+    ctx.index.sync()
+    start, end = datetime(2026, 10, 9, tzinfo=timezone.utc), datetime(2026, 10, 10, tzinfo=timezone.utc)
+    [item] = [i for i in my_activity(ctx, start, end) if i.kind == "claude_session"]
+    assert item.chunk == "c0-0"
+    cited_text = ctx.index.chunk_text(item.path, item.chunk)
+    assert item.quote in cited_text  # the citation's quote must be verbatim in its own chunk

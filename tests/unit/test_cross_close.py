@@ -65,3 +65,20 @@ def test_a_loop_whose_reply_keeps_failing_stops_costing_calls(tmp_path):
     for _ in range(MAX_TRIES + 2):
         close_across_channels(ctx, [])
     assert len(calls) == MAX_TRIES
+
+
+def test_claude_sessions_are_never_loop_closing_evidence(tmp_path):
+    """Review finding (Important #3): talking about a task in a Claude Code session is not
+    doing it, and the spec puts deriving loops from sessions out of scope."""
+    ctx, calls = setup(tmp_path, {"done": True, "strength": "strong", "ref": 1, "quote": "Looks good, ship it."})
+    write_raw(ctx.home / "sources/claude/archie/s1.json", {
+        "session_id": "s1", "title": "Redis fallback patch review", "project": "archie",
+        "cwd": "/x", "branch": "main", "started_at": "2026-09-29T10:00:00Z",
+        "ended_at": "2026-09-29T10:01:00Z", "original": "/x/s1.jsonl",
+        "turns": [{"role": "user", "at": "2026-09-29T10:00:00Z",
+                   "text": "remind me to review the Redis fallback patch for Sarah"},
+                  {"role": "assistant", "at": "2026-09-29T10:01:00Z", "text": "Noted."}]})
+    ctx.index.sync()
+    close_across_channels(ctx, [])
+    assert "remind me to review the Redis fallback patch" not in calls[0]
+    assert "Redis fallback patch review" not in calls[0]

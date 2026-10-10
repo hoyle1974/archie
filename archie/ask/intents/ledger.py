@@ -17,13 +17,14 @@ from archie.llm.verify import Citation, Claim
 from archie.store.fence import set_fence
 from archie.store.files import Note, read_note, write_note
 
-LISTED = ("pr_merged", "pr_opened", "commit", "review_given", "issue_done", "transition", "doc_edited")
+LISTED = ("pr_merged", "pr_opened", "commit", "review_given", "issue_done", "transition", "doc_edited",
+          "claude_session")
 SHOW = 8  # items per section before "…and N more": readable beats complete
 NOUNS = {"commit": ("commit", "commits"), "pr_merged": ("PR merged", "PRs merged"),
          "pr_opened": ("PR opened", "PRs opened"), "review_given": ("review", "reviews"),
          "issue_done": ("issue closed", "issues closed"), "transition": ("issue moved", "issues moved"),
          "doc_edited": ("doc edited", "docs edited"), "email_sent": ("email sent", "emails sent"),
-         "meeting": ("meeting", "meetings")}
+         "meeting": ("meeting", "meetings"), "claude_session": ("Claude session", "Claude sessions")}
 
 
 def _window(ctx: Ctx, params: dict) -> tuple[datetime, datetime]:

@@ -43,7 +43,8 @@ def _check(ctx: Ctx, lp, checked: dict, failures: Failures) -> str | None:
     own_thread = {s.get("file") for s in m.get("sources") or []}
     want = _words(m.get("summary", ""))
     cands = [i for i in my_activity(ctx, start, ctx.now)
-             if i.path not in own_thread and len(want & _words(i.title + " " + i.quote)) >= 1]
+             if i.kind != "claude_session" and i.path not in own_thread
+             and len(want & _words(i.title + " " + i.quote)) >= 1]
     if not cands or cands[-1].when <= checked.get(lp.loop_id, ""):
         return None
     newest = max(i.when for i in cands)

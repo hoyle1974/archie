@@ -259,3 +259,105 @@ def test_chunk_session_label_without_a_title(tmp_path):
     rel = "sources/claude/archie/s1.json"
     chunks = chunk_file(rel, (home / rel).read_text())
     assert chunks[0].label == "Claude session in archie (Oct 9)"
+
+
+def test_chunk_session_folds_a_leading_assistant_turn_into_the_first_exchange(tmp_path):
+    """Review finding (Important #2): an assistant turn before the first user turn must
+    join the first exchange, not get its own group with a different index than
+    activity.py's user-turn counting expects."""
+    proj = _project_dir(tmp_path)
+    _write(proj / "s1.jsonl", [
+        assistant("leading", cwd="/Users/test/code/archie"),
+        user("my question"),
+        assistant("the answer"),
+    ])
+    home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
+    rel = "sources/claude/archie/s1.json"
+    chunks = chunk_file(rel, (home / rel).read_text())
+    assert len(chunks) == 1
+    assert chunks[0].chunk_id == "c0-0"
+    assert "leading" in chunks[0].text and "my question" in chunks[0].text and "the answer" in chunks[0].text
+
+
+def test_chunk_session_never_sees_tool_or_thinking_blocks(tmp_path):
+    """Review finding (#7c): VIGNETTES Y claims tool output and thinking never leak into
+    a chunk. Assert it directly against a transcript shaped like a real one."""
+    proj = _project_dir(tmp_path)
+    records = [
+        {"type": "user", "timestamp": "2026-10-09T16:02:11Z", "cwd": "/Users/test/code/archie",
+         "message": {"role": "user", "content": "run the tests"}},
+        {"type": "assistant", "timestamp": "2026-10-09T16:02:30Z", "message": {"role": "assistant", "content": [
+            {"type": "thinking", "thinking": "I should run pytest now, secretly reasoning about it"},
+            {"type": "tool_use", "name": "Bash", "input": {"command": "pytest -q"}},
+        ]}},
+        {"type": "user", "timestamp": "2026-10-09T16:02:31Z",
+         "message": {"role": "user", "content": [{"type": "tool_result", "content": "12 passed"}]}},
+        {"type": "assistant", "timestamp": "2026-10-09T16:02:40Z",
+         "message": {"role": "assistant", "content": [{"type": "text", "text": "All 12 tests pass."}]}},
+    ]
+    _write(proj / "s1.jsonl", records)
+    home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
+    rel = "sources/claude/archie/s1.json"
+    chunks = chunk_file(rel, (home / rel).read_text())
+    text = "\n".join(c.text for c in chunks)
+    assert "secretly reasoning" not in text
+    assert "pytest -q" not in text
+    assert "12 passed" not in text  # the tool_result, not to be confused with the reply below
+    assert "All 12 tests pass." in text
+
+
+def test_mask_secrets_does_not_corrupt_ordinary_kebab_case_words():
+    """Review finding (Important #4): the sk- pattern had no left word boundary and
+    matched inside ordinary words like "ask-followup" and "task-notification"."""
+    for text in ["see docs/ask-followup-show-command-spec.md",
+                 "task-notification-wrapper-handler"]:
+        assert mask_secrets(text) == text
+
+
+def test_mask_secrets_covers_a_pgp_private_key_block():
+    """Review finding (Important #5): the armor line for a PGP key is
+    "-----BEGIN PGP PRIVATE KEY BLOCK-----", which the old pattern never matched."""
+    pem = "-----BEGIN PGP PRIVATE KEY BLOCK-----\nlQOYBF...\n-----END PGP PRIVATE KEY BLOCK-----"
+    out = mask_secrets(f"key:\n{pem}\nthanks")
+    assert "lQOYBF" not in out and "[secret removed]" in out
+
+
+def test_mask_secrets_covers_a_private_key_pasted_without_its_end_marker():
+    """Review finding (Important #5): a paste cut off before the END line left the key
+    body on disk unmasked because the old pattern required both markers."""
+    text = "-----BEGIN RSA PRIVATE KEY-----\nMIIsecretbody"
+    out = mask_secrets(text)
+    assert "MIIsecretbody" not in out and "[secret removed]" in out
+
+
+def test_parse_session_skips_a_non_dict_json_line(tmp_path):
+    """Review finding (Important #6): a JSON line that parses but isn't an object (e.g. a
+    bare list) must not crash the whole session with AttributeError on `.get`."""
+    path = tmp_path / "session.jsonl"
+    good = json.dumps(user("real prompt", cwd="/x/y"))
+    path.write_text(good + "\n" + json.dumps([1, 2, 3]) + "\n", encoding="utf-8")
+    session = parse_session(path)
+    assert session["turns"][0]["text"] == "real prompt"
+
+
+def test_parse_session_skips_a_text_block_with_null_text(tmp_path):
+    """Review finding (Important #6): a content block shaped like {"type": "text", "text":
+    null} must not crash the join with TypeError."""
+    path = _write(tmp_path / "session.jsonl", [
+        user("real prompt", cwd="/x/y"),
+        {"type": "assistant", "timestamp": "2026-10-09T16:03:40Z",
+         "message": {"role": "assistant", "content": [{"type": "text", "text": None}]}},
+    ])
+    session = parse_session(path)
+    assert [t["text"] for t in session["turns"]] == ["real prompt"]
+
+
+def test_sync_skips_a_log_that_is_unreadable_and_keeps_the_rest(tmp_path):
+    """Review finding (Important #6): one bad session file must not stop the whole cycle
+    or keep the cursor from advancing on everything else."""
+    proj = _project_dir(tmp_path)
+    (proj / "ghost.jsonl").mkdir()  # matches the glob but isn't a readable file
+    _write(proj / "good.jsonl", [user("real prompt", cwd="/x/y")])
+    home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
+    assert len(res.written) == 1
+    assert "good.json" in str(res.written[0])

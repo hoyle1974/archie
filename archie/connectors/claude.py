@@ -27,11 +27,13 @@ NAME = "claude"
 DEFAULT_ROOT = Path.home() / ".claude" / "projects"
 
 SECRET_PATTERNS = [
-    re.compile(r"sk-[A-Za-z0-9_-]{20,}"),                        # Anthropic / OpenAI
-    re.compile(r"gh[pousr]_[A-Za-z0-9]{30,}"),                   # GitHub
-    re.compile(r"AIza[0-9A-Za-z_-]{35}"),                        # Google
-    re.compile(r"xox[abprs]-[A-Za-z0-9-]{10,}"),                 # Slack
-    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S),
+    re.compile(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}"),        # Anthropic / OpenAI
+    re.compile(r"(?<![A-Za-z0-9])gh[pousr]_[A-Za-z0-9]{30,}"),   # GitHub
+    re.compile(r"(?<![A-Za-z0-9])AIza[0-9A-Za-z_-]{35}"),        # Google
+    re.compile(r"(?<![A-Za-z0-9])xox[abprs]-[A-Za-z0-9-]{10,}"), # Slack
+    # A private or PGP key: masked even when the paste is cut off before the END line.
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----.*?"
+               r"(?:-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|\Z)", re.S),
 ]
 
 _SYSTEM_REMINDER = re.compile(r"<system-reminder>.*?</system-reminder>", re.S)
@@ -74,7 +76,7 @@ def _turn_text(record: dict, role: str) -> str:
     if isinstance(content, str):
         raw = content
     else:
-        raw = "\n".join(b.get("text", "") for b in content or []
+        raw = "\n".join(b.get("text") or "" for b in content or []
                         if isinstance(b, dict) and b.get("type") == "text")
     raw = raw.strip()
     return _clean_user_text(raw) if role == "user" else raw
@@ -91,6 +93,8 @@ def parse_session(path: Path) -> dict | None:
         try:
             record = json.loads(line)
         except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict):
             continue
         kind = record.get("type")
         if kind == "ai-title":
@@ -137,15 +141,18 @@ class ClaudeConnector:
         for log in sorted(root.glob("*/*.jsonl")):
             if "subagents" in log.parts:
                 continue
-            mtime = datetime.fromtimestamp(log.stat().st_mtime, tz=timezone.utc)
-            if since and mtime < since:
-                continue
-            session = parse_session(log)
-            if session is None:
-                continue
-            out = sctx.source_dir(NAME) / session["project"] / f"{session['session_id']}.json"
-            write_raw(out, session)
-            written.append(out)
+            try:
+                mtime = datetime.fromtimestamp(log.stat().st_mtime, tz=timezone.utc)
+                if since and mtime < since:
+                    continue
+                session = parse_session(log)
+                if session is None:
+                    continue
+                out = sctx.source_dir(NAME) / session["project"] / f"{session['session_id']}.json"
+                write_raw(out, session)
+                written.append(out)
+            except OSError as exc:  # a log gone or unreadable mid-cycle: skip it, keep the rest
+                sctx.say(f"Skipping {log.name}: {exc}")
         return SyncResult(cursor={"last_sync": sctx.now.isoformat()}, written=written)
 
 
@@ -157,10 +164,15 @@ def chunk_session(path: str, data: dict) -> list[Chunk]:
     title, project = data.get("title"), data.get("project") or "unknown"
     groups: list[list[dict]] = []
     for turn in turns:
-        if turn["role"] == "user" or not groups:
+        if turn["role"] == "user":
             groups.append([turn])
-        else:
+        elif groups:
             groups[-1].append(turn)
+        else:
+            groups.append([turn])  # assistant turns before any user turn: folded in below
+    if len(groups) > 1 and groups[0][0]["role"] != "user":
+        groups[1] = groups[0] + groups[1]
+        groups.pop(0)
     out: list[Chunk] = []
     for i, group in enumerate(groups):
         date = short_date(group[0]["at"])
