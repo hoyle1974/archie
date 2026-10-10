@@ -12,7 +12,7 @@ from archie.store.files import read_raw
 
 KIND_WORDS = {"commit": "Commits", "pr_merged": "PRs merged", "pr_opened": "PRs opened", "review_given": "Reviews",
               "issue_done": "Issues closed", "transition": "Issues moved", "doc_edited": "Docs edited",
-              "email_sent": "Emails sent", "meeting": "Meetings"}
+              "email_sent": "Emails sent", "meeting": "Meetings", "claude_session": "Claude sessions"}
 
 
 @dataclass
@@ -85,6 +85,19 @@ def my_activity(ctx: Ctx, start: datetime, end: datetime) -> list[Item]:
                 to = ", ".join(a.get("name") or a["email"] for a in m.get("to", [])[:2])
                 out.append(Item(m["date"], "email_sent", f"{m.get('subject') or '(no subject)'} (to {to})", "email",
                                 _rel(ctx, p), f"c{i}", m.get("subject") or ""))
+    for p in sorted((ctx.home / "sources/claude").rglob("*.json")):
+        d = read_raw(p)
+        group = -1
+        for t in d.get("turns") or []:
+            if t["role"] == "user":
+                group += 1
+            if t["role"] == "user" and _in(t.get("at"), start, end):
+                title = d.get("title") or "Claude session"
+                quote = (t.get("text") or title).splitlines()[0]
+                out.append(Item(t["at"], "claude_session", title, d.get("project") or "", _rel(ctx, p),
+                                f"c{group}-0", quote))
+                break
+
     from archie.derive.meetings import load_meetings
 
     for m in load_meetings(ctx.home):
