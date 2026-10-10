@@ -8,6 +8,7 @@ import re
 from archie.ask.answer import Answer
 from archie.ask.context import Ctx
 from archie.ask.render import NOTHING
+from archie.store.files import read_raw
 
 SHOW = re.compile(r"^\s*(?:show|open)(?: me)?(?: (?:source|citation))?\s*\[?(\d+)\]?\s*[.!?]?\s*$", re.I)
 RECHECK = re.compile(r"^\s*(really|are you sure|you sure|is that right|is that true|double[- ]check( that)?)"
@@ -77,6 +78,15 @@ def show(ctx: Ctx, last: dict | None, n: int) -> Answer:
     if around:
         lines += ["", around]
     lines += ["", c["file"]]
+    if c["file"].startswith("sources/claude/"):
+        from pathlib import Path
+
+        data = read_raw(ctx.home / c["file"])
+        original = Path(data.get("original", "")).expanduser()
+        if original.exists():
+            lines.append(f"Full log: {data['original']}")
+        else:
+            lines.append("The full log was removed by Claude Code's 30-day cleanup; this is Archie's copy.")
     markdown = around if around and c["file"].endswith(".md") else None
     return Answer(plain="\n".join(lines), markdown=markdown)
 
