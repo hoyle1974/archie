@@ -213,3 +213,49 @@ def test_missing_log_folder_raises_a_plain_error(tmp_path):
         assert False, "expected RuntimeError"
     except RuntimeError as exc:
         assert "isn't there" in str(exc)
+
+
+from archie.index.chunk import chunk_file
+
+
+def test_chunk_session_groups_one_user_turn_with_its_replies(tmp_path):
+    proj = _project_dir(tmp_path)
+    _write(proj / "s1.jsonl", [
+        user("first question", cwd="/Users/test/code/archie"),
+        assistant("first answer, part one"),
+        assistant("first answer, part two"),
+        user("second question"),
+        assistant("second answer"),
+        {"type": "ai-title", "aiTitle": "Two questions"},
+    ])
+    home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
+    rel = "sources/claude/archie/s1.json"
+    chunks = chunk_file(rel, (home / rel).read_text())
+    assert len(chunks) == 2
+    assert chunks[0].chunk_id == "c0-0" and chunks[1].chunk_id == "c1-0"
+    assert "first question" in chunks[0].text and "first answer, part one" in chunks[0].text
+    assert "first answer, part two" in chunks[0].text
+    assert "second question" in chunks[1].text and "second answer" in chunks[1].text
+    assert "first question" not in chunks[1].text
+
+
+def test_chunk_session_label_has_title_project_and_date(tmp_path):
+    proj = _project_dir(tmp_path)
+    _write(proj / "s1.jsonl", [
+        user("q", cwd="/Users/test/code/archie"),
+        assistant("a"),
+        {"type": "ai-title", "aiTitle": "Claude log retention period"},
+    ])
+    home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
+    rel = "sources/claude/archie/s1.json"
+    chunks = chunk_file(rel, (home / rel).read_text())
+    assert chunks[0].label == "Claude session: Claude log retention period (archie, Oct 9)"
+
+
+def test_chunk_session_label_without_a_title(tmp_path):
+    proj = _project_dir(tmp_path)
+    _write(proj / "s1.jsonl", [user("q", cwd="/Users/test/code/archie"), assistant("a")])
+    home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
+    rel = "sources/claude/archie/s1.json"
+    chunks = chunk_file(rel, (home / rel).read_text())
+    assert chunks[0].label == "Claude session in archie (Oct 9)"

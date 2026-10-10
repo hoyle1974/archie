@@ -147,3 +147,30 @@ class ClaudeConnector:
             write_raw(out, session)
             written.append(out)
         return SyncResult(cursor={"last_sync": sctx.now.isoformat()}, written=written)
+
+
+def chunk_session(path: str, data: dict) -> list[Chunk]:
+    """One chunk per exchange: a user turn plus the assistant turns up to the next user
+    turn (DESIGN §5.3). Assistant turns before the first user turn join the first
+    exchange. An exchange over 280 words splits like any other chunk."""
+    turns = data.get("turns") or []
+    title, project = data.get("title"), data.get("project") or "unknown"
+    groups: list[list[dict]] = []
+    for turn in turns:
+        if turn["role"] == "user" or not groups:
+            groups.append([turn])
+        else:
+            groups[-1].append(turn)
+    out: list[Chunk] = []
+    for i, group in enumerate(groups):
+        date = short_date(group[0]["at"])
+        label = (f"Claude session: {title} ({project}, {date})" if title
+                 else f"Claude session in {project} ({date})")
+        text = "\n".join(f"{'You' if t['role'] == 'user' else 'Claude'}: {t['text']}" for t in group)
+        for j, chunk in enumerate(chunk_windows(path, text, source=NAME, ts=group[0]["at"])):
+            chunk.chunk_id, chunk.label = f"c{i}-{j}", label
+            out.append(chunk)
+    return out
+
+
+register_raw_chunker(NAME, chunk_session)
