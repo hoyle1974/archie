@@ -119,3 +119,31 @@ def parse_session(path: Path) -> dict | None:
     return {"session_id": path.stem, "title": title, "project": project, "cwd": cwd,
             "branch": branch, "started_at": started, "ended_at": ended,
             "original": original, "turns": turns}
+
+
+class ClaudeConnector:
+    name = NAME
+
+    async def sync(self, sctx: SyncCtx, cursor) -> SyncResult:
+        return await asyncio.to_thread(self._sync, sctx, cursor or {})
+
+    def _sync(self, sctx: SyncCtx, cursor: dict) -> SyncResult:
+        root = Path(sctx.config.get("path") or DEFAULT_ROOT).expanduser()
+        if not root.exists():
+            raise RuntimeError(f"Claude Code's log folder {root} isn't there")
+        last_sync = cursor.get("last_sync")
+        since = (datetime.fromisoformat(last_sync) - timedelta(hours=1)) if last_sync else None
+        written = []
+        for log in sorted(root.glob("*/*.jsonl")):
+            if "subagents" in log.parts:
+                continue
+            mtime = datetime.fromtimestamp(log.stat().st_mtime, tz=timezone.utc)
+            if since and mtime < since:
+                continue
+            session = parse_session(log)
+            if session is None:
+                continue
+            out = sctx.source_dir(NAME) / session["project"] / f"{session['session_id']}.json"
+            write_raw(out, session)
+            written.append(out)
+        return SyncResult(cursor={"last_sync": sctx.now.isoformat()}, written=written)

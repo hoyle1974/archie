@@ -4,8 +4,8 @@ from pathlib import Path
 from archie.connectors.claude import mask_secrets, parse_session
 
 
-def _write(tmp_path: Path, records: list[dict]) -> Path:
-    path = tmp_path / "session.jsonl"
+def _write(path: Path, records: list[dict]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
     return path
 
@@ -41,7 +41,7 @@ def test_mask_secrets_leaves_ordinary_text_alone():
 
 
 def test_parse_session_keeps_prompts_and_text_replies(tmp_path):
-    path = _write(tmp_path, [
+    path = _write(tmp_path / "session.jsonl", [
         user("I want to add Claude logs as a source for Archie.", cwd="/Users/test/code/archie",
              gitBranch="main"),
         assistant("Claude Code deletes its own logs after 30 days, so I recommend a slim copy."),
@@ -60,7 +60,7 @@ def test_parse_session_keeps_prompts_and_text_replies(tmp_path):
 
 
 def test_parse_session_drops_meta_sidechain_and_compaction(tmp_path):
-    path = _write(tmp_path, [
+    path = _write(tmp_path / "session.jsonl", [
         user("real prompt", cwd="/x/y"),
         {**user("dropped"), "isMeta": True},
         {**user("dropped"), "isSidechain": True},
@@ -76,13 +76,13 @@ def test_parse_session_collapses_a_slash_command(tmp_path):
             "request.</local-command-caveat>\n<command-name>/clear</command-name>\n"
             "            <command-message>clear</command-message>\n"
             "            <command-args></command-args>\n<local-command-stdout></local-command-stdout>")
-    path = _write(tmp_path, [user(text, cwd="/x/y")])
+    path = _write(tmp_path / "session.jsonl", [user(text, cwd="/x/y")])
     session = parse_session(path)
     assert session["turns"][0]["text"] == "/clear"
 
 
 def test_parse_session_drops_wrapper_only_turns(tmp_path):
-    path = _write(tmp_path, [
+    path = _write(tmp_path / "session.jsonl", [
         user("<task-notification>a background task finished</task-notification>", cwd="/x/y"),
         user("[Request interrupted by user]", cwd="/x/y"),
         user("real prompt", cwd="/x/y"),
@@ -94,7 +94,7 @@ def test_parse_session_drops_wrapper_only_turns(tmp_path):
 def test_parse_session_strips_system_reminders_but_keeps_the_rest(tmp_path):
     text = ("what should I work on?\n<system-reminder>background context the user "
             "didn't write</system-reminder>")
-    path = _write(tmp_path, [user(text, cwd="/x/y")])
+    path = _write(tmp_path / "session.jsonl", [user(text, cwd="/x/y")])
     session = parse_session(path)
     assert session["turns"][0]["text"] == "what should I work on?"
 
@@ -108,11 +108,108 @@ def test_parse_session_skips_an_unparseable_line(tmp_path):
 
 
 def test_parse_session_returns_none_with_no_kept_turns(tmp_path):
-    path = _write(tmp_path, [{**user("dropped"), "isMeta": True}])
+    path = _write(tmp_path / "session.jsonl", [{**user("dropped"), "isMeta": True}])
     assert parse_session(path) is None
 
 
 def test_parse_session_masks_a_secret_in_a_prompt(tmp_path):
-    path = _write(tmp_path, [user("here's my key sk-abcdefghijklmnopqrstuvwxyz0123456789", cwd="/x/y")])
+    path = _write(tmp_path / "session.jsonl", [user("here's my key sk-abcdefghijklmnopqrstuvwxyz0123456789", cwd="/x/y")])
     session = parse_session(path)
     assert "sk-abcdefghijklmnopqrstuvwxyz0123456789" not in session["turns"][0]["text"]
+
+
+import asyncio
+
+from archie.config import Me
+from archie.connectors.base import SyncCtx
+from archie.connectors.claude import ClaudeConnector
+from archie.store.files import read_raw
+from archie.store.home import init_home
+
+NOW = __import__("datetime").datetime(2026, 10, 9, 18, 0, tzinfo=__import__("datetime").timezone.utc)
+ME = Me(name="Test")
+
+
+def _project_dir(tmp_path, name="archie"):
+    d = tmp_path / "claude_logs" / name
+    d.mkdir(parents=True)
+    return d
+
+
+def run(log_root, cursor=None, home_path=None, now=NOW):
+    home = init_home(home_path)
+    sctx = SyncCtx(home, {"path": str(log_root)}, ME, now)
+    res = asyncio.run(ClaudeConnector().sync(sctx, cursor))
+    return home, res
+
+
+def test_sync_writes_one_raw_file_per_session(tmp_path):
+    proj = _project_dir(tmp_path)
+    _write(proj / "s1.jsonl", [user("hello", cwd="/Users/test/code/archie")])
+    home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
+    assert len(res.written) == 1
+    data = read_raw(home / "sources/claude/archie/s1.json")
+    assert data["turns"][0]["text"] == "hello"
+
+
+def test_sync_skips_subagent_logs(tmp_path):
+    proj = _project_dir(tmp_path)
+    (proj / "subagents").mkdir()
+    _write(proj / "subagents" / "sub1.jsonl", [user("subagent prompt", cwd="/x/y")])
+    _write(proj / "main.jsonl", [user("main prompt", cwd="/x/y")])
+    home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
+    assert len(res.written) == 1
+    assert read_raw(home / "sources/claude/y/main.json")["turns"][0]["text"] == "main prompt"
+
+
+def test_sync_skips_a_session_with_no_kept_turns(tmp_path):
+    proj = _project_dir(tmp_path)
+    _write(proj / "empty.jsonl", [{**user("dropped"), "isMeta": True}])
+    home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
+    assert res.written == []
+
+
+def test_first_sync_takes_every_log_regardless_of_age(tmp_path):
+    import os
+    import time
+
+    proj = _project_dir(tmp_path)
+    old = proj / "old.jsonl"
+    _write(old, [user("from a month ago", cwd="/x/y")])
+    month_ago = time.time() - 31 * 86400
+    os.utime(old, (month_ago, month_ago))
+    home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
+    assert len(res.written) == 1  # no cursor yet: everything on disk is taken
+
+
+def test_incremental_sync_only_rewrites_a_changed_session(tmp_path):
+    import os
+    from datetime import timedelta
+
+    # File mtimes are real wall-clock epoch times, but `since` is computed from the
+    # simulated `now` passed to the connector — so the test pins both logs' mtimes onto
+    # that same simulated timeline with os.utime, rather than relying on how fast the
+    # test happens to run in real time.
+    proj = _project_dir(tmp_path)
+    s1 = proj / "s1.jsonl"
+    _write(s1, [user("first", cwd="/x/y")])
+    os.utime(s1, ((NOW - timedelta(hours=3)).timestamp(),) * 2)  # well before the next cursor's cutoff
+    home, res1 = run(tmp_path / "claude_logs", home_path=tmp_path / "home", now=NOW)
+    cursor = {"last_sync": res1.cursor["last_sync"]}
+
+    later = NOW + timedelta(hours=2)
+    s2 = proj / "s2.jsonl"
+    _write(s2, [user("second", cwd="/x/y")])
+    os.utime(s2, (later.timestamp(),) * 2)  # after the next cursor's cutoff (last_sync - 1h = NOW - 1h)
+
+    home2, res2 = run(tmp_path / "claude_logs", cursor=cursor, home_path=tmp_path / "home", now=later)
+    assert len(res2.written) == 1
+    assert "s2.json" in str(res2.written[0])
+
+
+def test_missing_log_folder_raises_a_plain_error(tmp_path):
+    try:
+        run(tmp_path / "nope", home_path=tmp_path / "home")
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert "isn't there" in str(exc)
