@@ -39,6 +39,7 @@ remove the mark and set the row to ✅.
 | V | Getting ready for people     | Gmail, people → understand (people), brief, evidence, names     | M5 | ✅ |
 | W | Someone I only mentioned     | Gmail, Calendar → answer check, dig loop, file offer            | M5 | ✅ |
 | X | Plans I tell Archie          | ask → understand (plan), journal/plans.md, agenda, brief, dates | M5 | ✅ |
+| Y | What did Claude and I decide? | Claude Code logs → connector, chunker, activity | M5 | ✅ |
 
 ### Milestones
 
@@ -529,3 +530,24 @@ the planned meeting. Tests: `tests/vignettes/test_x_plans.py`.
 
 Motivated by the Oct 5–9 asks "I will meet with Workpersontwo next week", "I haven't scheduled it
 yet, but will most likely meet with Workpersontwo" and "Monday is a company holiday".
+
+## Y. What did Claude and I decide?
+
+**Situation.** Weeks later, the user half-remembers a decision made in a Claude Code
+session but not where.
+
+**User:** `ask "when did we talk about log retention?"`
+
+**Archie shows:** a short summary citing the exchange, labelled with the session's
+title, project and date — "Claude session: Claude log retention period (archie, Oct 9)".
+
+**What happens.** Claude Code's own session logs (`~/.claude/projects`) are mirrored as
+a slim, secret-masked copy (prompts and text replies only — no tool calls, attachments or
+compaction summaries) to `sources/claude/<project>/<session_id>.json`, chunked one
+exchange at a time, and found through the same hybrid search as every other source.
+Sessions also count as activity: they show up in catch-up, the standup, the weekly brag
+doc and the review ledger.
+
+**Acceptance:** the exchange is found and cited with its session's title/project/date;
+nothing from tool output or Claude's internal thinking leaks into a chunk; a deleted
+original log still has a working citation. Tests: `tests/vignettes/test_y_claude_sessions.py`.

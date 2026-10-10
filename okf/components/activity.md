@@ -18,5 +18,6 @@ tags: [component]
 | `doc_edited` | Drive docs whose last modifier is the user |
 | `email_sent` | emails the user sent |
 | `meeting` | past meetings with other attendees |
+| `claude_session` | a Claude Code session with a prompt in the window |
 
 Used by the `ledger` intent, the weekly journal, and the standup's Yesterday section (see [briefings](briefings.md)). Catch-up (Vignette I) will use it too.

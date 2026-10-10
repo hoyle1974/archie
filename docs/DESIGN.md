@@ -112,7 +112,10 @@ from a shell.
 │   ├── gmail/<threadId>.json
 │   ├── drive/<fileId>.json          # metadata + exported plain text
 │   ├── github/<owner>__<repo>/pr-<n>.json, commits/<sha>.json
-│   └── jira/<KEY-123>.json
+│   ├── jira/<KEY-123>.json
+│   └── claude/<project>/<session_id>.json  # slim copy of a Claude Code session; the
+│                                            # original .jsonl log is deleted by Claude
+│                                            # Code after 30 days, this copy is not
 ├── people/<entity_id>.md    # dossiers
 ├── projects/<slug>.md       # project entities (repos, epics, docs, people)
 ├── meetings/<YYYY>/<YYYY-MM-DD>-<slug>.md   # one per meeting occurrence
@@ -297,6 +300,7 @@ feed the handover vignette and narrow down searches.
 | Drive    | 1     | `changes` page token                  | file (text export)   |
 | GitHub   | 1     | `since` / `updated` sort              | PR, commit, review   |
 | Jira     | 1     | JQL `updated >= cursor`               | issue (with comments)|
+| Claude   | —     | file mtime since last sync (local, no API)   | session (one `.jsonl` log) |
 | Slack    | 2     | `conversations.history` `oldest`      | thread               |
 
 Rules:
@@ -308,6 +312,13 @@ Rules:
 - **One raw file per stable source ID.** An update overwrites the file. Writes are
   atomic (write to a temp file, then rename).
 - **Cursors** are saved only after that batch's files are written.
+
+**Claude Code sessions are a local, no-backfill-limit exception.** The source is the
+user's own `~/.claude/projects` logs, which Claude Code itself deletes after
+`cleanupPeriodDays` (default 30 days). So the first sync takes every log on disk
+instead of the usual 14-day backfill, and when Claude Code's own cleanup removes a log,
+the slim copy already written is kept and indexed rather than tombstoned — the
+deletion is Claude Code's housekeeping, not the user removing something.
 
 ### 5.2 Derivers
 
@@ -339,6 +350,7 @@ Derivers are idempotent: running one twice on the same input gives the same file
 | Calendar event    | one chunk: title, time, attendees, description          |
 | Jira issue        | description, then each comment as its own chunk         |
 | GitHub            | PR body, each review comment, each commit message       |
+| Claude session    | one chunk per exchange: a user turn plus the assistant turns up to the next user turn |
 
 Each chunk records `(file_path, chunk_id, char_start, char_end, source, ts, people[], sender)`.
 `sender` is the sender's address on email excerpts and empty otherwise.

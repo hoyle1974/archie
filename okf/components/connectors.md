@@ -41,5 +41,7 @@ tags: [component]
   - Auth: `archie admin connect jira --site … --email …` stores the API token in the Keychain. `me.yaml` needs `jira_account_id`.
   - Not yet tested against a live Jira site.
 
+- `claude.py`: reads the user's local Claude Code session logs (`~/.claude/projects/**/*.jsonl`, no network). Writes a slim, secret-masked copy per session — prompts, assistant text replies, title, project, branch, times — to `sources/claude/<project>/<session_id>.json`. Tool calls, attachments, file-history snapshots, subagent logs and compaction summaries are left out. Cursor: file mtime since the last sync; the **first sync takes every log on disk**, because Claude Code deletes logs after `cleanupPeriodDays` (default 30) and anything older would be gone within days. A slim copy outlives its deleted original rather than becoming a tombstone. The chunker makes one chunk per exchange (a user turn plus the assistant turns up to the next one), labeled "Claude session: Title (project, Oct 9)".
 
-All phase-1 connectors are built. Phase 2: Slack. Design: [DESIGN §5.1](../../docs/DESIGN.md#51-connectors). Principles: [read-only](../principles/read-only.md), [keep everything](../principles/keep-everything.md). Each cycle is run by [sync](sync.md).
+
+All phase-1 connectors are built, plus the local Claude Code sessions source. Phase 2: Slack. Design: [DESIGN §5.1](../../docs/DESIGN.md#51-connectors). Principles: [read-only](../principles/read-only.md), [keep everything](../principles/keep-everything.md). Each cycle is run by [sync](sync.md).
