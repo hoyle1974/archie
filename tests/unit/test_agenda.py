@@ -61,6 +61,16 @@ def test_routed_window_and_meeting_attendees(tmp_path):
     assert "Sunday, Oct 4\n  Nothing on your calendar." in out
 
 
+def test_a_blank_until_falls_back_to_the_question_s_own_wording(tmp_path):
+    """Live (2026-10-11): the model filled `since` with today but left `until` blank for
+    "What is planned this week?", and the window collapsed to that one day."""
+    route = understood(question("agenda", since="2026-10-02"))  # until left blank, as the model did live
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=route)), now=NOW)
+    seed(ctx)
+    out = render(ask(ctx, "What is planned this week?"))
+    assert "Sunday, Oct 4" in out  # not just Friday, Oct 2
+
+
 def test_brief_does_not_prep_personal_events(tmp_path):
     from archie.briefings.build import pick_meeting
 

@@ -43,6 +43,25 @@ def test_who_lists_code_computed_facts_and_cited_summary(tmp_path):
     assert "2 email threads" in out
 
 
+def test_a_signature_role_is_not_contradicted_by_the_bare_opener(tmp_path, monkeypatch):
+    """Live (2026-10-11 review): the model's cited summary came back empty, so who's
+    fallback said "nothing that says who they are" right above an "At a glance" block
+    that gave the role and org from the email signature."""
+    from archie.derive import titles as titles_mod
+    from archie.derive.titles import Title
+
+    fb = FakeBackend(by_schema(understand=understood(question("who", people=["Priya"])),
+                               answer={"summary": [], "sections": []}))
+    ctx = make_ctx(tmp_path, fb)
+    seed(ctx)
+    monkeypatch.setattr(titles_mod, "titles",
+                        lambda ctx, eid: [Title("Director of Engineering", "2026-09-22T20:16:16+00:00", "p", "s0")])
+    out = render(ask(ctx, "who is Priya?"))
+    assert out.startswith("I have Priya Sharma on file.")
+    assert "nothing that says who they are" not in out
+    assert "Role: Director of Engineering" in out
+
+
 def test_ambiguous_name_asks_back_without_llm_synthesis(tmp_path):
     fb = FakeBackend(by_schema(understand=understood(question("who", people=["Alex"]))))
     ctx = make_ctx(tmp_path, fb)

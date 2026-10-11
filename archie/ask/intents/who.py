@@ -215,8 +215,13 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     said = " ".join(c.text for c in answer.summary).lower()
     if not answer.summary:  # the model had nothing to cite: open with what you told me
         only = " That's all I know so far." if not seen_in else ""
-        answer.summary = [Claim((told or f"I have {directory.name(eid)} on file, but nothing that says who they are.")
-                                + only, [])]
+        if told:
+            opener = told
+        elif meta.get("role") or ts:  # the glance below answers "who they are"; don't contradict it
+            opener = f"I have {directory.name(eid)} on file."
+        else:
+            opener = f"I have {directory.name(eid)} on file, but nothing that says who they are."
+        answer.summary = [Claim(opener + only, [])]
     elif told and meta.get("relationship") and str(meta["relationship"]).lower() not in said:
         answer.summary.insert(0, Claim(told, []))  # what you said leads, even if the mail never says it
     recent, seen = [], set()

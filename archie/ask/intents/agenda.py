@@ -87,10 +87,14 @@ def _plan(p) -> str:
 @intent("agenda")
 def agenda_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     today = ctx.now.astimezone().date()
-    window = window_from_words(question, today)
+    word_window = window_from_words(question, today)
+    window = word_window
     if params.get("since") or params.get("until"):
         start = _parse(params.get("since")) or today
-        window = (start, _parse(params.get("until")) or start)
+        end = _parse(params.get("until"))
+        if end is None:  # the model left `until` blank: trust the question's own wording for it,
+            end = word_window[1] if word_window else start  # rather than collapsing to one day
+        window = (start, end)
     start, end = window or (today, today)
     events = events_between(ctx, start, end)
     if (start, end) == (today, today) and ctx.now.astimezone().hour >= LATE_HOUR \

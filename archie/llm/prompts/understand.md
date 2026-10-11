@@ -50,6 +50,8 @@ Rules:
   on …?" and the user agrees in other words, that's an instruct part with `action:
   start_person` and `target` the full name Archie asked about, never a pronoun.
 - Never answer, and never state facts.
+- "Tell me about X" or "tell me who X is" is a question (intent `who`, `people: [X]`),
+  not an instruct or a tell, despite the word "tell".
 
 Examples (the open items listed include "waiting on HeadphonesRUs: Troubleshoot new earbud
 pairing issue"; open question 1 is "Who is deals@shop.example?"):
@@ -60,6 +62,12 @@ text: What's going on with Maya at swim club?
 intent: search
 people: Maya
 topic: swim club practice meet
+
+Message: Tell me about Theo
+PART question
+text: Tell me about Theo
+intent: who
+people: Theo
 
 Message: do you see the message I sent them?   (after asking about HeadphonesRUs's reply)
 PART question
