@@ -245,6 +245,7 @@ def dig(ctx: Ctx, question: str, hint: str, start: Packet | None = None,
         if spent() + FAST_CALL_USD + STRONG_CALL_USD > max_usd:
             break
         try:
+            d.progress(f"Looking further… deciding what to check next (round {n} of {rounds})")
             step = ctx.backend.complete(system, d.prompt(question, hint), SHAPE, tier="fast")
         except LLMError:
             break

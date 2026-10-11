@@ -22,6 +22,8 @@ DEFAULTS: dict[str, Any] = {
         "monthly_budget_usd": 15,
         "log_prompts": False,  # true: save every call's prompt and reply under logs/prompts/ (for prompt review)
         "google_project": None,  # Google Cloud project of the Gemini key, to compare Google's token count
+        "gemma_model": "gemma4",  # local model name, for the --gemma backend (`ollama pull gemma4`)
+        "gemma_host": "http://localhost:11434",  # Ollama's local API
     },
     # sources handed to the model for an answer, best match first, up to both limits
     "ask": {"max_sources": 40, "max_source_chars": 160_000,

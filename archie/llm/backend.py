@@ -1,12 +1,15 @@
 """One LLM interface: text in, a line-format reply out, parsed and checked by code. No tools, ever (DESIGN §9).
 
 Model tiers: "fast" (routing, extraction) and "strong" (briefings, conflicts, handovers).
-Backend: Gemini (google-genai); the key is in the Keychain as "gemini-api-key".
+Backends: Gemini (google-genai; key in the Keychain as "gemini-api-key"), or Gemma running
+locally through Ollama. Every call, on either backend, is traced (model + tier, no prompt
+content) to logs/llm_calls.jsonl so it's always clear which model answered.
 """
 
 from __future__ import annotations
 
 import contextvars
+import json
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -78,13 +81,39 @@ class FakeBackend:
 
 TIMEOUT_S = {"fast": 60, "strong": 300}
 
+CALLS_LOG = "logs/llm_calls.jsonl"
+
+
+def _log_call(home: Path | None, label: str, model: str, tier: str) -> None:
+    """One line per call, on every backend: which model answered what tier. No prompt content,
+    so it's always on (not gated by llm.log_prompts) and safe to keep indefinitely."""
+    if not home:
+        return
+    try:
+        path = home / CALLS_LOG
+        path.parent.mkdir(parents=True, exist_ok=True)
+        entry = {"ts": datetime.now(timezone.utc).isoformat(), "backend": label, "model": model,
+                 "tier": tier, "call": CALL.get()}
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry) + "\n")
+    except OSError:
+        pass  # a lost log entry must never break a call
+
+
+def backend_label(backend) -> str:
+    """Short name for the UI: "Gemini" or "Gemma"."""
+    return getattr(backend, "LABEL", type(backend).__name__)
+
 
 class GeminiBackend(TextBackend):
     """The Gemini API through google-genai: plain text in and out, no tools."""
 
-    def __init__(self, llm: dict, client=None, budget=None, prompt_log: Path | None = None):
+    LABEL = "Gemini"
+
+    def __init__(self, llm: dict, client=None, budget=None, prompt_log: Path | None = None, home: Path | None = None):
         self.budget = budget
         self.prompt_log = prompt_log  # a folder: every call's prompt and reply, when llm.log_prompts is on
+        self.home = home  # for logs/llm_calls.jsonl
         self.models = llm.get("models") or {}
         self.caps = llm.get("max_output_tokens") or {}
         self.thinking = llm.get("thinking") or {}
@@ -126,6 +155,7 @@ class GeminiBackend(TextBackend):
         from google.genai import errors, types
 
         model = self.models.get(tier) or self.models.get("fast")
+        _log_call(self.home, self.LABEL, model, tier)
         level = str(self.thinking.get(tier) or "low").upper()
         config = types.GenerateContentConfig(
             system_instruction=system,
@@ -180,12 +210,78 @@ def _explain(exc, model: str) -> str:
     return f"Gemini reported an error: {exc.code} {message}".strip()
 
 
-def make_backend(config: dict, home=None) -> Backend:
+class GemmaBackend(TextBackend):
+    """Gemma running locally through Ollama (`ollama pull gemma4`, `ollama serve`): plain text
+    in and out, no tools, no cost. Both tiers use the same local model. Calls are serialized
+    (one lock, shared by every caller: dig rounds, concurrent asks, the ThreadPoolExecutor
+    pools derivers use) since they all run on the same local hardware; running them at once
+    would only make each one slower. No timeout either: a local generation that's merely slow
+    shouldn't be killed, unlike a network call to a remote API."""
+
+    LABEL = "Gemma"
+
+    def __init__(self, llm: dict, client=None, prompt_log: Path | None = None, home: Path | None = None):
+        self.prompt_log = prompt_log
+        self.home = home
+        self.model = llm.get("gemma_model") or "gemma4"
+        self.host = llm.get("gemma_host") or "http://localhost:11434"
+        self._client = client
+        self._lock = threading.Lock()
+
+    def client(self):
+        if self._client is None:
+            import httpx
+
+            self._client = httpx.Client(base_url=self.host)
+        return self._client
+
+    def _log_prompt(self, model: str, tier: str, system: str, user: str, reply: str) -> None:
+        if not self.prompt_log:
+            return
+        try:
+            self.prompt_log.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
+            (self.prompt_log / f"{stamp}-{CALL.get() or 'call'}.md").write_text(
+                f"# {CALL.get() or 'call'} · {tier} · {model}\n\n## System ({len(system):,} chars)\n\n{system}\n\n"
+                f"## User ({len(user):,} chars)\n\n{user}\n\n## Reply ({len(reply):,} chars)\n\n{reply}\n",
+                encoding="utf-8")
+        except OSError:
+            pass
+
+    def generate(self, system: str, user: str, tier: str = "fast") -> str:
+        import httpx
+
+        _log_call(self.home, self.LABEL, self.model, tier)
+        body = {"model": self.model, "stream": False,
+                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+        try:
+            with self._lock:  # one Gemma call at a time; the local hardware can't do two at once anyway
+                resp = self.client().post("/api/chat", json=body, timeout=None)
+            resp.raise_for_status()
+        except httpx.ConnectError as exc:
+            raise LLMError("couldn't reach Ollama; start it with `ollama serve`") from exc
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                raise LLMError(f"Ollama doesn't have {self.model!r} pulled; run `ollama pull {self.model}`") from exc
+            raise LLMError(f"Ollama reported an error: {exc.response.status_code} {exc.response.text}".strip()) from exc
+        text = (resp.json().get("message") or {}).get("content") or ""
+        self._log_prompt(self.model, tier, system, user, text)
+        if text.strip():
+            return text
+        raise LLMError("Gemma returned an empty reply", about_input=True)
+
+
+def make_backend(config: dict, home=None, backend: str | None = None) -> Backend:
     llm = config["llm"]
-    if llm.get("backend") == "gemini":
+    name = backend or llm.get("backend")
+    if name == "gemini":
         from archie.llm.budget import Budget
 
         limit = llm.get("monthly_budget_usd")
         log = home / "logs/prompts" if home and llm.get("log_prompts") else None
-        return GeminiBackend(llm, budget=Budget(home, limit) if home and limit is not None else None, prompt_log=log)
-    raise LLMError(f"unknown llm.backend {llm.get('backend')!r} in config.yaml (only 'gemini' is supported)")
+        return GeminiBackend(llm, budget=Budget(home, limit) if home and limit is not None else None,
+                             prompt_log=log, home=home)
+    if name == "gemma":
+        log = home / "logs/prompts" if home and llm.get("log_prompts") else None
+        return GemmaBackend(llm, prompt_log=log, home=home)
+    raise LLMError(f"unknown llm.backend {name!r} in config.yaml (only 'gemini' and 'gemma' are supported)")

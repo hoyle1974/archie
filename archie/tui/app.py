@@ -11,8 +11,9 @@ from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
 from textual.widget import Widget
-from textual.widgets import Footer, Input, Static
+from textual.widgets import Button, Footer, Input, Static
 
 from archie.ask.context import Ctx
 from archie.ask.render import render
@@ -93,6 +94,29 @@ def default_ticker(ctx: Ctx) -> list[str]:
     return tick(ctx)
 
 
+class ReconnectGoogle(ModalScreen[bool]):
+    """Asks before opening a browser for Google's OAuth consent screen."""
+
+    CSS = """
+    ReconnectGoogle { align: center middle; }
+    #dialog { width: auto; max-width: 60; border: round $accent; padding: 1 2; background: $surface; }
+    #dialog Static { margin-bottom: 1; }
+    #buttons { align: right middle; height: auto; }
+    #buttons Button { margin-left: 1; }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static("Google access expired. Reconnect now?\nThis opens your browser to sign in again.",
+                        markup=False)
+            with Horizontal(id="buttons"):
+                yield Button("Not now", id="dismiss")
+                yield Button("Reconnect", id="reconnect", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "reconnect")
+
+
 class ArchieApp(App):
     TITLE = "Archie"
     CSS = """
@@ -127,6 +151,7 @@ class ArchieApp(App):
         self.ask_done = asyncio.Event()
         self._syncing = asyncio.Lock()
         self._last_report: str | None = None  # the finished sync report #activity shows, if any
+        self._asked_google_reconnect = False  # at most once per session, reset once reconnected
 
     def compose(self) -> ComposeResult:
         with Horizontal():
@@ -163,9 +188,11 @@ class ArchieApp(App):
 
         self.writer = WriterLock(self.ctx.home.root)
         self.is_writer = self.writer.acquire()
+        from archie.llm.backend import backend_label
+
         self.query_one("#feed-scroll").border_title = "Today"
         self.query_one("#activity-scroll").border_title = "Sync"
-        self.query_one("#answer-scroll").border_title = "Ask"
+        self.query_one("#answer-scroll").border_title = f"Ask · {backend_label(self.ctx.backend)}"
         self.query_one("#question").focus()
         blocks = self.query(".exchange")
         if blocks:
@@ -288,6 +315,7 @@ class ArchieApp(App):
                 lines += notes
                 self.finish_sync_report("\n".join(lines))
                 self.refresh_spend()
+                self.check_google_reconnect(report)
             except Exception as exc:  # the loop must survive anything
                 log_error(self.ctx, "sync")
                 stamp = datetime.now().strftime("%-I:%M %p")
@@ -295,6 +323,35 @@ class ArchieApp(App):
             await self.briefing_tick(refresh=False)
             await self.refresh_feed()
             self.sync_done.set()
+
+    def check_google_reconnect(self, report: dict) -> None:
+        """Offers to reconnect Google, once per session, when a connector failed for lack of it."""
+        from archie.connectors.google_auth import RECONNECT_HINT
+
+        if self._asked_google_reconnect:
+            return
+        if not any(not r.ok and RECONNECT_HINT in r.error for r in report.values()):
+            return
+        self._asked_google_reconnect = True
+        self.run_worker(self.offer_google_reconnect())
+
+    async def offer_google_reconnect(self) -> None:
+        reconnect = await self.push_screen_wait(ReconnectGoogle())
+        if not reconnect:
+            return
+        from archie.connectors import google_auth
+
+        sources = ("gmail", "calendar", "drive")
+        if self.ctx.config["llm"].get("google_project"):
+            sources += ("monitoring",)
+        try:
+            await asyncio.to_thread(google_auth.connect, None, sources)
+        except Exception as exc:
+            self.notify(f"Couldn't reconnect Google: {exc}", severity="error", timeout=10)
+            return
+        self._asked_google_reconnect = False  # fixed; ask again if it breaks later
+        self.notify("Google reconnected.", timeout=4)
+        self.run_worker(self.sync_cycle())
 
     async def briefing_tick(self, refresh: bool = True) -> None:
         if not getattr(self, "is_writer", False):
@@ -355,9 +412,12 @@ class ArchieApp(App):
             done[0] = True
             out.say(text, markdown)
 
+        from archie.llm.backend import GemmaBackend
+
+        timeout = None if isinstance(self.ctx.backend, GemmaBackend) else ASK_TIMEOUT  # local: no cutoff
         timer = self.set_interval(5, tick)
         try:
-            answer = await asyncio.wait_for(asyncio.to_thread(ask, self.ctx, question, progress), ASK_TIMEOUT)
+            answer = await asyncio.wait_for(asyncio.to_thread(ask, self.ctx, question, progress), timeout)
             finish(render(answer, sources=True, stamp=True), answer.markdown)
         except asyncio.TimeoutError:
             finish("That took too long, so I stopped waiting. Try asking again.")
@@ -373,13 +433,13 @@ class ArchieApp(App):
         self.ask_done.set()
 
 
-def run_tui() -> int:
+def run_tui(backend: str = "gemma") -> int:
     from archie.cli import build_ctx
     from archie.connectors.registry import enabled_connectors
     from archie.derive.registry import all_derivers
     from archie.store.home import Home
 
-    ctx = build_ctx(Home.default())
+    ctx = build_ctx(Home.default(), backend=backend)
     from archie.derive.registry import post_index_steps
 
     ArchieApp(ctx, enabled_connectors(ctx.config), all_derivers(), post_index=post_index_steps()).run()

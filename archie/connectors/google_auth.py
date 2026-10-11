@@ -11,6 +11,7 @@ from archie.secrets import get_secret, set_secret
 
 TOKEN_KEY = "google-token"
 CLIENT_KEY = "google-client"
+RECONNECT_HINT = "archie admin connect google"  # every NeedsAuth message names this; the TUI watches for it
 
 SCOPES = {
     "gmail": "https://www.googleapis.com/auth/gmail.readonly",
@@ -43,15 +44,21 @@ def credentials(source: str):
 
     raw = get_secret(TOKEN_KEY)
     if not raw:
-        raise NeedsAuth("Google isn't connected yet: run `archie admin connect google`")
+        raise NeedsAuth(f"Google isn't connected yet: run `{RECONNECT_HINT}`")
     info = json.loads(raw)
     if SCOPES[source] not in (info.get("scopes") or []):
-        raise NeedsAuth(f"Google access doesn't include {source}: run `archie admin connect google` again")
+        raise NeedsAuth(f"Google access doesn't include {source}: run `{RECONNECT_HINT}` again")
     with _REFRESH:  # connectors sync in parallel and share one token: refresh it once
         raw = get_secret(TOKEN_KEY) or raw  # another connector may have just refreshed it
         creds = Credentials.from_authorized_user_info(json.loads(raw))
         if not creds.valid and creds.refresh_token:
-            creds.refresh(Request())
+            from google.auth.exceptions import RefreshError
+
+            try:
+                creds.refresh(Request())
+            except RefreshError as exc:
+                raise NeedsAuth(f"Google access expired or was revoked: run `{RECONNECT_HINT}` to "
+                                "reconnect (opens your browser to sign in again)") from exc
             try:
                 _save(creds)
             except Exception as exc:  # the fresh token still works for this sync; save it next time

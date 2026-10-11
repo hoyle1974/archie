@@ -20,22 +20,35 @@ from archie.llm.backend import LLMError, make_backend  # noqa: E402
 from archie.store.home import Home, init_home  # noqa: E402
 
 USAGE = """\
-usage: archie                 open Archie (the TUI)
-       archie ask "question"  ask anything, e.g. archie ask "what should I work on next?"
+usage: archie [--gemma|--gemini]                 open Archie (the TUI)
+       archie [--gemma|--gemini] ask "question"  ask anything, e.g. archie ask "what should I work on next?"
        archie admin init|sync|rederive|reindex|status|doctor
        archie admin connect gemini
-       archie admin connect google [--client client.json] [--import-token token.json]"""
+       archie admin connect google [--client client.json] [--import-token token.json]
+
+--gemma runs prompts through a local Gemma model via Ollama (the default); --gemini uses
+the Gemini API instead. Either flag works before or after the subcommand."""
 
 
-def build_ctx(home: Home) -> Ctx:
+def take_backend_flag(argv: list[str]) -> tuple[list[str], str]:
+    """Pulls --gemma/--gemini out of argv. Gemma is the default when neither is given."""
+    flags = {a for a in argv if a in ("--gemma", "--gemini")}
+    if "--gemma" in flags and "--gemini" in flags:
+        raise SystemExit("archie: pass at most one of --gemma, --gemini")
+    rest = [a for a in argv if a not in ("--gemma", "--gemini")]
+    return rest, "gemini" if "--gemini" in flags else "gemma"
+
+
+def build_ctx(home: Home, backend: str = "gemma") -> Ctx:
     cfg = load_config(home)
     return Ctx(home=home, config=cfg, me=load_me(home), index=Index(home, make_embedder(cfg)),
-               backend=make_backend(cfg, home), now=datetime.now(timezone.utc))
+               backend=make_backend(cfg, home, backend=backend), now=datetime.now(timezone.utc))
 
 
-def cmd_ask(argv: list[str]) -> int:
+def cmd_ask(argv: list[str], backend: str = "gemma") -> int:
     from archie.ask.pipeline import ask
     from archie.ask.render import render
+    from archie.llm.backend import backend_label
 
     sources = "--sources" in argv or "--paths" in argv
     paths = "--paths" in argv
@@ -44,7 +57,8 @@ def cmd_ask(argv: list[str]) -> int:
         print(USAGE)
         return 2
     home = Home.default()
-    ctx = build_ctx(home)
+    ctx = build_ctx(home, backend=backend)
+    print(f"(answered by {backend_label(ctx.backend)})", file=sys.stderr)
     def progress(line: str) -> None:  # stderr, so stdout stays the answer
         print(line, file=sys.stderr, flush=True)
 
@@ -56,13 +70,13 @@ def cmd_ask(argv: list[str]) -> int:
     return 0
 
 
-def cmd_sync(home: Home) -> int:
+def cmd_sync(home: Home, backend: str = "gemma") -> int:
     import asyncio
 
     from archie.derive.registry import all_derivers
     from archie.sync import run_cycle
 
-    ctx = build_ctx(home)
+    ctx = build_ctx(home, backend=backend)
     connectors = enabled_connectors(ctx.config)
     if not connectors:
         print("No sources are switched on. Add e.g. `connectors: {gmail: {enabled: true}}` to config.yaml.")
@@ -88,7 +102,7 @@ def cmd_sync(home: Home) -> int:
     return 0 if all(r.ok for r in report.values()) else 1
 
 
-def cmd_connect(argv: list[str]) -> int:
+def cmd_connect(argv: list[str], backend: str = "gemma") -> int:
     from archie.connectors import google_auth
 
     p = argparse.ArgumentParser(prog="archie admin connect")
@@ -109,6 +123,15 @@ def cmd_connect(argv: list[str]) -> int:
               else google_auth.connect(args.client, sources))
     names = sorted(n for n, s in google_auth.SCOPES.items() if s in scopes)
     print(f"Google connected (read-only): {', '.join(names) or 'no Archie scopes'}.")
+    if names:  # retry whatever just failed for lack of this
+        from archie.store.lock import Busy, WriterLock
+
+        try:
+            with WriterLock(Home.default().root):
+                return cmd_sync(Home.default(), backend)
+        except Busy as exc:
+            print(exc)
+            return 1
     return 0
 
 
@@ -146,27 +169,27 @@ def connect_gemini() -> int:
     return 0
 
 
-def cmd_admin(argv: list[str]) -> int:
+def cmd_admin(argv: list[str], backend: str = "gemma") -> int:
     from archie.store.lock import Busy, WriterLock
 
     if argv[:1] == ["connect"]:
-        return cmd_connect(argv[1:])
+        return cmd_connect(argv[1:], backend)
     p = argparse.ArgumentParser(prog="archie admin")
     p.add_argument("action", choices=["init", "sync", "rederive", "reindex", "status", "doctor"])
     args = p.parse_args(argv)
     if args.action in ("sync", "rederive", "reindex"):
         try:
             with WriterLock(Home.default().root):
-                return _admin(args)
+                return _admin(args, backend)
         except Busy as exc:
             print(exc)
             return 1
-    return _admin(args)
+    return _admin(args, backend)
 
 
-def _admin(args) -> int:
+def _admin(args, backend: str = "gemma") -> int:
     if args.action == "sync":
-        return cmd_sync(Home.default())
+        return cmd_sync(Home.default(), backend)
     if args.action == "doctor":
         from archie.doctor import run_checks
 
@@ -177,7 +200,7 @@ def _admin(args) -> int:
     if args.action == "rederive":
         from archie.derive.registry import rederive
 
-        ctx = build_ctx(Home.default())
+        ctx = build_ctx(Home.default(), backend=backend)
         n = rederive(ctx)
         stats = ctx.index.sync()
         print(f"Re-derived notes from {n} source files; {stats.indexed} files re-indexed.")
@@ -225,15 +248,16 @@ def print_sources(home: Home, cfg: dict) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
+    argv, backend = take_backend_flag(argv)
     if not argv:
         from archie.tui.app import run_tui
 
-        return run_tui()
+        return run_tui(backend)
     cmd, rest = argv[0], argv[1:]
     if cmd == "ask":
-        return cmd_ask(rest)
+        return cmd_ask(rest, backend)
     if cmd == "admin":
-        return cmd_admin(rest)
+        return cmd_admin(rest, backend)
     print(USAGE)
     return 2
 

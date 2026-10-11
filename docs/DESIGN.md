@@ -573,8 +573,17 @@ however old, since the TUI shows it again on launch),
    (default 5) and `ask.dig.max_usd` per question (default $0.25). The answer says what
    was done ("I looked further: 2 searches, 1 calendar check."), and if nothing verified
    came of it, the first answer stays with "I looked further (2 searches) and found
-   nothing more." The TUI and CLI show each step as it runs ("Looking further… searching
+   nothing more." On Gemma, where `llm.monthly_budget_usd` tracking doesn't apply, the
+   cost cap is a no-op and only the round cap can stop a dig early. The TUI and CLI show
+   progress for every call in the pipeline, not just dig's, so a slow backend never looks
+   stuck: "Understanding the question…", "Writing the first answer…", "Checking the
+   answer…", then each dig round names itself ("Looking further… deciding what to check
+   next (round 2 of 5)") before showing what it's doing ("Looking further… searching
    “Workpersontwo Birch”").
+   - A multi-part message dispatches its parts concurrently (`archie/ask/pipeline.py`'s
+     `_dispatch_parts`, same `llm.parallel` worker count as the derivers) rather than one
+     at a time; any LLM call inside still serializes on a local backend, so this only
+     buys back each part's non-LLM work (index search, etc.).
 7. **Offer a file** on someone asked about who has none (§4.2): at most one offer per
    answer, written by code, answered by a plain yes or no matched in code.
 8. **Render:** summary first, details next, then `[n]` citations that expand on request.
@@ -659,17 +668,31 @@ maps each tier to a model.
   JSON schema is sent: schema-forced output costs tokens and is less reliable. **No
   tools**, no file access and no network beyond the model call itself. When an answer
   needs more digging, code runs the loop and the model only picks the next step (§8).
-- **Backends:**
-  - `gemini` (default): the Gemini API through `google-genai`. The key is in the Keychain
+- **Backends**, chosen per run with `--gemma`/`--gemini` (`--gemma` is the default; the flag
+  works before or after the subcommand, e.g. `archie --gemini ask "…"` or
+  `archie ask --gemini "…"`):
+  - `gemma` (default): a local Gemma model (`gemma4`) through Ollama
+    (`llm.gemma_host`, default `http://localhost:11434`; `llm.gemma_model`, default
+    `"gemma4"`). No API key, no cost, no budget tracking. Calls are serialized (one lock,
+    shared by every caller) since they all run on the same local hardware and would only
+    slow each other down if sent at once, and have no timeout, since a local generation
+    that's merely slow shouldn't be killed the way a stuck network call to a remote API
+    would be. The TUI's `ASK_TIMEOUT` (180s) is skipped for this reason too when Gemma is
+    the active backend.
+  - `gemini`: the Gemini API through `google-genai`. The key is in the Keychain
     (`gemini-api-key`, set with `archie admin connect gemini`). Output tokens are capped
     per tier and thinking is kept low for `fast`.
-  - **Monthly budget** (`llm.monthly_budget_usd`, default $15): each call's token counts
-    and cost are logged to `logs/llm_usage.jsonl`. At the limit, calls are refused until
-    the 1st (UTC). Asks say so, and background work waits.
+  - **Monthly budget** (`llm.monthly_budget_usd`, default $15, Gemini only): each call's
+    token counts and cost are logged to `logs/llm_usage.jsonl`. At the limit, calls are
+    refused until the 1st (UTC). Asks say so, and background work waits.
   - **Google's own count** (`llm.google_project`): each sync reads this month's Gemini
     token counts from Cloud Monitoring on that project (what the AI Studio usage page
     shows), prices them like the log, and warns when the two differ by more than $1.
     Read-only, through the `monitoring.read` scope.
+  - **Call log** (`logs/llm_calls.jsonl`): every call on either backend appends
+    `{ts, backend, model, tier, call}` — no prompt content — so which model answered is
+    always on record, independent of the Gemini-only budget log and of
+    `llm.log_prompts`.
   - `fake`: replays canned responses, for tests.
 - **Citations by reference number.** The model sees a numbered *context packet* of
   excerpts and cites `{ref, quote}`. Code maps `ref` back to `(file, chunk)` and checks the
@@ -684,8 +707,13 @@ Built with Textual. Three panes:
 1. **Feed:** the current or next briefing, top loops, and notifications.
 2. **Ask:** an input box plus the answer view. Up-arrow recalls history. Citations
    expand inline. Earlier answers stay above the newest one, to scroll back to, and
-   the pane opens with the last few exchanges. The pane's border shows Gemini spend this month against the budget,
-   and Google's count of it when `llm.google_project` is set.
+   the pane opens with the last few exchanges. The pane's border title names the active
+   backend ("Ask · Gemma" or "Ask · Gemini"); its subtitle shows Gemini spend this month
+   against the budget, and Google's count of it when `llm.google_project` is set (Gemma
+   has no spend to show).
+   - If a sync fails because Google access needs reconnecting, a modal asks once per
+     session whether to reconnect; accepting runs the same OAuth flow as
+     `archie admin connect google` (opens the browser) and re-syncs on success.
 3. **Activity:** sync status per source, the last sync time and recent errors, with
    earlier sync reports above.
 

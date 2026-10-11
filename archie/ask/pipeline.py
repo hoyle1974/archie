@@ -75,6 +75,20 @@ def combine(handled: list[tuple[Part, Answer]]) -> Answer:
     return out
 
 
+def _dispatch_parts(ctx: Ctx, parts: list[Part], question: str, open_qs: list[dict],
+                    last: dict | None) -> list[tuple[str, Answer]]:
+    """Each part is independent (different handler, different data), so a multi-part message
+    dispatches them concurrently; any LLM calls inside still serialize on a local backend
+    (GemmaBackend's own lock), so this only buys back the non-LLM work in each part."""
+    if len(parts) <= 1:
+        return [dispatch(ctx, p, question, open_qs, last) for p in parts]
+    from concurrent.futures import ThreadPoolExecutor
+
+    workers = max(1, int(ctx.config["llm"].get("parallel", 1)))
+    with ThreadPoolExecutor(max_workers=min(workers, len(parts))) as pool:
+        return list(pool.map(lambda p: dispatch(ctx, p, question, open_qs, last), parts))
+
+
 def _question_of(last: dict | None) -> str | None:
     """The question the last exchange answered, if it was only questions ("show N" keeps the
     one before it). "really?" re-asks this; anything else (a telling, notes) is never redone."""
@@ -138,6 +152,8 @@ def _dig(ctx: Ctx, message: str, parts: list[Part], handled: list[tuple[str, Ans
             entry["dead_end"] = reason
         else:
             try:
+                if progress:
+                    progress("Checking the answer…")
                 reason = answer_check(ctx, message, asked, render(a), _brief_of(last))
             except LLMError:
                 continue  # e.g. the budget is spent: the first answer stands
@@ -214,8 +230,12 @@ def _respond(ctx: Ctx, question: str, entry: dict, progress=None) -> Reply:
     if not pending and not nudging and any(q["kind"] in YES_NO for q in open_qs) and looks_like_answer(question):
         entry.update(intent="clarify", parts=[{"kind": "answer", "handler": "clarify"}])
         return Reply(answer_yes_no(ctx, question), None, None)
+    if progress:
+        progress("Understanding the question…")
     parts = understand(ctx, question, recent, open_qs, pending or offer)
-    handled = [dispatch(ctx, p, question, open_qs, last) for p in parts]
+    if progress:
+        progress("Writing the first answer…")
+    handled = _dispatch_parts(ctx, parts, question, open_qs, last)
     handled = _dig_where_needed(ctx, question, parts, handled, last, entry, progress)
     entry["intent"] = handled[0][0]
     entry["parts"] = [{"kind": p.kind, "handler": label, "people": p.params.get("people") or [],
