@@ -7,9 +7,9 @@ from tests.support.fixtures import by_schema, make_ctx
 from tests.support.raw import addr, msg, write_thread
 
 TEST = "test@acme.example"
-ASK = msg("m1", "sarah.j@acme.example", "Sarah Jones", [addr(TEST, "Test")], "2026-09-28T16:30:00+00:00",
+ASK = msg("m1", "sarah.t@acme.example", "Sarah Jones", [addr(TEST, "Test")], "2026-09-28T16:30:00+00:00",
           "Hi Test, can you review the Redis fallback patch before Friday? Thanks", subject="Redis fallback", to_me=True)
-REPLY = msg("m2", TEST, "Test", [addr("sarah.j@acme.example", "Sarah Jones")], "2026-09-29T17:00:00+00:00",
+REPLY = msg("m2", TEST, "Test", [addr("sarah.t@acme.example", "Sarah Jones")], "2026-09-29T17:00:00+00:00",
             "Reviewed it, looks good. Approved the patch.", subject="Re: Redis fallback", from_me=True)
 PROMISE = msg("m3", TEST, "Test", [addr("ken@acme.example", "Ken Ito")], "2026-09-26T17:00:00+00:00",
               "I'll send you the Q4 capacity numbers by Monday.", subject="Capacity", from_me=True)

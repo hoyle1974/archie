@@ -55,7 +55,7 @@ def test_a_reply_from_them_means_no_nudge_but_my_own_message_does_not_count(tmp_
     for i, sender in enumerate((STATUS, "support@headphonesrus.example")):
         ctx = make_ctx(tmp_path / str(i))
         waiting(ctx)
-        thread(ctx, msg("m1", sender, "Status", [addr(ME)], "2026-09-29T09:00:00+00:00", "Try a reset.", to_me=True))
+        thread(ctx, msg("m1", sender, "HeadphonesRUs", [addr(ME)], "2026-09-29T09:00:00+00:00", "Try a reset.", to_me=True))
         audit(ctx)
         assert nudges(ctx) == [], sender
 
@@ -65,7 +65,7 @@ def test_a_reply_clears_an_open_nudge_without_a_model(tmp_path):
     waiting(ctx)
     thread(ctx)
     audit(ctx)
-    thread(ctx, msg("m1", STATUS, "Status", [addr(ME)], "2026-09-30T09:00:00+00:00", "Try a reset.", to_me=True))
+    thread(ctx, msg("m1", STATUS, "HeadphonesRUs", [addr(ME)], "2026-09-30T09:00:00+00:00", "Try a reset.", to_me=True))
     resolve_answered(ctx)
     assert nudges(ctx) == []
 

@@ -158,7 +158,7 @@ def test_webmail_is_not_an_org():
     from archie.ask.intents.who import person_lines
     from archie.derive.people import PeopleDirectory, org_of
 
-    assert org_of("belle@gmail.com") is None and org_of("workpersonthreec@ebsfb.org") == "ebsfb.org"
+    assert org_of("person@gmail.com") is None and org_of("workpersonthree@example.org") == "example.org"
     directory = PeopleDirectory()
     directory.add("goodspouse", {"entity_id": "goodspouse", "name": "Goodspouse", "aliases": [], "org": "gmail.com"})
     assert not any(line.startswith("Org:") for line in person_lines(directory, "goodspouse", []))

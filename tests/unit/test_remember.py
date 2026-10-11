@@ -89,6 +89,6 @@ def test_a_full_name_is_shown_in_brackets_and_the_usual_name_stays(tmp_path):
 
 
 def test_a_full_name_not_in_the_message_is_not_saved(tmp_path):
-    ctx = seeded(tmp_path, [person("Acorn", "Acorn is my youngest.", full_name="Acorn Testerson")])
+    ctx = seeded(tmp_path, [person("Acorn", "Acorn is my youngest.", full_name="Acorn Q. Testerson")])
     render(ask(ctx, "Acorn is my youngest."))
     assert "full_name" not in read_note(ctx.home / "people/acorn.md").meta

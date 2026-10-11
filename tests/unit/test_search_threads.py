@@ -12,7 +12,7 @@ STATUS = "contact@headphonesrus.example"
 
 def seed(ctx):
     old = [msg(f"o{i}", STATUS, "HeadphonesRUs", [addr(ME)], f"2023-07-1{i}T10:00:00+00:00",
-               "Status earbud app: uninstall the app, re-download it and reconnect your earbud.", to_me=True)
+               "HeadphonesRUs earbud app: uninstall the app, re-download it and reconnect your earbud.", to_me=True)
            for i in range(4)]
     write_thread(ctx.home, "old", old)
     write_thread(ctx.home, "new", [
@@ -33,7 +33,7 @@ def run(tmp_path, said):
         seen["system"], seen["user"] = system, user
         return {"summary": [], "sections": []}
 
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("search", topic="Status earbud")),
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("search", topic="HeadphonesRUs earbud")),
                                                    answer=answer)))
     seed(ctx)
     ask(ctx, said)
@@ -41,7 +41,7 @@ def run(tmp_path, said):
 
 
 def test_a_conversation_question_shows_the_newest_messages_first(tmp_path):
-    seen = run(tmp_path, "did Status reply about my earbud?")
+    seen = run(tmp_path, "did HeadphonesRUs reply about my earbud?")
     sources = seen["user"].split("Sources:", 1)[1]
     first = sources.strip().split("</source>")[0]
     assert "Please pair this earbud" in first  # Oct 1 04:47 UTC, the newest message
@@ -50,5 +50,5 @@ def test_a_conversation_question_shows_the_newest_messages_first(tmp_path):
 
 
 def test_other_questions_keep_relevance_order_and_plain_instructions(tmp_path):
-    seen = run(tmp_path, "how do I fix the Status earbud app?")
+    seen = run(tmp_path, "how do I fix the HeadphonesRUs earbud app?")
     assert "Lead with its newest message" not in seen["system"]

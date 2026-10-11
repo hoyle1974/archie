@@ -29,8 +29,8 @@ def test_handle_match():
 def test_alias_mentions_are_whole_word():
     assert me().mentioned_in("Hey Test, can you review?")
     assert me().mentioned_in("cc harold testerson")
-    assert not me().mentioned_in("Jackson will review")
-    assert not me().mentioned_in("hijack the meeting")
+    assert not me().mentioned_in("Testament will review")
+    assert not me().mentioned_in("contest the meeting")
 
 
 def test_load_me_and_config_from_home(tmp_path):

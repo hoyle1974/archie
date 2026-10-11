@@ -31,13 +31,13 @@ def test_O_follow_ups(tmp_path):
     atomic_write(ctx.home / "people/status_audio.md", DOSSIER)
     ctx.index.sync()
 
-    first = render(ask(ctx, "did Status reply about my earbud?"))
+    first = render(ask(ctx, "did HeadphonesRUs reply about my earbud?"))
     assert "[1]" in first
 
     ctx.now = NOW + timedelta(minutes=2)
     ask(ctx, "do you see the message I sent them?")
     seen = fb.calls[-2]["user"]  # the understanding call for the follow-up
-    assert "You: did Status reply about my earbud?" in seen and "Archie: HeadphonesRUs offered" in seen
+    assert "You: did HeadphonesRUs reply about my earbud?" in seen and "Archie: HeadphonesRUs offered" in seen
     assert f"Question (answer it from the sources above): {FOLLOW_UP}" in fb.calls[-1]["user"]  # the answer was written for the resolved question
 
     ctx.now = NOW + timedelta(minutes=3)
@@ -73,7 +73,7 @@ def test_O_show_works_on_the_answer_on_screen_however_old(tmp_path):
     ctx = make_ctx(tmp_path, fb)
     atomic_write(ctx.home / "people/status_audio.md", DOSSIER)
     ctx.index.sync()
-    render(ask(ctx, "did Status reply about my earbud?"))
+    render(ask(ctx, "did HeadphonesRUs reply about my earbud?"))
 
     ctx.now = NOW + timedelta(days=3)  # Archie reopened: the TUI shows that answer again
     calls = len(fb.calls)

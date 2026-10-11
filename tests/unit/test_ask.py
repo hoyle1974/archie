@@ -349,3 +349,42 @@ def test_an_empty_index_still_answers_what_needs_no_index(tmp_path):
     write_thread(ctx.home, "t1", [msg("m1", "shop@yeti.example", "", [addr("test@acme.example")],
                                       "2026-09-30T09:00:00+00:00", "Your Yeti cooler shipped.", to_me=True)])
     assert "rebuilding" not in render(ask(ctx, "what can you do?"))
+
+
+def test_a_single_part_dispatches_directly(tmp_path):
+    import archie.ask.pipeline as pipeline
+    from archie.ask.intents import load_all
+
+    load_all()
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("help")))))
+    parts = pipeline.understand(ctx, "x", [], [], None)
+    assert len(parts) == 1
+    out = pipeline._dispatch_parts(ctx, parts, "x", [], None)
+    assert len(out) == 1
+
+
+def test_multiple_parts_dispatch_concurrently_and_keep_order(tmp_path, monkeypatch):
+    import threading
+    import time
+
+    import archie.ask.pipeline as pipeline
+
+    overlapped = threading.Event()
+    entered = []
+
+    def slow_dispatch(ctx, p, question, open_qs, last):
+        entered.append(p.params.get("topic"))
+        if len(entered) < 2:
+            time.sleep(0.2)
+        else:
+            overlapped.set()
+        time.sleep(0.05)
+        return ("help", pipeline.Answer(plain=p.params.get("topic")))
+
+    monkeypatch.setattr(pipeline, "dispatch", slow_dispatch)
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(
+        understand=understood(question("search", topic="a"), question("search", topic="b")))))
+    parts = pipeline.understand(ctx, "x", [], [], None)
+    out = pipeline._dispatch_parts(ctx, parts, "x", [], None)
+    assert overlapped.is_set()  # the second call started before the first (slow) one finished
+    assert [a.plain for _, a in out] == entered  # results stay in input order despite concurrency

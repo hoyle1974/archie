@@ -205,7 +205,7 @@ def test_start_a_file_on_someone_needs_only_one_source(tmp_path):
     seed(ctx)
     (ctx.home / "state").mkdir(exist_ok=True)
     (ctx.home / "state/people_declined.yaml").write_text("names: [Workperson Acorn]\n")
-    write_thread(ctx.home, "keith2", [msg("m2", TEST, "Test Testerson", [addr("workperson@acme.example", "Workperson Acorn")],
+    write_thread(ctx.home, "workperson2", [msg("m2", TEST, "Test Testerson", [addr("workperson@acme.example", "Workperson Acorn")],
                                           "2026-09-30T23:00:00+00:00", "Workperson Acorn, see you at standup.",
                                           from_me=True)])
     ctx.index.sync()

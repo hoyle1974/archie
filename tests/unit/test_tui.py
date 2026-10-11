@@ -135,6 +135,68 @@ def test_second_window_does_not_sync(tmp_path):
     held.release()
 
 
+def test_offers_to_reconnect_google_and_resyncs(tmp_path, monkeypatch):
+    from archie.connectors import google_auth
+
+    class Dead:
+        name = "gmail"
+        calls = 0
+
+        async def sync(self, sctx, cursor):
+            Dead.calls += 1
+            if Dead.calls == 1:
+                raise google_auth.NeedsAuth(f"Google access expired: run `{google_auth.RECONNECT_HINT}`")
+            return SyncResult(cursor={})
+
+    connected = []
+    monkeypatch.setattr(google_auth, "connect", lambda client, sources: connected.append(sources) or set())
+    ctx = make_ctx(tmp_path)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[Dead()], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.pause()
+            assert "gmail: failed" in text_of(app, "#activity")
+            await pilot.click("#reconnect")
+            for _ in range(100):
+                await asyncio.sleep(0.05)
+                await pilot.pause()
+                if "gmail: ok" in text_of(app, "#activity"):
+                    break
+            else:
+                raise AssertionError("resync after reconnect never happened")
+            assert connected == [("gmail", "calendar", "drive")]
+
+    asyncio.run(go())
+
+
+def test_declining_reconnect_does_not_resync(tmp_path, monkeypatch):
+    from archie.connectors import google_auth
+
+    class Dead:
+        name = "gmail"
+
+        async def sync(self, sctx, cursor):
+            raise google_auth.NeedsAuth(f"Google access expired: run `{google_auth.RECONNECT_HINT}`")
+
+    connected = []
+    monkeypatch.setattr(google_auth, "connect", lambda client, sources: connected.append(sources) or set())
+    ctx = make_ctx(tmp_path)
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[Dead()], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.pause()
+            await pilot.click("#dismiss")
+            await pilot.pause()
+            assert connected == []
+            assert "gmail: failed" in text_of(app, "#activity")
+
+    asyncio.run(go())
+
+
 def test_slow_answer_times_out_with_a_message(tmp_path, monkeypatch):
     import time as _time
 
@@ -153,6 +215,31 @@ def test_slow_answer_times_out_with_a_message(tmp_path, monkeypatch):
             await app.ask_done.wait()
             await pilot.pause()
             assert "took too long" in text_of(app, ".answer")
+
+    asyncio.run(go())
+
+
+def test_gemma_backend_never_times_out(tmp_path, monkeypatch):
+    import time as _time
+
+    import archie.tui.app as tui
+    from archie.ask.answer import Answer
+    from archie.llm.backend import GemmaBackend
+
+    monkeypatch.setattr(tui, "ASK_TIMEOUT", 0.1)  # would fire almost immediately for any other backend
+    monkeypatch.setattr("archie.ask.pipeline.ask",
+                        lambda ctx, q, progress=None: _time.sleep(0.3) or Answer(plain="slow but fine"))
+    ctx = make_ctx(tmp_path, GemmaBackend({}))
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await app.sync_done.wait()
+            await pilot.click("#question")
+            await pilot.press(*"slow", "enter")
+            await app.ask_done.wait()
+            await pilot.pause()
+            assert "took too long" not in text_of(app, ".answer")
 
     asyncio.run(go())
 

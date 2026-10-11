@@ -10,7 +10,7 @@ from tests.support.fixtures import by_schema, make_ctx, question, understood
 from tests.support.raw import addr, msg, write_thread
 
 ME = "test@acme.example"
-GOODSPOUSE = "belle@x.example"
+GOODSPOUSE = "goodspouse@x.example"
 LONG = " ".join(["Childone had a hard year with a lot of change and many meetings."] * 40)
 
 

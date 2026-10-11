@@ -6,7 +6,7 @@ def test_me_check_flags_empty_identity(tmp_path):
     home = init_home(tmp_path)
     ok, msg = doctor.check_me(home)
     assert not ok and "me.yaml" in msg
-    home.me_file.write_text("name: Test\nemails: [j@x.example]\n")
+    home.me_file.write_text("name: Test\nemails: [t@x.example]\n")
     assert doctor.check_me(home)[0]
 
 
@@ -36,7 +36,7 @@ def test_google_scope_check(monkeypatch):
 
 def test_no_sources_is_reported(tmp_path):
     home = init_home(tmp_path)
-    home.me_file.write_text("name: Test\nemails: [j@x.example]\n")
+    home.me_file.write_text("name: Test\nemails: [t@x.example]\n")
     msgs = [m for ok, m in doctor.run_checks(home) if not ok]
     assert any("no sources" in m for m in msgs)
 

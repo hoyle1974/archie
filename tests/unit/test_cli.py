@@ -61,7 +61,7 @@ def test_ask_prints_answer(tmp_path, monkeypatch, capsys):
     route = understood(question("search", topic="Priya"))
     answer = {"summary": [{"text": "Priya is the PM for auth.",
                            "citations": [{"ref": 1, "quote": "Priya is the PM for auth"}]}], "sections": []}
-    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend(
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None, backend=None: FakeBackend(
         by_schema(understand=route, answer=answer, answer_check={"helpful": True})))
     code, out = run(capsys, "ask", "who", "is", "priya?")
     first, blank, body = out.split("\n", 2)
@@ -75,9 +75,37 @@ def test_no_args_without_tui_shows_help(tmp_path, monkeypatch, capsys):
     assert code == 2 and "archie ask" in out
 
 
+def test_gemma_is_the_default_backend(tmp_path, monkeypatch, capsys):
+    setup_home(tmp_path, monkeypatch)
+    cli.main(["admin", "reindex"])
+    capsys.readouterr()
+    seen = []
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None, backend=None: seen.append(backend) or
+                        FakeBackend([]))
+    cli.main(["ask", "anything"])
+    assert seen == ["gemma"]
+
+
+def test_gemini_flag_overrides_default_before_or_after_subcommand(tmp_path, monkeypatch, capsys):
+    setup_home(tmp_path, monkeypatch)
+    cli.main(["admin", "reindex"])
+    capsys.readouterr()
+    seen = []
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None, backend=None: seen.append(backend) or
+                        FakeBackend([]))
+    cli.main(["--gemini", "ask", "anything"])
+    cli.main(["ask", "--gemini", "anything"])
+    assert seen == ["gemini", "gemini"]
+
+
+def test_both_backend_flags_together_is_an_error():
+    with pytest.raises(SystemExit, match="at most one of"):
+        cli.main(["--gemma", "--gemini", "ask", "anything"])
+
+
 def test_sync_with_nothing_enabled_says_how_to_enable(tmp_path, monkeypatch, capsys):
     setup_home(tmp_path, monkeypatch)
-    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend([]))
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None, backend=None: FakeBackend([]))
     code, out = run(capsys, "admin", "sync")
     assert code == 0 and "No sources are switched on" in out
 
@@ -92,7 +120,7 @@ def test_sync_reports_each_connector(tmp_path, monkeypatch, capsys):
             return SyncResult(cursor={"x": 1})
 
     setup_home(tmp_path, monkeypatch)
-    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend([]))
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None, backend=None: FakeBackend([]))
     monkeypatch.setattr(cli, "enabled_connectors", lambda cfg: [Ok()])
     code, out = run(capsys, "admin", "sync")
     assert code == 0 and "gmail: ok" in out
@@ -113,7 +141,7 @@ def test_sync_prints_googles_token_count_when_a_project_is_set(tmp_path, monkeyp
     real_check = google_usage.check
     monkeypatch.setattr(google_usage, "check", lambda home, project, now=None, get=None: real_check(
         home, project, now, lambda path, params: {}))
-    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend([]))
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None, backend=None: FakeBackend([]))
     monkeypatch.setattr(cli, "enabled_connectors", lambda cfg: [Ok()])
     code, out = run(capsys, "admin", "sync")
     assert code == 0 and "Google's count this month: $0.00 (Archie logged $0.00)" in out
@@ -131,6 +159,16 @@ def test_connect_google_asks_for_monitoring_only_with_a_project(tmp_path, monkey
     assert asked == [("gmail", "calendar", "drive"), ("gmail", "calendar", "drive", "monitoring")]
 
 
+def test_connect_google_retries_sync_once_reconnected(tmp_path, monkeypatch, capsys):
+    from archie.connectors import google_auth
+
+    monkeypatch.setattr(google_auth, "connect", lambda client, sources: {google_auth.SCOPES["gmail"]})
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None, backend=None: FakeBackend([]))
+    setup_home(tmp_path, monkeypatch)
+    code, out = run(capsys, "admin", "connect", "google")
+    assert code == 0 and "Google connected" in out and "No sources are switched on" in out
+
+
 def test_rederive_builds_people_from_existing_mail(tmp_path, monkeypatch, capsys):
     from archie.store.home import Home
     from tests.support.raw import addr, msg, write_thread
@@ -139,7 +177,7 @@ def test_rederive_builds_people_from_existing_mail(tmp_path, monkeypatch, capsys
     (tmp_path / "h" / "me.yaml").write_text("name: Test\nemails: [test@acme.example]\n")
     write_thread(Home.default(), "t1", [msg("m", "sam@x.example", "Sam Lee", [addr("test@acme.example")],
                                             "2026-10-01T00:00:00+00:00", "hi", to_me=True)])
-    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None: FakeBackend([]))
+    monkeypatch.setattr(cli, "make_backend", lambda cfg, home=None, backend=None: FakeBackend([]))
     code, out = run(capsys, "admin", "rederive")
     assert code == 0 and (tmp_path / "h" / "people" / "sam_lee.md").exists()
 

@@ -167,7 +167,10 @@ def test_progress_says_what_it_is_doing(tmp_path):
     seed(ctx)
     heard = []
     dig(ctx, "q", "nothing", progress=heard.append)
-    assert heard[:2] == ["Looking further… searching “Workpersontwo”", "Looking further… checking your calendar Sep 20 to Sep 30"]
+    assert heard[:4] == ["Looking further… deciding what to check next (round 1 of 5)",
+                         "Looking further… searching “Workpersontwo”",
+                         "Looking further… deciding what to check next (round 2 of 5)",
+                         "Looking further… checking your calendar Sep 20 to Sep 30"]
 
 
 def test_only_the_users_own_files_are_searched(tmp_path):

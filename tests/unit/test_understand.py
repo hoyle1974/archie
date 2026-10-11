@@ -2,7 +2,7 @@ from archie.ask.understand import Part, checked, prompt_input, understand
 from archie.llm.backend import FakeBackend
 from tests.support.fixtures import make_ctx
 
-RECENT = [{"ts": "2026-10-01T16:00:00+00:00", "said": "did Status reply about my earbud?", "resolved": None,
+RECENT = [{"ts": "2026-10-01T16:00:00+00:00", "said": "did HeadphonesRUs reply about my earbud?", "resolved": None,
            "summary": "HeadphonesRUs offered a replacement right earbud. [1]",
            "citations": [{"n": 1, "file": "people/status_audio.md", "chunk": "c0", "label": "HeadphonesRUs (dossier)",
                           "quote": "offering a replacement right earbud"}]}]
@@ -83,7 +83,7 @@ def test_no_parts_means_search_the_whole_message():
 
 def test_the_model_sees_the_conversation_and_open_questions_and_the_message_last():
     text = prompt_input("do you see the message I sent them?", RECENT, WHO)
-    assert "You: did Status reply about my earbud?" in text
+    assert "You: did HeadphonesRUs reply about my earbud?" in text
     assert "Archie: HeadphonesRUs offered a replacement right earbud. [1]" in text
     assert "Sources: [1] HeadphonesRUs (dossier)" in text
     assert "1. Who is a@b.co?" in text
@@ -112,8 +112,8 @@ def test_an_ask_back_naming_someone_nobody_mentioned_is_dropped():
 
 
 def test_the_model_sees_what_earlier_messages_were_understood_as():
-    entry = {**RECENT[0], "said": "really?", "resolved": "Did Status reply about my earbud?"}
-    assert "You: really? (meaning: Did Status reply about my earbud?)" in prompt_input("and then?", [entry], [])
+    entry = {**RECENT[0], "said": "really?", "resolved": "Did HeadphonesRUs reply about my earbud?"}
+    assert "You: really? (meaning: Did HeadphonesRUs reply about my earbud?)" in prompt_input("and then?", [entry], [])
 
 
 def test_about_must_be_someone_or_something_said():

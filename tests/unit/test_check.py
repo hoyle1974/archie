@@ -58,6 +58,24 @@ def test_an_unhelpful_answer_is_dug_and_replaced(tmp_path):
     assert log["check"] == "unhelpful" and log["dig"]["improved"] and log["dig"]["actions"] == ["search: Workpersontwo"]
 
 
+def test_progress_names_each_phase_so_a_slow_backend_shows_where_it_is(tmp_path):
+    first = {"summary": [], "sections": []}
+    steps = [{"do": "search", "arg": "Workpersontwo"}, {"do": "answer"}]
+    fb = FakeBackend(by_schema(understand=understood(question("search", topic="Workpersontwo")),
+                               answer=lambda s, u, sh, t: _cite_first(s, u, sh, t) if "first answer missed" in u else first,
+                               answer_check={"helpful": False, "missing": "who Workpersontwo is"},
+                               dig_step=lambda *a: steps.pop(0)))
+    ctx = make_ctx(tmp_path, fb, dig=True)
+    seed(ctx)
+    heard = []
+    ask(ctx, "what about Workpersontwo?", progress=heard.append)
+    assert heard == ["Understanding the question…", "Writing the first answer…", "Checking the answer…",
+                     "Looking further… deciding what to check next (round 1 of 5)",
+                     "Looking further… searching “Workpersontwo”",
+                     "Looking further… deciding what to check next (round 2 of 5)",
+                     "Looking further… writing the answer"]
+
+
 def test_a_dead_end_digs_without_a_check(tmp_path):
     steps = [{"do": "search", "arg": "Workpersontwo"}, {"do": "answer"}]
     fb = FakeBackend(by_schema(understand=understood(question("brief", people=["Workpersontwo"])), answer=_cite_first,

@@ -25,7 +25,7 @@ def test_title_skips_name_phone_url_and_company():
 
 def test_no_title_gives_none():
     for sig in ("Workperson Acorn\n781-526-7220", "Sent from my iPhone", "Thanks!", "Workperson\nhttps://ow.example",
-                "Workperson Acorn\nkeith@ow.example"):
+                "Workperson Acorn\nworkperson@ow.example"):
         assert title_from_signature(sig, NAMES, "ow.example") is None, sig
 
 

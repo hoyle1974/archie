@@ -42,7 +42,7 @@ def test_mask_secrets_leaves_ordinary_text_alone():
 
 def test_parse_session_keeps_prompts_and_text_replies(tmp_path):
     path = _write(tmp_path / "session.jsonl", [
-        user("I want to add Claude logs as a source for Archie.", cwd="/Users/test/code/archie",
+        user("I want to add Claude logs as a source for Archie.", cwd="/Users/testuser/code/archie",
              gitBranch="main"),
         assistant("Claude Code deletes its own logs after 30 days, so I recommend a slim copy."),
         {"type": "ai-title", "aiTitle": "Claude log retention period"},
@@ -145,7 +145,7 @@ def run(log_root, cursor=None, home_path=None, now=NOW):
 
 def test_sync_writes_one_raw_file_per_session(tmp_path):
     proj = _project_dir(tmp_path)
-    _write(proj / "s1.jsonl", [user("hello", cwd="/Users/test/code/archie")])
+    _write(proj / "s1.jsonl", [user("hello", cwd="/Users/testuser/code/archie")])
     home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
     assert len(res.written) == 1
     data = read_raw(home / "sources/claude/archie/s1.json")
@@ -221,7 +221,7 @@ from archie.index.chunk import chunk_file
 def test_chunk_session_groups_one_user_turn_with_its_replies(tmp_path):
     proj = _project_dir(tmp_path)
     _write(proj / "s1.jsonl", [
-        user("first question", cwd="/Users/test/code/archie"),
+        user("first question", cwd="/Users/testuser/code/archie"),
         assistant("first answer, part one"),
         assistant("first answer, part two"),
         user("second question"),
@@ -242,7 +242,7 @@ def test_chunk_session_groups_one_user_turn_with_its_replies(tmp_path):
 def test_chunk_session_label_has_title_project_and_date(tmp_path):
     proj = _project_dir(tmp_path)
     _write(proj / "s1.jsonl", [
-        user("q", cwd="/Users/test/code/archie"),
+        user("q", cwd="/Users/testuser/code/archie"),
         assistant("a"),
         {"type": "ai-title", "aiTitle": "Claude log retention period"},
     ])
@@ -254,7 +254,7 @@ def test_chunk_session_label_has_title_project_and_date(tmp_path):
 
 def test_chunk_session_label_without_a_title(tmp_path):
     proj = _project_dir(tmp_path)
-    _write(proj / "s1.jsonl", [user("q", cwd="/Users/test/code/archie"), assistant("a")])
+    _write(proj / "s1.jsonl", [user("q", cwd="/Users/testuser/code/archie"), assistant("a")])
     home, res = run(tmp_path / "claude_logs", home_path=tmp_path / "home")
     rel = "sources/claude/archie/s1.json"
     chunks = chunk_file(rel, (home / rel).read_text())
@@ -267,7 +267,7 @@ def test_chunk_session_folds_a_leading_assistant_turn_into_the_first_exchange(tm
     activity.py's user-turn counting expects."""
     proj = _project_dir(tmp_path)
     _write(proj / "s1.jsonl", [
-        assistant("leading", cwd="/Users/test/code/archie"),
+        assistant("leading", cwd="/Users/testuser/code/archie"),
         user("my question"),
         assistant("the answer"),
     ])
@@ -284,7 +284,7 @@ def test_chunk_session_never_sees_tool_or_thinking_blocks(tmp_path):
     a chunk. Assert it directly against a transcript shaped like a real one."""
     proj = _project_dir(tmp_path)
     records = [
-        {"type": "user", "timestamp": "2026-10-09T16:02:11Z", "cwd": "/Users/test/code/archie",
+        {"type": "user", "timestamp": "2026-10-09T16:02:11Z", "cwd": "/Users/testuser/code/archie",
          "message": {"role": "user", "content": "run the tests"}},
         {"type": "assistant", "timestamp": "2026-10-09T16:02:30Z", "message": {"role": "assistant", "content": [
             {"type": "thinking", "thinking": "I should run pytest now, secretly reasoning about it"},

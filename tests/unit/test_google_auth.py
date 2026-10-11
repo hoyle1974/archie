@@ -4,6 +4,8 @@ fail the sync (2026-10-04: calendar failed with "Can't store password on keychai
 import json
 import threading
 
+import pytest
+
 from archie.connectors import google_auth
 
 
@@ -40,6 +42,22 @@ def test_a_keychain_save_failure_still_returns_working_credentials(monkeypatch):
     monkeypatch.setattr(google_auth, "set_secret", save)
     monkeypatch.setattr(gcreds, "Credentials", FakeCreds)
     assert google_auth.credentials("calendar").valid
+
+
+def test_a_dead_refresh_token_becomes_a_plain_reconnect_message(monkeypatch):
+    import google.oauth2.credentials as gcreds
+    from google.auth.exceptions import RefreshError
+
+    class DeadCreds(FakeCreds):
+        def refresh(self, request):
+            raise RefreshError("invalid_grant: Token has been expired or revoked.",
+                               {"error": "invalid_grant", "error_description": "Token has been expired or revoked."})
+
+    store = {"google-token": json.dumps({"scopes": [google_auth.SCOPES["calendar"]]})}
+    monkeypatch.setattr(google_auth, "get_secret", lambda k: store.get(k))
+    monkeypatch.setattr(gcreds, "Credentials", DeadCreds)
+    with pytest.raises(google_auth.NeedsAuth, match="archie admin connect google"):
+        google_auth.credentials("calendar")
 
 
 def test_parallel_connectors_refresh_the_shared_token_once(monkeypatch):

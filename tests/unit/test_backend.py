@@ -1,3 +1,4 @@
+import json
 import threading
 from types import SimpleNamespace
 
@@ -5,7 +6,8 @@ import httpx
 import pytest
 from google.genai import errors
 
-from archie.llm.backend import FakeBackend, GeminiBackend, LLMError, TextBackend, make_backend
+from archie.llm.backend import CALLS_LOG, FakeBackend, GeminiBackend, GemmaBackend, LLMError, TextBackend, \
+    backend_label, make_backend
 from archie.llm.shape import F, Shape
 
 SHAPE = Shape("t", fields=(F("a"),), example="a: x")
@@ -158,5 +160,91 @@ def test_client_is_created_once_across_threads(monkeypatch):
 
 def test_make_backend():
     assert isinstance(make_backend({"llm": LLM}), GeminiBackend)
+    assert isinstance(make_backend({"llm": {**LLM, "backend": "gemma"}}), GemmaBackend)
     with pytest.raises(LLMError, match="llm.backend 'claude-code'"):
         make_backend({"llm": {**LLM, "backend": "claude-code"}})
+
+
+def test_make_backend_override_beats_config():
+    assert isinstance(make_backend({"llm": LLM}, backend="gemma"), GemmaBackend)
+    assert isinstance(make_backend({"llm": {**LLM, "backend": "gemma"}}, backend="gemini"), GeminiBackend)
+
+
+def test_backend_label():
+    assert backend_label(GeminiBackend(LLM)) == "Gemini"
+    assert backend_label(GemmaBackend({})) == "Gemma"
+
+
+class ChatClient:
+    def __init__(self, result):
+        self.result, self.calls = result, []
+
+    def post(self, path, json, timeout):
+        self.calls.append((path, json, timeout))
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+def chat_reply(content: str):
+    return SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"message": {"content": content}})
+
+
+def test_gemma_sends_system_and_user_as_chat_messages():
+    client = ChatClient(chat_reply("a: ok"))
+    b = GemmaBackend({"gemma_model": "gemma4"}, client=client)
+    assert b.complete("Be brief.", "hi", SHAPE, tier="strong") == {"a": "ok"}
+    path, body, timeout = client.calls[0]
+    assert path == "/api/chat" and timeout is None  # a local backend never times out a call
+    assert body["model"] == "gemma4" and body["stream"] is False
+    assert body["messages"][0]["role"] == "system" and body["messages"][0]["content"].startswith("Be brief.")
+    assert body["messages"][1] == {"role": "user", "content": "hi"}
+
+
+def test_gemma_errors_are_explained():
+    with pytest.raises(LLMError, match="start it with `ollama serve`"):
+        GemmaBackend({}, client=ChatClient(httpx.ConnectError("down"))).generate("s", "u")
+    request = httpx.Request("POST", "http://localhost:11434/api/chat")
+    not_found = httpx.HTTPStatusError("404", request=request, response=httpx.Response(404, request=request))
+    with pytest.raises(LLMError, match="run `ollama pull gemma4`"):
+        GemmaBackend({}, client=ChatClient(not_found)).generate("s", "u")
+
+
+def test_gemma_has_no_timeout_and_serializes_calls():
+    import threading
+    import time
+
+    calls = []
+    client = ChatClient(chat_reply("a: ok"))
+    original_post = client.post
+
+    def slow_post(path, json, timeout):
+        assert timeout is None  # no per-call timeout for a local backend
+        calls.append(time.monotonic())
+        time.sleep(0.05)
+        return original_post(path, json, timeout)
+
+    client.post = slow_post
+    backend = GemmaBackend({}, client=client)
+    threads = [threading.Thread(target=backend.generate, args=("s", "u")) for _ in range(3)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    calls.sort()
+    assert all(b - a >= 0.04 for a, b in zip(calls, calls[1:]))  # never overlapped
+
+
+def test_gemma_empty_reply_is_explained():
+    with pytest.raises(LLMError, match="empty reply") as err:
+        GemmaBackend({}, client=ChatClient(chat_reply(""))).generate("s", "u")
+    assert err.value.about_input
+
+
+def test_calls_are_logged_for_both_backends(tmp_path):
+    GeminiBackend(LLM, client=Client(reply("a: ok")), home=tmp_path).generate("s", "u", "strong")
+    GemmaBackend({"gemma_model": "gemma4"}, client=ChatClient(chat_reply("a: ok")), home=tmp_path).generate(
+        "s", "u", "fast")
+    lines = [json.loads(line) for line in (tmp_path / CALLS_LOG).read_text().splitlines()]
+    assert lines[0]["backend"] == "Gemini" and lines[0]["model"] == "pro-x" and lines[0]["tier"] == "strong"
+    assert lines[1]["backend"] == "Gemma" and lines[1]["model"] == "gemma4" and lines[1]["tier"] == "fast"

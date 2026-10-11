@@ -24,7 +24,7 @@ def test_near_is_one_typo_apart():
     assert near("WorkPersoon", "Workperson") and near("Prya", "Priya") and near("Sarha", "Sarah") and near("WorkPersan", "Workperson")
     assert not near("Workperson", "Workperson")  # the same name is a match, not a near miss
     assert not near("Ken", "Kim") and not near("Kenn", "Ken")  # too short to guess
-    assert not near("Workperson", "Kevin") and not near("Arjun", "Aaron")
+    assert not near("Workperson", "Kevin") and not near("Workpersonfive", "Aaron")
 
 
 def test_directory_near_finds_one_person_by_a_typo(tmp_path):

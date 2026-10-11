@@ -192,7 +192,7 @@ def test_signature_is_its_own_chunk():
 def test_quoted_signatures_make_no_chunk():
     from archie.connectors.gmail import split_body
 
-    body = "Thanks Workperson!\r\n\r\nOn Tue, Sep 22, 2026 at 1:16 PM Workperson Acorn <k@ow.example> wrote:\r\n> --\r\n> Workperson Acorn\r\n> Director"
+    body = "Thanks Workperson!\r\n\r\nOn Tue, Sep 22, 2026 at 1:16 PM Workperson Acorn <w@ow.example> wrote:\r\n> --\r\n> Workperson Acorn\r\n> Director"
     assert split_body(body) == ("Thanks Workperson!", "")
 
 

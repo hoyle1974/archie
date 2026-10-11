@@ -22,7 +22,7 @@ def _write_log(path, records):
 
 def _session_records():
     return [
-        {"type": "user", "timestamp": "2026-10-09T16:02:11Z", "cwd": "/Users/test/code/archie",
+        {"type": "user", "timestamp": "2026-10-09T16:02:11Z", "cwd": "/Users/testuser/code/archie",
          "gitBranch": "main", "message": {"role": "user", "content":
          "okay, now I want to add claude logs as a source for Archie, with sync and indexing"}},
         {"type": "assistant", "timestamp": "2026-10-09T16:03:40Z",

@@ -9,9 +9,9 @@ from tests.support.fixtures import by_schema, make_ctx
 from tests.support.raw import addr, msg, write_thread
 
 TEST = "test@acme.example"
-ASK = msg("m1", "sarah.j@acme.example", "Sarah Jones", [addr(TEST, "Test")], "2026-09-28T16:30:00+00:00",
+ASK = msg("m1", "sarah.t@acme.example", "Sarah Jones", [addr(TEST, "Test")], "2026-09-28T16:30:00+00:00",
           "Hi Test, can you review the Redis fallback patch before Friday?", subject="Redis fallback", to_me=True)
-LATER = msg("m2", "sarah.j@acme.example", "Sarah Jones", [addr(TEST, "Test")], "2026-09-30T09:00:00+00:00",
+LATER = msg("m2", "sarah.t@acme.example", "Sarah Jones", [addr(TEST, "Test")], "2026-09-30T09:00:00+00:00",
             "Any update on the patch?", subject="Re: Redis fallback", to_me=True)
 UNREADABLE = LLMError("the model's reply couldn't be read (missing `x`)", about_input=True)
 
