@@ -206,7 +206,18 @@ def _claim_text(text: str) -> str:
     return re.sub(r"\s+([.,;:])", r"\1", text)
 
 
+_TRAILING_CITE = re.compile(r'([\"“\'‘])(.+?)([\"”\'’])[.,;:]?\s*\[(\d+)\](?!\s*[\"“\'‘])')
+
+
+def _reorder_trailing_cite(line: str) -> str:
+    """Some models write "quote" [n] (the citation after the quote it supports) instead of
+    the requested [n] "quote"; move it in front so the citation parser below still finds it,
+    rather than treating the bracket as a bare, quote-less marker."""
+    return _TRAILING_CITE.sub(lambda m: f"[{m.group(4)}] {m.group(1)}{m.group(2)}{m.group(3)}", line)
+
+
 def _claim(line: str) -> dict:
+    line = _reorder_trailing_cite(line)
     cites = list(_CITE.finditer(line))
     if not cites:
         return {"text": _claim_text(line),

@@ -125,6 +125,20 @@ def test_quote_may_contain_double_quotes_and_bare_markers_get_empty_quotes():
     assert out["summary"][1] == {"text": "Alex merged it.", "citations": [{"ref": 3, "quote": ""}]}
 
 
+def test_a_trailing_citation_after_its_quote_is_still_read():
+    """Live (2026-10-11 review, Gemma): a quote-then-bracket style ("quote" [n]) left the
+    citation with an empty quote and dropped every claim written that way."""
+    out, _ = ANSWER.parse('SUMMARY\nYou reported pairing trouble, noting that "one earbud won\'t pair" [10].')
+    assert out["summary"] == [{"text": "You reported pairing trouble, noting that",
+                               "citations": [{"ref": 10, "quote": "one earbud won't pair"}]}]
+
+
+def test_a_trailing_citation_does_not_eat_the_next_leading_one():
+    out, _ = ANSWER.parse('SUMMARY\nIt shipped Sep 29. [5] "has shipped" [4] "Order #507509S"')
+    assert out["summary"][0]["citations"] == [{"ref": 5, "quote": "has shipped"},
+                                              {"ref": 4, "quote": "Order #507509S"}]
+
+
 def test_empty_summary_means_not_found_and_no_marker_reads_from_the_top():
     assert ANSWER.parse("SUMMARY\n") == ({"summary": [], "sections": []}, [])
     out, _ = ANSWER.parse('```\nDelivered Oct 2. [1] "Your order\'s arrived"\n```')
