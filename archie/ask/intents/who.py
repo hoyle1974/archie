@@ -77,6 +77,14 @@ def resolve(ctx: Ctx, params: dict, question: str) -> tuple[PeopleDirectory, lis
     return directory, [], names[0] if names else ""
 
 
+def near_guess(directory: PeopleDirectory, eid: str, name: str) -> bool:
+    """True when `name` matched this person only through a one-typo guess (near()), not any
+    exact or loose match - so who_intent should say what it took the name to mean."""
+    if directory.find(name) or directory.find(name, loose=True):
+        return False
+    return eid in directory.near(name)
+
+
 def guessed_from(directory: PeopleDirectory, eid: str, typed: str) -> str | None:
     """The word the user typed, if they named this person only with a bare trailing s
     ("priyas" for Priya), which might have been someone else's name."""
@@ -166,7 +174,12 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
         return family_answer(ctx)
     directory, matches, query = resolve(ctx, params, question)
     if not matches:
-        return unknown_person(ctx, question, params, query)
+        answer = unknown_person(ctx, question, params, query)
+        if answer.plain is None or not query:
+            return answer  # a plain search already found something real
+        matches = directory.near(query)  # one typo apart ("HeadphonesRUs" for "Headphonesrus Support");
+        if not matches:                  # tried only once a plain search also comes up empty
+            return answer
     if len(matches) > 1:
         options = "\n".join(f"  • {directory.name(e)}" + (f" ({org(directory.meta[e])})" if org(directory.meta[e]) else "")
                             for e in matches)
@@ -238,6 +251,8 @@ def who_intent(ctx: Ctx, question: str, params: dict) -> Answer:
     word = guessed_from(directory, eid, params.get("said") or question)
     if word:
         answer.summary.insert(0, Claim(f"I took {word} to mean {directory.name(eid)}.", []))
+    elif near_guess(directory, eid, query):
+        answer.summary.insert(0, Claim(f"I took {query} to mean {directory.name(eid)}.", []))
     if guess:
         name = directory.name(eid)
         answer.summary.insert(0, Claim(f"Your file on {name} has only your notes, so I also looked for "

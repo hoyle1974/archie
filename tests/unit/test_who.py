@@ -206,6 +206,24 @@ def test_a_guess_from_a_dropped_s_is_said(tmp_path):
     assert out.startswith("I took priyas to mean Priya Sharma.")
 
 
+def test_a_missing_space_is_one_typo_apart(tmp_path):
+    """Live (2026-10-12): "Tell me about HeadphonesRUs" found nobody, though the real sender
+    (a AutoReply auto-reply address) writes its own display name with no space:
+    "Headphonesrus Support"."""
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["HeadphonesRUs"])),
+                                                   answer=EMPTY)))
+    p = write_thread(ctx.home, "t5", [
+        msg("m5", "x7k2p9mqz4njvwtr@emails.example.com", "Headphonesrus Support", [addr(TEST)],
+            "2023-07-12T18:26:46+00:00", "Thanks for reaching out to HeadphonesRUs support!", to_me=True),
+        msg("m6", TEST, "Test", [addr("x7k2p9mqz4njvwtr@emails.example.com", "Headphonesrus Support")],
+            "2023-07-13T02:36:12+00:00", "Thanks", from_me=True)])
+    derive_people(ctx, [p])
+    ctx.index.sync()
+    out = render(ask(ctx, "Tell me about HeadphonesRUs"))
+    assert out.startswith("I took HeadphonesRUs to mean Headphonesrus Support.")
+    assert "anyone called" not in out
+
+
 def test_a_description_is_never_taken_for_a_name(tmp_path):
     ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who")), answer=EMPTY)))
     seed(ctx)
