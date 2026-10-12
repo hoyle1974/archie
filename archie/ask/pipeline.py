@@ -69,6 +69,7 @@ def combine(handled: list[tuple[Part, Answer]]) -> Answer:
                                         items=list(a.summary), lines=[a.title] if a.title else []))
             out.sections += a.sections
             out.dropped += a.dropped
+            out.unverified += a.unverified
             out.notes += a.notes
         else:
             out.notes.append(render(a))

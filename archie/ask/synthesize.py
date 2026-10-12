@@ -56,10 +56,11 @@ def synthesize(ctx: Ctx, question: str, packet: Packet, instructions: str = "", 
         user = user.replace("\n\n\n", "\n\n")
     out = ctx.backend.complete(system, user, SHAPE, tier=tier)
     summary = verify_claims(out.get("summary") or [], packet)
-    answer = Answer(summary=summary.kept, packet=packet, dropped=len(summary.dropped))
+    answer = Answer(summary=summary.kept, packet=packet, unverified=list(summary.dropped))
     for sec in out.get("sections") or []:
         v = verify_claims(sec.get("items") or [], packet)
-        answer.dropped += len(v.dropped)
+        answer.unverified += v.dropped
         if v.kept:
             answer.sections.append(Section(sec.get("heading", ""), v.kept))
+    answer.dropped = len(answer.unverified)
     return answer

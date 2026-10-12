@@ -1,4 +1,4 @@
-from archie.llm.verify import Packet, verify_claims
+from archie.llm.verify import Packet, Unverified, verify_claims
 
 CHUNK = "Hi Test, can you review the Redis fallback patch before Friday?  Thanks, Sarah"
 
@@ -39,6 +39,22 @@ def test_unknown_ref_is_dropped():
 def test_claim_without_citations_is_dropped():
     out = verify_claims([{"text": "Alex is great", "citations": []}], packet())
     assert out.kept == []
+    assert out.dropped == [Unverified("Alex is great", near=[])]
+
+
+def test_a_dropped_claim_with_a_real_ref_names_it_near():
+    out = verify_claims([claim("Sarah is angry", (1, "Sarah is furious about the delay"))], packet())
+    assert out.dropped == [Unverified("Sarah is angry", near=["Email from Sarah, Oct 1"])]
+
+
+def test_a_dropped_claim_with_an_unknown_ref_has_no_near():
+    out = verify_claims([claim("x", (9, "review the Redis fallback patch"))], packet())
+    assert out.dropped == [Unverified("x", near=[])]
+
+
+def test_near_labels_are_deduplicated_across_citations():
+    out = verify_claims([claim("x", (1, "made up quote one"), (1, "made up quote two"))], packet())
+    assert out.dropped == [Unverified("x", near=["Email from Sarah, Oct 1"])]
 
 
 def test_whitespace_case_and_curly_quotes_are_normalized():

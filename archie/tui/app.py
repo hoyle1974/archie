@@ -16,7 +16,7 @@ from textual.widget import Widget
 from textual.widgets import Button, Footer, Input, Static
 
 from archie.ask.context import Ctx
-from archie.ask.render import render
+from archie.ask.render import render, unverified_block
 from archie.llm.backend import LLMError
 
 ASK_TIMEOUT = 180  # seconds before the Ask pane gives up and frees itself
@@ -37,21 +37,32 @@ class AnswerText(Static):
     """An answer as plain text, except a source excerpt in it (`markdown`), which is drawn as
     Markdown: headings, lists and emphasis instead of #, - and _."""
 
-    def __init__(self, text: str, markdown: str | None = None):
+    def __init__(self, text: str, markdown: str | None = None, warn: str | None = None):
         super().__init__(classes="answer", markup=False)
-        self.say(text, markdown)
+        self.say(text, markdown, warn)
 
-    def say(self, text: str, markdown: str | None = None) -> None:
-        self.text = text
-        if not markdown or markdown not in text:
+    def say(self, text: str, markdown: str | None = None, warn: str | None = None) -> None:
+        """`warn`: the unverified-claims block (render.unverified_block), appended in a
+        warning color instead of plain text, so it's never mistaken for the answer above it.
+        It is not expected to already be part of `text` (the caller renders `text` without
+        it: `render(..., show_unverified=False)`)."""
+        self.text = f"{text}\n\n{warn}" if warn else text  # Ctrl+Y copies it too, just unstyled
+        if not markdown and not warn:
             self.update(text)
             return
         from rich.console import Group
-        from rich.markdown import Markdown
         from rich.text import Text
 
-        before, _, after = text.partition(markdown)
-        self.update(Group(Text(before.rstrip("\n") + "\n"), Markdown(markdown), Text("\n" + after.lstrip("\n"))))
+        if markdown and markdown in text:
+            from rich.markdown import Markdown
+
+            before, _, after = text.partition(markdown)
+            parts = [Text(before.rstrip("\n") + "\n"), Markdown(markdown), Text("\n" + after.lstrip("\n"))]
+        else:
+            parts = [Text(text)]
+        if warn:
+            parts.append(Text("\n\n" + warn, style="bold yellow"))
+        self.update(Group(*parts))
 
 
 def exchange(question: str, text: str, markdown: str | None = None) -> tuple[Vertical, AnswerText]:
@@ -408,9 +419,9 @@ class ArchieApp(App):
             latest[0] = line
             self.call_from_thread(show, line)
 
-        def finish(text: str, markdown: str | None = None) -> None:
+        def finish(text: str, markdown: str | None = None, warn: str | None = None) -> None:
             done[0] = True
-            out.say(text, markdown)
+            out.say(text, markdown, warn)
 
         from archie.llm.backend import GemmaBackend
 
@@ -418,7 +429,8 @@ class ArchieApp(App):
         timer = self.set_interval(5, tick)
         try:
             answer = await asyncio.wait_for(asyncio.to_thread(ask, self.ctx, question, progress), timeout)
-            finish(render(answer, sources=True, stamp=True), answer.markdown)
+            finish(render(answer, sources=True, stamp=True, show_unverified=False), answer.markdown,
+                  unverified_block(answer) or None)
         except asyncio.TimeoutError:
             finish("That took too long, so I stopped waiting. Try asking again.")
         except LLMError as exc:

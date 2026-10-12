@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from archie.llm.verify import Claim, Packet
+from archie.llm.verify import Claim, Packet, Unverified
 
 
 @dataclass
@@ -21,6 +21,7 @@ class Answer:
     sections: list[Section] = field(default_factory=list)
     packet: Packet = field(default_factory=Packet)
     dropped: int = 0
+    unverified: list[Unverified] = field(default_factory=list)  # never shown as fact; labeled, left to the user
     plain: str | None = None  # fixed text that states no facts about sources (help, errors)
     notes: list[str] = field(default_factory=list)  # e.g. "data as of 1:45 PM"
     nothing_found: bool = False

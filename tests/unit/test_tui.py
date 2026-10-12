@@ -5,7 +5,7 @@ from textual.widgets import Static
 from archie.connectors.base import SyncResult
 from archie.llm.backend import FakeBackend
 from archie.store.files import atomic_write
-from archie.tui.app import ArchieApp
+from archie.tui.app import AnswerText, ArchieApp
 from tests.support.fixtures import by_schema, make_ctx, question, understood
 
 
@@ -79,6 +79,52 @@ def test_question_in_ask_pane_shows_answer(tmp_path):
             await app.ask_done.wait()
             await pilot.pause()
             assert "Priya is the PM for auth. [1]" in text_of(app, ".answer")
+
+    asyncio.run(go())
+
+
+def test_answer_text_colors_the_unverified_block():
+    warn = 'Not directly sourced — treat with caution:\n  • a guess (no source given)'
+    out = AnswerText("x")
+    out.say("hello", warn=warn)
+    from rich.console import Group
+
+    content = out.content
+    assert isinstance(content, Group)
+    styled = [r for r in content.renderables if getattr(r, "style", "") == "bold yellow"]
+    assert len(styled) == 1 and warn in str(styled[0])
+
+
+def test_answer_text_with_no_warn_stays_a_plain_string():
+    out = AnswerText("x")
+    out.say("hello")
+    assert out.content == "hello"
+
+
+def test_unverified_claims_are_shown_warned_not_as_fact(tmp_path):
+    route = understood(question("search", topic="Priya"))
+    answer = {"summary": [{"text": "Priya probably likes tea.", "citations": [{"ref": 1, "quote": "not in the source"}]}],
+             "sections": []}
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=route, answer=answer)))
+    atomic_write(ctx.home / "people/priya.md", "## Priya\nPriya is the PM for auth.\n")
+    ctx.index.sync()
+
+    async def go():
+        app = ArchieApp(ctx, connectors=[], derivers=[], ticker=lambda c: [])
+        async with app.run_test() as pilot:
+            await pilot.click("#question")
+            await pilot.press(*"who is priya", "enter")
+            await app.ask_done.wait()
+            await pilot.pause()
+            out = app.query(".answer").last()
+            drawn = screen_text(out)
+            assert "Priya probably likes tea" in drawn and "near:" in drawn
+            from rich.console import Group
+
+            styled = [r for r in out.content.renderables if getattr(r, "style", "") == "bold yellow"]
+            assert len(styled) == 1 and "Priya probably likes tea" in str(styled[0])
+            app.action_copy_answer()
+            assert "Priya probably likes tea" in app.clipboard  # Ctrl+Y copies it too, just unstyled
 
     asyncio.run(go())
 

@@ -38,8 +38,11 @@ from a shell.
 5. **The LLM extracts and writes. Code verifies.** The LLM may classify, extract and
    summarize, but every factual claim it produces must carry a citation. The model cites
    `{ref, quote}` against a numbered packet of excerpts, and code maps `ref` to
-   `(file, chunk)`. Code checks that `quote` appears verbatim in the cited chunk, and **unverified claims are dropped, never shown**. Counts, dates, times
-   and lists of items are computed by code, not by the LLM.
+   `(file, chunk)`. Code checks that `quote` appears verbatim in the cited chunk. **A
+   verified claim is shown as fact; an unverified claim is never shown as fact — it may
+   still be shown, but only labeled as unverified ("Not directly sourced — treat with
+   caution"), so the user, not the LLM, decides whether to trust it.** Counts, dates,
+   times and lists of items are computed by code, not by the LLM.
 6. **Readable first.** Every answer opens with a short plain-English summary (2–4
    sentences). Details follow. Citations show as small `[n]` markers that expand on
    request. IDs, hashes and file paths never lead.
@@ -553,8 +556,10 @@ however old, since the TUI shows it again on launch),
    large, so the packet is too: up to `ask.max_sources` excerpts and
    `ask.max_source_chars` characters, best match first, each with a 0–1 match score.
 3. **Synthesize:** the LLM writes the answer from the packet only, with citations.
-4. **Verify:** drop uncited or unverified claims. If nothing survives, say so plainly
-   ("I couldn't find that").
+4. **Verify:** an uncited or unverified claim is never shown as fact; it's kept only in
+   `Answer.unverified`, labeled "Not directly sourced — treat with caution" (§2.5), not
+   mixed into the summary. If nothing verified survives, say so plainly ("I couldn't find
+   that").
 5. **Check:** did the answer help? An intent that gave up on what was asked says so in
    code (`Answer.dead_end`: no file on anyone by that name, no meeting matched, search
    found nothing, every cited point dropped). Otherwise one fast-tier call (`answer_check`)
@@ -714,6 +719,9 @@ Built with Textual. Three panes:
    - If a sync fails because Google access needs reconnecting, a modal asks once per
      session whether to reconnect; accepting runs the same OAuth flow as
      `archie admin connect google` (opens the browser) and re-syncs on success.
+   - A claim the LLM wrote with no verified citation (§2.5) is never mixed into the
+     answer above; it's appended in a warning color (bold yellow), labeled "Not directly
+     sourced — treat with caution". `archie ask` shows the same block in plain text.
 3. **Activity:** sync status per source, the last sync time and recent errors, with
    earlier sync reports above.
 
@@ -752,6 +760,7 @@ tests/
   that runs the real pipeline (fake LLM backend, real index) and checks the facts in the
   output.
 - **The verifier is tested adversarially:** fabricated quotes, quotes from the wrong
-  chunk, and claims with no citation must all be dropped.
+  chunk, and claims with no citation must never reach `kept` — they end up in
+  `unverified` instead, never shown as fact.
 - **Rebuild test:** delete `archie.db`, reindex, and get the same search results.
 - **Fence test:** a user edit outside fences survives every deriver run.

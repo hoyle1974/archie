@@ -2,8 +2,10 @@
 
 The LLM only sees a numbered packet of source excerpts. It cites by number ("ref") plus a
 verbatim quote. Code checks each quote against the excerpt it names; a claim with no
-surviving citation is dropped and never shown. Refs, not file paths, are what the model
-writes, so it cannot invent a source.
+surviving citation never reaches `kept` (never shown as fact), but isn't thrown away: it
+lands in `dropped` as an `Unverified`, which the caller may still show, clearly labeled, so
+the user decides whether to trust it. Refs, not file paths, are what the model writes, so it
+cannot invent a source.
 """
 
 from __future__ import annotations
@@ -113,9 +115,18 @@ class Claim:
 
 
 @dataclass
+class Unverified:
+    """A claim with no citation that survived verification. `near` lists the label of any
+    cited ref that pointed at a real source chunk even though its quote failed to match
+    (an empty list means the model gave no usable citation at all)."""
+    text: str
+    near: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Verified:
     kept: list[Claim] = field(default_factory=list)
-    dropped: list[dict] = field(default_factory=list)
+    dropped: list[Unverified] = field(default_factory=list)
 
 
 def check_quote(packet: Packet, ref: int, quote: str) -> Citation | None:
@@ -129,11 +140,17 @@ def check_quote(packet: Packet, ref: int, quote: str) -> Citation | None:
 def verify_claims(claims: list[dict], packet: Packet) -> Verified:
     out = Verified()
     for raw in claims:
-        good = [c for c in (check_quote(packet, int(cit.get("ref", 0)), cit.get("quote", ""))
-                            for cit in raw.get("citations") or []) if c]
+        cits = raw.get("citations") or []
+        good = [c for c in (check_quote(packet, int(cit.get("ref", 0)), cit.get("quote", "")) for cit in cits) if c]
         if good:
             extra = {k: v for k, v in raw.items() if k not in ("text", "citations")}
             out.kept.append(Claim(raw.get("text", ""), good, extra))
         else:
-            out.dropped.append(raw)
+            near, seen = [], set()
+            for cit in cits:
+                item = packet.get(int(cit.get("ref", 0) or 0))
+                if item and item.label not in seen:
+                    seen.add(item.label)
+                    near.append(item.label)
+            out.dropped.append(Unverified(raw.get("text", ""), near))
     return out

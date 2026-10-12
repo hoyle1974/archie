@@ -1,6 +1,7 @@
 from archie.ask.pipeline import ask
 from archie.ask.render import render
 from archie.llm.backend import FakeBackend
+from archie.llm.verify import Unverified
 from archie.store.files import atomic_write
 from tests.support.fixtures import by_schema, make_ctx, part, question, understood
 
@@ -23,6 +24,10 @@ def test_search_answer_keeps_only_verified_claims(tmp_path):
     ans = ask(ctx, "who is priya")
     assert [c.text for c in ans.summary] == ["Priya is the PM for auth."]
     assert ans.dropped == 1
+    assert ans.unverified == [Unverified("Priya hates meetings.", near=["priya sharma (dossier)"])]
+    out = render(ans, show_unverified=False)
+    assert "Priya hates meetings" not in out  # the verified summary never carries it
+    assert "Priya hates meetings" in render(ans)  # but it's still shown, labeled
 
 
 def test_no_hits_says_so_without_calling_synthesis(tmp_path):
@@ -49,7 +54,9 @@ def test_everything_unverified_is_reported_honestly(tmp_path):
     ctx = seeded(tmp_path, by_schema(understand=understood(question("search", topic="Priya")), answer=synth))
     out = render(ask(ctx, "priya?"))
     assert "couldn't verify" in out.lower()
-    assert "Made up" not in out
+    # shown, but only in the labeled unverified block, never as a stated fact
+    assert "Not directly sourced" in out
+    assert "Made up. (near:" in out
 
 
 def test_unknown_intent_falls_back_to_search(tmp_path):
@@ -302,10 +309,12 @@ def test_questions_about_mail_you_sent_search_your_own_mail_first(tmp_path):
 
 def test_an_empty_answer_says_nothing_answered_it_unless_claims_were_dropped():
     from archie.ask.answer import Answer
-    from archie.ask.render import EMPTY_ANSWER, UNVERIFIED
+    from archie.ask.render import UNVERIFIED, EMPTY_ANSWER
+    from archie.llm.verify import Unverified
 
     assert render(Answer()) == EMPTY_ANSWER
-    assert render(Answer(dropped=2)) == UNVERIFIED
+    out = render(Answer(unverified=[Unverified("a guess with no source")]))
+    assert out.startswith(UNVERIFIED) and "a guess with no source (no source given)" in out
 
 
 def test_usage_line_records_people_topic_and_sources(tmp_path):
