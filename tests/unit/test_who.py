@@ -207,20 +207,20 @@ def test_a_guess_from_a_dropped_s_is_said(tmp_path):
 
 
 def test_a_missing_space_is_one_typo_apart(tmp_path):
-    """Live (2026-10-12): "Tell me about HeadphonesRUs" found nobody, though the real sender
-    (a AutoReply auto-reply address) writes its own display name with no space:
-    "Headphonesrus Support"."""
-    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["HeadphonesRUs"])),
+    """Live (2026-10-12): "Tell me about Headphones RUs" found nobody, though the real sender
+    (an auto-reply address) writes its own display name with no space:
+    "HeadphonesRUs Support"."""
+    ctx = make_ctx(tmp_path, FakeBackend(by_schema(understand=understood(question("who", people=["Headphones RUs"])),
                                                    answer=EMPTY)))
     p = write_thread(ctx.home, "t5", [
-        msg("m5", "x7k2p9mqz4njvwtr@emails.example.com", "Headphonesrus Support", [addr(TEST)],
-            "2023-07-12T18:26:46+00:00", "Thanks for reaching out to HeadphonesRUs support!", to_me=True),
-        msg("m6", TEST, "Test", [addr("x7k2p9mqz4njvwtr@emails.example.com", "Headphonesrus Support")],
+        msg("m5", "x7k2p9mqz4njvwtr@emails.example.com", "HeadphonesRUs Support", [addr(TEST)],
+            "2023-07-12T18:26:46+00:00", "Thanks for reaching out to Headphones RUs support!", to_me=True),
+        msg("m6", TEST, "Test", [addr("x7k2p9mqz4njvwtr@emails.example.com", "HeadphonesRUs Support")],
             "2023-07-13T02:36:12+00:00", "Thanks", from_me=True)])
     derive_people(ctx, [p])
     ctx.index.sync()
-    out = render(ask(ctx, "Tell me about HeadphonesRUs"))
-    assert out.startswith("I took HeadphonesRUs to mean Headphonesrus Support.")
+    out = render(ask(ctx, "Tell me about Headphones RUs"))
+    assert out.startswith("I took Headphones RUs to mean HeadphonesRUs Support.")
     assert "anyone called" not in out
 
 
